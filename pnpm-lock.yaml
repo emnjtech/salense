@@ -58,6 +58,9 @@ importers:
       "@salense/database":
         specifier: workspace:*
         version: link:../../packages/database
+      bcryptjs:
+        specifier: 2.4.3
+        version: 2.4.3
       class-transformer:
         specifier: 0.5.1
         version: 0.5.1
@@ -77,6 +80,9 @@ importers:
       "@nestjs/testing":
         specifier: 11.0.7
         version: 11.0.7(@nestjs/common@11.0.7(class-transformer@0.5.1)(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/core@11.0.7)(@nestjs/platform-express@11.0.7)
+      "@types/bcryptjs":
+        specifier: 2.4.6
+        version: 2.4.6
       "@types/node":
         specifier: 22.10.5
         version: 22.10.5
@@ -1730,6 +1736,12 @@ packages:
         integrity: sha512-8PvcXf70gTDZBgt9ptxJ8elBeBjcLOAcOtoO/mPJjtji1+CdGbHgm77om1GrsPxsiE+uXIpNSK64UYaIwQXd4Q==,
       }
 
+  "@types/bcryptjs@2.4.6":
+    resolution:
+      {
+        integrity: sha512-9xlo6R2qDs5uixm0bcIqCeMCE6HiQsIyel9KQySStiyqNl2tnj2mP3DX1Nf56MD6KMenNNlBBsy3LJ7gUEQPXQ==,
+      }
+
   "@types/cookiejar@2.1.5":
     resolution:
       {
@@ -2261,6 +2273,12 @@ packages:
       }
     engines: { node: ">=6.0.0" }
     hasBin: true
+
+  bcryptjs@2.4.3:
+    resolution:
+      {
+        integrity: sha512-V/Hy/X9Vt7f3BbPJEi8BdVFMByHi+jNXrYkW3huaybV/kQ0KJg0Y6PkEMbn+zeT+i+SiKZ/HMqJGIIt4LZDqNQ==,
+      }
 
   binary-extensions@2.3.0:
     resolution:
@@ -6778,6 +6796,8 @@ snapshots:
     dependencies:
       "@babel/types": 7.29.7
 
+  "@types/bcryptjs@2.4.6": {}
+
   "@types/cookiejar@2.1.5": {}
 
   "@types/eslint-scope@3.7.7":
@@ -7154,6 +7174,8 @@ snapshots:
   base64-js@1.5.1: {}
 
   baseline-browser-mapping@2.10.40: {}
+
+  bcryptjs@2.4.3: {}
 
   binary-extensions@2.3.0: {}
 
