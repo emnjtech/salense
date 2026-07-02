@@ -3,6 +3,8 @@ import { Test } from "@nestjs/testing";
 import request from "supertest";
 import type { Server } from "node:http";
 import type { Test as HttpRequest } from "supertest";
+import { PrismaService } from "../../database/prisma.service.js";
+import { BcryptPasswordHasherService } from "../security/index.js";
 import { AuthModule } from "../auth.module.js";
 
 type HttpMethod = "post" | "put";
@@ -14,10 +16,25 @@ interface ContractCase {
   readonly path: string;
 }
 
+const prismaClient = {
+  user: {
+    findUnique: jest.fn(),
+    create: jest.fn(),
+  },
+};
+const passwordHasher = {
+  hashPassword: jest.fn(),
+};
+
 async function createContractApp(): Promise<INestApplication> {
   const testingModule = await Test.createTestingModule({
     imports: [AuthModule],
-  }).compile();
+  })
+    .overrideProvider(PrismaService)
+    .useValue({ client: prismaClient })
+    .overrideProvider(BcryptPasswordHasherService)
+    .useValue(passwordHasher)
+    .compile();
 
   const app = testingModule.createNestApplication();
   app.useGlobalPipes(
@@ -32,7 +49,10 @@ async function createContractApp(): Promise<INestApplication> {
   return app;
 }
 
-function sendRequest(server: Server, contract: ContractCase): HttpRequest {
+function sendRequest(
+  server: Server,
+  contract: Omit<ContractCase, "notImplementedMessage">,
+): HttpRequest {
   const agent = request(server);
 
   if (contract.method === "post") {
@@ -53,20 +73,16 @@ async function withContractApp(assertion: (server: Server) => Promise<void>): Pr
   }
 }
 
-const implementedLookingContracts = [
-  {
-    method: "post",
-    path: "/auth/register",
-    body: {
-      firstName: "Sarah",
-      lastName: "Owner",
-      email: "sarah@example.com",
-      password: "Password123!",
-      confirmPassword: "Password123!",
-      companyName: "Example Company",
-    },
-    notImplementedMessage: "Registration is not implemented in the Phase 1 skeleton.",
-  },
+const registrationBody = {
+  firstName: "Sarah",
+  lastName: "Owner",
+  email: "SARAH@example.com",
+  password: "Password123!",
+  confirmPassword: "Password123!",
+  companyName: "Example Company",
+};
+
+const unimplementedContracts = [
   {
     method: "post",
     path: "/auth/login",
@@ -158,7 +174,46 @@ const invalidContracts = [
 ] as const satisfies readonly Omit<ContractCase, "notImplementedMessage">[];
 
 describe("Phase 1 authentication and user management controller contracts", () => {
-  it.each(implementedLookingContracts)(
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it("post /auth/register route creates a safe registration response", async () => {
+    prismaClient.user.findUnique.mockResolvedValue(null);
+    passwordHasher.hashPassword.mockResolvedValue("hashed-password");
+    prismaClient.user.create.mockResolvedValue({
+      id: "user_1",
+      firstName: "Sarah",
+      lastName: "Owner",
+      email: "sarah@example.com",
+      emailVerified: false,
+      businesses: [{ id: "business_1", name: "Example Company" }],
+    });
+
+    await withContractApp(async (server) => {
+      const response = await sendRequest(server, {
+        method: "post",
+        path: "/auth/register",
+        body: registrationBody,
+      });
+
+      expect(response.status).toBe(201);
+      expect(response.body).toEqual({
+        user: {
+          id: "user_1",
+          firstName: "Sarah",
+          lastName: "Owner",
+          email: "sarah@example.com",
+          emailVerified: false,
+        },
+        business: { id: "business_1", name: "Example Company" },
+      });
+      expect(JSON.stringify(response.body)).not.toContain("password");
+      expect(JSON.stringify(response.body)).not.toContain("token");
+    });
+  });
+
+  it.each(unimplementedContracts)(
     "$method $path route exists and returns explicit NotImplementedException",
     async (contract) => {
       await withContractApp(async (server) => {
@@ -176,10 +231,7 @@ describe("Phase 1 authentication and user management controller contracts", () =
 
   it.each(invalidContracts)("$method $path rejects invalid request bodies", async (contract) => {
     await withContractApp(async (server) => {
-      const response = await sendRequest(server, {
-        ...contract,
-        notImplementedMessage: "",
-      });
+      const response = await sendRequest(server, contract);
 
       expect(response.status).toBe(400);
       expect(response.body).toMatchObject({

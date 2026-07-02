@@ -8,13 +8,14 @@ import { PasswordResetRequestDto } from "./dto/password-reset-request.dto.js";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- Nest validation requires runtime DTO metadata.
 import { RegisterRequestDto } from "./dto/register-request.dto.js";
 import { AuthService } from "./auth.service.js";
+import type { RegistrationResponse } from "./types/registration-response.type.js";
 
 @Controller("auth")
 export class AuthController {
   constructor(@Inject(AuthService) private readonly authService: AuthService) {}
 
   @Post("register")
-  register(@Body() registerRequest: RegisterRequestDto): never {
+  register(@Body() registerRequest: RegisterRequestDto): Promise<RegistrationResponse> {
     return this.authService.register(registerRequest);
   }
 

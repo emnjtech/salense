@@ -37,11 +37,11 @@ model Business {
   name                   String
   tradingName            String?
   businessLogoUrl        String?
-  country                String
-  timeZone               String
-  currency               String
-  taxPreference          String
-  industry               String
+  country                String?
+  timeZone               String?
+  currency               String?
+  taxPreference          String?
+  industry               String?
   businessSize           String?
   defaultReportingPeriod String?
 
