@@ -14,6 +14,15 @@ export default [
       "**/test-results/**",
     ],
   },
+
+  {
+    files: ["**/*.cjs"],
+    languageOptions: {
+      globals: {
+        module: "readonly",
+      },
+    },
+  },
   js.configs.recommended,
   ...tseslint.configs.strict,
   ...tseslint.configs.stylistic,

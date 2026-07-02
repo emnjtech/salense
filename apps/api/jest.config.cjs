@@ -2,10 +2,10 @@
 module.exports = {
   preset: "ts-jest",
   testEnvironment: "node",
-  testMatch: ["<rootDir>/tests/**/*.test.ts", "<rootDir>/**/__tests__/**/*.test.ts"],
+  testMatch: ["<rootDir>/src/**/__tests__/**/*.test.ts"],
   moduleNameMapper: {
     "^(\\.{1,2}/.*)\\.js$": "$1",
   },
-  modulePathIgnorePatterns: ["<rootDir>/dist", "<rootDir>/.next"],
+  modulePathIgnorePatterns: ["<rootDir>/dist"],
   passWithNoTests: true,
 };
