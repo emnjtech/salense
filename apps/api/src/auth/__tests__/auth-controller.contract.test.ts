@@ -208,6 +208,9 @@ describe("Phase 1 authentication and user management controller contracts", () =
           emailVerified: true,
         },
       });
+      expect(response.body.session).toBeUndefined();
+      expect(response.body.accessToken).toBeUndefined();
+      expect(response.body.refreshToken).toBeUndefined();
       expect(JSON.stringify(response.body)).not.toContain("password");
       expect(JSON.stringify(response.body)).not.toContain("token");
       expect(JSON.stringify(response.body)).not.toContain("session");
