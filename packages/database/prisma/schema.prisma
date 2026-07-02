@@ -6,3 +6,87 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+/// Phase 1 account identity for Salense users.
+/// Authentication logic is intentionally not wired to this model yet.
+model User {
+  id              String    @id @default(cuid())
+  firstName       String
+  lastName        String
+  email           String    @unique
+  passwordHash    String
+  emailVerified   Boolean   @default(false)
+  emailVerifiedAt DateTime?
+
+  businesses              Business[]
+  emailVerificationTokens EmailVerificationToken[]
+  passwordResetTokens     PasswordResetToken[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+/// Business profile required before store integrations are enabled.
+/// Version 1 supports one business per account via the ownerId unique constraint;
+/// the User.businesses relation remains future-friendly for multiple businesses.
+model Business {
+  id                     String  @id @default(cuid())
+  ownerId                String  @unique
+  name                   String
+  tradingName            String?
+  businessLogoUrl        String?
+  country                String
+  timeZone               String
+  currency               String
+  taxPreference          String
+  industry               String
+  businessSize           String?
+  defaultReportingPeriod String?
+
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("businesses")
+}
+
+/// Hashed email verification token generated after registration.
+/// Stores lookup and expiry state only; email delivery is intentionally not implemented yet.
+model EmailVerificationToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("email_verification_tokens")
+}
+
+/// Hashed password reset token for time-limited account recovery.
+/// Password hashing and reset execution are intentionally not implemented yet.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("password_reset_tokens")
+}
