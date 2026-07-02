@@ -1,6 +1,15 @@
-import { ConflictException, NotImplementedException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+  NotImplementedException,
+} from "@nestjs/common";
 import type { PrismaService } from "../../database/prisma.service.js";
-import type { BcryptPasswordHasherService } from "../security/index.js";
+import type { EmailService } from "../../email/email.service.js";
+import type {
+  BcryptPasswordHasherService,
+  EmailVerificationTokenService,
+} from "../security/index.js";
 import { AuthService } from "../auth.service.js";
 
 const registerRequest = {
@@ -17,60 +26,115 @@ function createAuthServiceMocks(): {
   readonly findUnique: jest.Mock;
   readonly create: jest.Mock;
   readonly hashPassword: jest.Mock;
+  readonly generateToken: jest.Mock;
+  readonly hashToken: jest.Mock;
+  readonly getExpiryDate: jest.Mock;
+  readonly sendVerificationEmail: jest.Mock;
+  readonly findVerificationToken: jest.Mock;
+  readonly updateUser: jest.Mock;
+  readonly updateVerificationToken: jest.Mock;
+  readonly transaction: jest.Mock;
 } {
   const findUnique = jest.fn();
   const create = jest.fn();
   const hashPassword = jest.fn();
+  const generateToken = jest.fn();
+  const hashToken = jest.fn();
+  const getExpiryDate = jest.fn();
+  const sendVerificationEmail = jest.fn();
+  const findVerificationToken = jest.fn();
+  const updateUser = jest.fn();
+  const updateVerificationToken = jest.fn();
+  const transaction = jest.fn(async (callback: (client: unknown) => Promise<unknown>) =>
+    callback({
+      user: { update: updateUser },
+      emailVerificationToken: { update: updateVerificationToken },
+    }),
+  );
   const prismaService = {
     client: {
       user: {
         findUnique,
         create,
+        update: updateUser,
       },
+      emailVerificationToken: {
+        findUnique: findVerificationToken,
+        update: updateVerificationToken,
+      },
+      $transaction: transaction,
     },
   } as unknown as PrismaService;
-  const passwordHasher = {
-    hashPassword,
-  } as unknown as BcryptPasswordHasherService;
+  const passwordHasher = { hashPassword } as unknown as BcryptPasswordHasherService;
+  const tokenService = {
+    generateToken,
+    hashToken,
+    getExpiryDate,
+  } as unknown as EmailVerificationTokenService;
+  const emailService = { sendVerificationEmail } as unknown as EmailService;
 
   return {
-    service: new AuthService(prismaService, passwordHasher),
+    service: new AuthService(prismaService, passwordHasher, tokenService, emailService),
     findUnique,
     create,
     hashPassword,
+    generateToken,
+    hashToken,
+    getExpiryDate,
+    sendVerificationEmail,
+    findVerificationToken,
+    updateUser,
+    updateVerificationToken,
+    transaction,
   };
 }
 
+function mockCreatedUser(create: jest.Mock): void {
+  create.mockResolvedValue({
+    id: "user_1",
+    firstName: "Sarah",
+    lastName: "Owner",
+    email: "sarah@example.com",
+    emailVerified: false,
+    businesses: [{ id: "business_1", name: "Example Company" }],
+  });
+}
+
 describe("AuthService", () => {
-  it("creates a user and business during registration", async () => {
-    const { service, findUnique, create, hashPassword } = createAuthServiceMocks();
-    findUnique.mockResolvedValue(null);
-    hashPassword.mockResolvedValue("hashed-password");
-    create.mockResolvedValue({
-      id: "user_1",
-      firstName: "Sarah",
-      lastName: "Owner",
-      email: "sarah@example.com",
-      emailVerified: false,
-      businesses: [{ id: "business_1", name: "Example Company" }],
-    });
+  it("creates a user, business, and hashed verification token during registration", async () => {
+    const mocks = createAuthServiceMocks();
+    mocks.findUnique.mockResolvedValue(null);
+    mocks.hashPassword.mockResolvedValue("hashed-password");
+    mocks.generateToken.mockReturnValue("raw-verification-token");
+    mocks.hashToken.mockReturnValue("hashed-verification-token");
+    mocks.getExpiryDate.mockReturnValue(new Date("2026-07-03T12:00:00.000Z"));
+    mockCreatedUser(mocks.create);
 
-    const response = await service.register(registerRequest);
+    const response = await mocks.service.register(registerRequest);
 
-    expect(findUnique).toHaveBeenCalledWith({ where: { email: "sarah@example.com" } });
-    expect(hashPassword).toHaveBeenCalledWith("Password123!");
-    expect(create).toHaveBeenCalledWith(
+    expect(mocks.findUnique).toHaveBeenCalledWith({ where: { email: "sarah@example.com" } });
+    expect(mocks.hashPassword).toHaveBeenCalledWith("Password123!");
+    expect(mocks.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          firstName: "Sarah",
-          lastName: "Owner",
           email: "sarah@example.com",
           passwordHash: "hashed-password",
           emailVerified: false,
           businesses: { create: { name: "Example Company" } },
+          emailVerificationTokens: {
+            create: {
+              tokenHash: "hashed-verification-token",
+              expiresAt: new Date("2026-07-03T12:00:00.000Z"),
+            },
+          },
         }),
       }),
     );
+    expect(mocks.sendVerificationEmail).toHaveBeenCalledWith({
+      email: "sarah@example.com",
+      firstName: "Sarah",
+      verificationToken: "raw-verification-token",
+    });
     expect(response).toEqual({
       user: {
         id: "user_1",
@@ -92,51 +156,97 @@ describe("AuthService", () => {
     expect(create).not.toHaveBeenCalled();
   });
 
-  it("stores a password hash instead of the plaintext password", async () => {
-    const { service, findUnique, create, hashPassword } = createAuthServiceMocks();
-    findUnique.mockResolvedValue(null);
-    hashPassword.mockResolvedValue("hashed-password");
-    create.mockResolvedValue({
-      id: "user_1",
-      firstName: "Sarah",
-      lastName: "Owner",
-      email: "sarah@example.com",
-      emailVerified: false,
-      businesses: [{ id: "business_1", name: "Example Company" }],
-    });
-
-    await service.register(registerRequest);
-
-    expect(create.mock.calls[0][0].data.passwordHash).toBe("hashed-password");
-    expect(create.mock.calls[0][0].data.passwordHash).not.toBe(registerRequest.password);
-  });
-
   it("excludes sensitive fields from the registration response", async () => {
-    const { service, findUnique, create, hashPassword } = createAuthServiceMocks();
-    findUnique.mockResolvedValue(null);
-    hashPassword.mockResolvedValue("hashed-password");
-    create.mockResolvedValue({
-      id: "user_1",
-      firstName: "Sarah",
-      lastName: "Owner",
-      email: "sarah@example.com",
-      emailVerified: false,
-      businesses: [{ id: "business_1", name: "Example Company" }],
-    });
+    const mocks = createAuthServiceMocks();
+    mocks.findUnique.mockResolvedValue(null);
+    mocks.hashPassword.mockResolvedValue("hashed-password");
+    mocks.generateToken.mockReturnValue("raw-verification-token");
+    mocks.hashToken.mockReturnValue("hashed-verification-token");
+    mocks.getExpiryDate.mockReturnValue(new Date("2026-07-03T12:00:00.000Z"));
+    mockCreatedUser(mocks.create);
 
-    const response = await service.register(registerRequest);
+    const response = await mocks.service.register(registerRequest);
 
     expect(JSON.stringify(response)).not.toContain("hashed-password");
     expect(JSON.stringify(response)).not.toContain(registerRequest.password);
-    expect(JSON.stringify(response)).not.toContain("token");
+    expect(JSON.stringify(response)).not.toContain("raw-verification-token");
+    expect(JSON.stringify(response)).not.toContain("hashed-verification-token");
   });
 
-  it("keeps email verification unimplemented in the skeleton", () => {
-    const { service } = createAuthServiceMocks();
+  it("marks a user verified and invalidates a valid token", async () => {
+    const mocks = createAuthServiceMocks();
+    mocks.hashToken.mockReturnValue("hashed-token");
+    mocks.findVerificationToken.mockResolvedValue({
+      id: "token_1",
+      userId: "user_1",
+      expiresAt: new Date(Date.now() + 60_000),
+      usedAt: null,
+    });
 
-    expect(() => service.verifyEmail({ token: "placeholder-token" })).toThrow(
-      NotImplementedException,
+    await expect(mocks.service.verifyEmail({ token: "raw-token" })).resolves.toEqual({
+      emailVerified: true,
+    });
+
+    expect(mocks.findVerificationToken).toHaveBeenCalledWith({
+      where: { tokenHash: "hashed-token" },
+      select: { id: true, userId: true, expiresAt: true, usedAt: true },
+    });
+    expect(mocks.transaction).toHaveBeenCalledTimes(1);
+    expect(mocks.updateUser).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "user_1" },
+        data: expect.objectContaining({ emailVerified: true }),
+      }),
     );
+    expect(mocks.updateVerificationToken).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "token_1" },
+        data: expect.objectContaining({ usedAt: expect.any(Date) }),
+      }),
+    );
+  });
+
+  it("rejects an expired verification token", async () => {
+    const mocks = createAuthServiceMocks();
+    mocks.hashToken.mockReturnValue("hashed-token");
+    mocks.findVerificationToken.mockResolvedValue({
+      id: "token_1",
+      userId: "user_1",
+      expiresAt: new Date(Date.now() - 60_000),
+      usedAt: null,
+    });
+
+    await expect(mocks.service.verifyEmail({ token: "raw-token" })).rejects.toThrow(
+      BadRequestException,
+    );
+    expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects an invalid verification token", async () => {
+    const mocks = createAuthServiceMocks();
+    mocks.hashToken.mockReturnValue("hashed-token");
+    mocks.findVerificationToken.mockResolvedValue(null);
+
+    await expect(mocks.service.verifyEmail({ token: "raw-token" })).rejects.toThrow(
+      NotFoundException,
+    );
+    expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+
+  it("prevents verification token reuse", async () => {
+    const mocks = createAuthServiceMocks();
+    mocks.hashToken.mockReturnValue("hashed-token");
+    mocks.findVerificationToken.mockResolvedValue({
+      id: "token_1",
+      userId: "user_1",
+      expiresAt: new Date(Date.now() + 60_000),
+      usedAt: new Date(),
+    });
+
+    await expect(mocks.service.verifyEmail({ token: "raw-token" })).rejects.toThrow(
+      NotFoundException,
+    );
+    expect(mocks.transaction).not.toHaveBeenCalled();
   });
 
   it("keeps password reset unimplemented in the skeleton", () => {

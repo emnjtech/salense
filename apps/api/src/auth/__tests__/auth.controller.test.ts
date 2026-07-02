@@ -6,6 +6,7 @@ describe("AuthController", () => {
   const authService = {
     register: jest.fn(),
     login: jest.fn(),
+    verifyEmail: jest.fn(),
   } as unknown as AuthService;
   const controller = new AuthController(authService);
 
@@ -45,5 +46,12 @@ describe("AuthController", () => {
         password: "Password123!",
       }),
     ).toThrow(NotImplementedException);
+  });
+
+  it("delegates email verification to AuthService", async () => {
+    const response = { emailVerified: true as const };
+    jest.mocked(authService.verifyEmail).mockResolvedValueOnce(response);
+
+    await expect(controller.verifyEmail({ token: "verification-token" })).resolves.toBe(response);
   });
 });

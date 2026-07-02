@@ -1,4 +1,4 @@
-import { Body, Controller, Inject, NotImplementedException, Post } from "@nestjs/common";
+import { Body, Controller, HttpCode, Inject, NotImplementedException, Post } from "@nestjs/common";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- Nest validation requires runtime DTO metadata.
 import { EmailVerificationRequestDto } from "./dto/email-verification-request.dto.js";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- Nest validation requires runtime DTO metadata.
@@ -8,6 +8,7 @@ import { PasswordResetRequestDto } from "./dto/password-reset-request.dto.js";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- Nest validation requires runtime DTO metadata.
 import { RegisterRequestDto } from "./dto/register-request.dto.js";
 import { AuthService } from "./auth.service.js";
+import type { EmailVerificationResponse } from "./types/email-verification-response.type.js";
 import type { RegistrationResponse } from "./types/registration-response.type.js";
 
 @Controller("auth")
@@ -25,7 +26,10 @@ export class AuthController {
   }
 
   @Post("email-verification")
-  verifyEmail(@Body() emailVerificationRequest: EmailVerificationRequestDto): never {
+  @HttpCode(200)
+  verifyEmail(
+    @Body() emailVerificationRequest: EmailVerificationRequestDto,
+  ): Promise<EmailVerificationResponse> {
     return this.authService.verifyEmail(emailVerificationRequest);
   }
 

@@ -4,7 +4,8 @@ import request from "supertest";
 import type { Server } from "node:http";
 import type { Test as HttpRequest } from "supertest";
 import { PrismaService } from "../../database/prisma.service.js";
-import { BcryptPasswordHasherService } from "../security/index.js";
+import { EmailService } from "../../email/email.service.js";
+import { BcryptPasswordHasherService, EmailVerificationTokenService } from "../security/index.js";
 import { AuthModule } from "../auth.module.js";
 
 type HttpMethod = "post" | "put";
@@ -20,10 +21,24 @@ const prismaClient = {
   user: {
     findUnique: jest.fn(),
     create: jest.fn(),
+    update: jest.fn(),
   },
+  emailVerificationToken: {
+    findUnique: jest.fn(),
+    update: jest.fn(),
+  },
+  $transaction: jest.fn(),
 };
 const passwordHasher = {
   hashPassword: jest.fn(),
+};
+const emailVerificationTokens = {
+  generateToken: jest.fn(),
+  hashToken: jest.fn(),
+  getExpiryDate: jest.fn(),
+};
+const emailService = {
+  sendVerificationEmail: jest.fn(),
 };
 
 async function createContractApp(): Promise<INestApplication> {
@@ -34,6 +49,10 @@ async function createContractApp(): Promise<INestApplication> {
     .useValue({ client: prismaClient })
     .overrideProvider(BcryptPasswordHasherService)
     .useValue(passwordHasher)
+    .overrideProvider(EmailVerificationTokenService)
+    .useValue(emailVerificationTokens)
+    .overrideProvider(EmailService)
+    .useValue(emailService)
     .compile();
 
   const app = testingModule.createNestApplication();
@@ -91,14 +110,6 @@ const unimplementedContracts = [
       password: "Password123!",
     },
     notImplementedMessage: "Login is not implemented in the Phase 1 skeleton.",
-  },
-  {
-    method: "post",
-    path: "/auth/email-verification",
-    body: {
-      token: "verification-token",
-    },
-    notImplementedMessage: "Email verification is not implemented in the Phase 1 skeleton.",
   },
   {
     method: "post",
@@ -176,11 +187,17 @@ const invalidContracts = [
 describe("Phase 1 authentication and user management controller contracts", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    prismaClient.$transaction.mockImplementation(
+      async (callback: (client: unknown) => Promise<unknown>) => callback(prismaClient),
+    );
   });
 
   it("post /auth/register route creates a safe registration response", async () => {
     prismaClient.user.findUnique.mockResolvedValue(null);
     passwordHasher.hashPassword.mockResolvedValue("hashed-password");
+    emailVerificationTokens.generateToken.mockReturnValue("raw-verification-token");
+    emailVerificationTokens.hashToken.mockReturnValue("hashed-verification-token");
+    emailVerificationTokens.getExpiryDate.mockReturnValue(new Date("2026-07-03T12:00:00.000Z"));
     prismaClient.user.create.mockResolvedValue({
       id: "user_1",
       firstName: "Sarah",
@@ -210,6 +227,46 @@ describe("Phase 1 authentication and user management controller contracts", () =
       });
       expect(JSON.stringify(response.body)).not.toContain("password");
       expect(JSON.stringify(response.body)).not.toContain("token");
+      expect(emailService.sendVerificationEmail).toHaveBeenCalledWith({
+        email: "sarah@example.com",
+        firstName: "Sarah",
+        verificationToken: "raw-verification-token",
+      });
+    });
+  });
+
+  it("post /auth/email-verification verifies a valid token and does not return token data", async () => {
+    emailVerificationTokens.hashToken.mockReturnValue("hashed-verification-token");
+    prismaClient.emailVerificationToken.findUnique.mockResolvedValue({
+      id: "verification_token_1",
+      userId: "user_1",
+      expiresAt: new Date(Date.now() + 60_000),
+      usedAt: null,
+    });
+
+    await withContractApp(async (server) => {
+      const response = await sendRequest(server, {
+        method: "post",
+        path: "/auth/email-verification",
+        body: { token: "raw-verification-token" },
+      });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ emailVerified: true });
+      expect(JSON.stringify(response.body)).not.toContain("raw-verification-token");
+      expect(JSON.stringify(response.body)).not.toContain("hashed-verification-token");
+      expect(prismaClient.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "user_1" },
+          data: expect.objectContaining({ emailVerified: true }),
+        }),
+      );
+      expect(prismaClient.emailVerificationToken.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "verification_token_1" },
+          data: expect.objectContaining({ usedAt: expect.any(Date) }),
+        }),
+      );
     });
   });
 
