@@ -1,0 +1,25 @@
+{
+  "name": "@salense/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nest start --watch",
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "jest --passWithNoTests",
+    "clean": "rm -rf dist coverage"
+  },
+  "dependencies": {
+    "@nestjs/common": "11.0.7",
+    "@nestjs/core": "11.0.7",
+    "@nestjs/platform-express": "11.0.7",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.1"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "11.0.2",
+    "@types/node": "22.10.5"
+  }
+}
