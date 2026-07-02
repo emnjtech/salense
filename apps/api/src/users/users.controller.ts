@@ -1,5 +1,6 @@
 import { Body, Controller, Inject, NotImplementedException, Put } from "@nestjs/common";
-import type { CompanyProfileRequestDto } from "./dto/company-profile-request.dto.js";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- Nest validation requires runtime DTO metadata.
+import { CompanyProfileRequestDto } from "./dto/company-profile-request.dto.js";
 import { UsersService } from "./users.service.js";
 
 @Controller("users")

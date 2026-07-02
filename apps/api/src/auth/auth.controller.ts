@@ -1,8 +1,12 @@
 import { Body, Controller, Inject, NotImplementedException, Post } from "@nestjs/common";
-import type { EmailVerificationRequestDto } from "./dto/email-verification-request.dto.js";
-import type { LoginRequestDto } from "./dto/login-request.dto.js";
-import type { PasswordResetRequestDto } from "./dto/password-reset-request.dto.js";
-import type { RegisterRequestDto } from "./dto/register-request.dto.js";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- Nest validation requires runtime DTO metadata.
+import { EmailVerificationRequestDto } from "./dto/email-verification-request.dto.js";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- Nest validation requires runtime DTO metadata.
+import { LoginRequestDto } from "./dto/login-request.dto.js";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- Nest validation requires runtime DTO metadata.
+import { PasswordResetRequestDto } from "./dto/password-reset-request.dto.js";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- Nest validation requires runtime DTO metadata.
+import { RegisterRequestDto } from "./dto/register-request.dto.js";
 import { AuthService } from "./auth.service.js";
 
 @Controller("auth")
