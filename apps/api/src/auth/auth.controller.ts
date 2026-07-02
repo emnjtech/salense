@@ -9,6 +9,7 @@ import { PasswordResetRequestDto } from "./dto/password-reset-request.dto.js";
 import { RegisterRequestDto } from "./dto/register-request.dto.js";
 import { AuthService } from "./auth.service.js";
 import type { EmailVerificationResponse } from "./types/email-verification-response.type.js";
+import type { LoginEligibilityResponse } from "./types/login-eligibility-response.type.js";
 import type { RegistrationResponse } from "./types/registration-response.type.js";
 
 @Controller("auth")
@@ -21,7 +22,8 @@ export class AuthController {
   }
 
   @Post("login")
-  login(@Body() loginRequest: LoginRequestDto): never {
+  @HttpCode(200)
+  login(@Body() loginRequest: LoginRequestDto): Promise<LoginEligibilityResponse> {
     return this.authService.login(loginRequest);
   }
 

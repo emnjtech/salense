@@ -31,6 +31,7 @@ const prismaClient = {
 };
 const passwordHasher = {
   hashPassword: jest.fn(),
+  comparePassword: jest.fn(),
 };
 const emailVerificationTokens = {
   generateToken: jest.fn(),
@@ -102,15 +103,6 @@ const registrationBody = {
 };
 
 const unimplementedContracts = [
-  {
-    method: "post",
-    path: "/auth/login",
-    body: {
-      email: "sarah@example.com",
-      password: "Password123!",
-    },
-    notImplementedMessage: "Login is not implemented in the Phase 1 skeleton.",
-  },
   {
     method: "post",
     path: "/auth/password-reset",
@@ -190,6 +182,43 @@ describe("Phase 1 authentication and user management controller contracts", () =
     prismaClient.$transaction.mockImplementation(
       async (callback: (client: unknown) => Promise<unknown>) => callback(prismaClient),
     );
+  });
+
+  it("post /auth/login returns a safe eligibility response for a verified user", async () => {
+    prismaClient.user.findUnique.mockResolvedValue({
+      id: "user_1",
+      email: "sarah@example.com",
+      passwordHash: "hashed-password",
+      emailVerified: true,
+    });
+    passwordHasher.comparePassword.mockResolvedValue(true);
+
+    await withContractApp(async (server) => {
+      const response = await sendRequest(server, {
+        method: "post",
+        path: "/auth/login",
+        body: { email: "SARAH@example.com", password: "Password123!" },
+      });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        user: {
+          id: "user_1",
+          email: "sarah@example.com",
+          emailVerified: true,
+        },
+      });
+      expect(JSON.stringify(response.body)).not.toContain("password");
+      expect(JSON.stringify(response.body)).not.toContain("token");
+      expect(JSON.stringify(response.body)).not.toContain("session");
+      expect(prismaClient.user.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { email: "sarah@example.com" } }),
+      );
+      expect(passwordHasher.comparePassword).toHaveBeenCalledWith(
+        "Password123!",
+        "hashed-password",
+      );
+    });
   });
 
   it("post /auth/register route creates a safe registration response", async () => {

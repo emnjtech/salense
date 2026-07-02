@@ -1,8 +1,10 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   NotFoundException,
   NotImplementedException,
+  UnauthorizedException,
 } from "@nestjs/common";
 import type { PrismaService } from "../../database/prisma.service.js";
 import type { EmailService } from "../../email/email.service.js";
@@ -26,6 +28,7 @@ function createAuthServiceMocks(): {
   readonly findUnique: jest.Mock;
   readonly create: jest.Mock;
   readonly hashPassword: jest.Mock;
+  readonly comparePassword: jest.Mock;
   readonly generateToken: jest.Mock;
   readonly hashToken: jest.Mock;
   readonly getExpiryDate: jest.Mock;
@@ -38,6 +41,7 @@ function createAuthServiceMocks(): {
   const findUnique = jest.fn();
   const create = jest.fn();
   const hashPassword = jest.fn();
+  const comparePassword = jest.fn();
   const generateToken = jest.fn();
   const hashToken = jest.fn();
   const getExpiryDate = jest.fn();
@@ -65,7 +69,10 @@ function createAuthServiceMocks(): {
       $transaction: transaction,
     },
   } as unknown as PrismaService;
-  const passwordHasher = { hashPassword } as unknown as BcryptPasswordHasherService;
+  const passwordHasher = {
+    hashPassword,
+    comparePassword,
+  } as unknown as BcryptPasswordHasherService;
   const tokenService = {
     generateToken,
     hashToken,
@@ -78,6 +85,7 @@ function createAuthServiceMocks(): {
     findUnique,
     create,
     hashPassword,
+    comparePassword,
     generateToken,
     hashToken,
     getExpiryDate,
@@ -247,6 +255,99 @@ describe("AuthService", () => {
       NotFoundException,
     );
     expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+
+  it("allows login eligibility for a verified user with a matching password", async () => {
+    const mocks = createAuthServiceMocks();
+    mocks.findUnique.mockResolvedValue({
+      id: "user_1",
+      email: "sarah@example.com",
+      passwordHash: "hashed-password",
+      emailVerified: true,
+    });
+    mocks.comparePassword.mockResolvedValue(true);
+
+    await expect(
+      mocks.service.login({ email: "SARAH@EXAMPLE.COM", password: "Password123!" }),
+    ).resolves.toEqual({
+      user: {
+        id: "user_1",
+        email: "sarah@example.com",
+        emailVerified: true,
+      },
+    });
+
+    expect(mocks.findUnique).toHaveBeenCalledWith({
+      where: { email: "sarah@example.com" },
+      select: {
+        id: true,
+        email: true,
+        passwordHash: true,
+        emailVerified: true,
+      },
+    });
+    expect(mocks.comparePassword).toHaveBeenCalledWith("Password123!", "hashed-password");
+  });
+
+  it("blocks login eligibility for an unverified user", async () => {
+    const mocks = createAuthServiceMocks();
+    mocks.findUnique.mockResolvedValue({
+      id: "user_1",
+      email: "sarah@example.com",
+      passwordHash: "hashed-password",
+      emailVerified: false,
+    });
+    mocks.comparePassword.mockResolvedValue(true);
+
+    await expect(
+      mocks.service.login({ email: "sarah@example.com", password: "Password123!" }),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it("rejects login eligibility when the user does not exist", async () => {
+    const mocks = createAuthServiceMocks();
+    mocks.findUnique.mockResolvedValue(null);
+
+    await expect(
+      mocks.service.login({ email: "missing@example.com", password: "Password123!" }),
+    ).rejects.toThrow(UnauthorizedException);
+    expect(mocks.comparePassword).not.toHaveBeenCalled();
+  });
+
+  it("rejects login eligibility when the password is incorrect", async () => {
+    const mocks = createAuthServiceMocks();
+    mocks.findUnique.mockResolvedValue({
+      id: "user_1",
+      email: "sarah@example.com",
+      passwordHash: "hashed-password",
+      emailVerified: true,
+    });
+    mocks.comparePassword.mockResolvedValue(false);
+
+    await expect(
+      mocks.service.login({ email: "sarah@example.com", password: "WrongPass123!" }),
+    ).rejects.toThrow(UnauthorizedException);
+  });
+
+  it("excludes sensitive fields from the login eligibility response", async () => {
+    const mocks = createAuthServiceMocks();
+    mocks.findUnique.mockResolvedValue({
+      id: "user_1",
+      email: "sarah@example.com",
+      passwordHash: "hashed-password",
+      emailVerified: true,
+    });
+    mocks.comparePassword.mockResolvedValue(true);
+
+    const response = await mocks.service.login({
+      email: "sarah@example.com",
+      password: "Password123!",
+    });
+
+    expect(JSON.stringify(response)).not.toContain("hashed-password");
+    expect(JSON.stringify(response)).not.toContain("Password123!");
+    expect(JSON.stringify(response)).not.toContain("token");
+    expect(JSON.stringify(response)).not.toContain("session");
   });
 
   it("keeps password reset unimplemented in the skeleton", () => {

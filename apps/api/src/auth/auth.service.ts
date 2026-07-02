@@ -1,10 +1,12 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
   NotImplementedException,
+  UnauthorizedException,
 } from "@nestjs/common";
 import { EmailService } from "../email/email.service.js";
 import { PrismaService } from "../database/prisma.service.js";
@@ -18,13 +20,25 @@ import {
   isPasswordPolicyCompliant,
 } from "./security/index.js";
 import type { EmailVerificationResponse } from "./types/email-verification-response.type.js";
+import type { LoginEligibilityResponse } from "./types/login-eligibility-response.type.js";
 import type { RegistrationResponse } from "./types/registration-response.type.js";
 
 interface RegistrationPrismaClient {
   readonly user: {
     findUnique(args: {
       readonly where: { readonly email: string };
-    }): Promise<{ readonly id: string } | null>;
+      readonly select?: {
+        readonly id?: true;
+        readonly email?: true;
+        readonly passwordHash?: true;
+        readonly emailVerified?: true;
+      };
+    }): Promise<{
+      readonly id: string;
+      readonly email?: string;
+      readonly passwordHash?: string;
+      readonly emailVerified?: boolean;
+    } | null>;
     create(args: {
       readonly data: {
         readonly firstName: string;
@@ -229,9 +243,43 @@ export class AuthService {
     return { emailVerified: true };
   }
 
-  login(loginRequest: LoginRequestDto): never {
-    void loginRequest;
-    throw new NotImplementedException("Login is not implemented in the Phase 1 skeleton.");
+  async login(loginRequest: LoginRequestDto): Promise<LoginEligibilityResponse> {
+    const normalizedEmail = loginRequest.email.trim().toLowerCase();
+    const prisma = this.prismaService.client as unknown as RegistrationPrismaClient;
+    const user = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      select: {
+        id: true,
+        email: true,
+        passwordHash: true,
+        emailVerified: true,
+      },
+    });
+
+    if (!user?.passwordHash || !user.email) {
+      throw new UnauthorizedException("Invalid email or password.");
+    }
+
+    const passwordMatches = await this.passwordHasher.comparePassword(
+      loginRequest.password,
+      user.passwordHash,
+    );
+
+    if (!passwordMatches) {
+      throw new UnauthorizedException("Invalid email or password.");
+    }
+
+    if (!user.emailVerified) {
+      throw new ForbiddenException("Email verification is required before login.");
+    }
+
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        emailVerified: true,
+      },
+    };
   }
 
   requestPasswordReset(passwordResetRequest: PasswordResetRequestDto): never {
