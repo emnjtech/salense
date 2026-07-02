@@ -19,8 +19,9 @@ import {
   EmailVerificationTokenService,
   isPasswordPolicyCompliant,
 } from "./security/index.js";
+import { JwtSessionConfigService, JwtSessionTokenService } from "./session/index.js";
 import type { EmailVerificationResponse } from "./types/email-verification-response.type.js";
-import type { LoginEligibilityResponse } from "./types/login-eligibility-response.type.js";
+import type { LoginSessionResponse } from "./types/login-session-response.type.js";
 import type { RegistrationResponse } from "./types/registration-response.type.js";
 
 interface RegistrationPrismaClient {
@@ -117,6 +118,10 @@ export class AuthService {
     @Inject(EmailVerificationTokenService)
     private readonly emailVerificationTokens: EmailVerificationTokenService,
     @Inject(EmailService) private readonly emailService: EmailService,
+    @Inject(JwtSessionTokenService)
+    private readonly jwtSessionTokens: JwtSessionTokenService,
+    @Inject(JwtSessionConfigService)
+    private readonly jwtSessionConfig: JwtSessionConfigService,
   ) {}
 
   async register(registerRequest: RegisterRequestDto): Promise<RegistrationResponse> {
@@ -243,7 +248,7 @@ export class AuthService {
     return { emailVerified: true };
   }
 
-  async login(loginRequest: LoginRequestDto): Promise<LoginEligibilityResponse> {
+  async login(loginRequest: LoginRequestDto): Promise<LoginSessionResponse> {
     const normalizedEmail = loginRequest.email.trim().toLowerCase();
     const prisma = this.prismaService.client as unknown as RegistrationPrismaClient;
     const user = await prisma.user.findUnique({
@@ -273,12 +278,21 @@ export class AuthService {
       throw new ForbiddenException("Email verification is required before login.");
     }
 
+    const accessToken = await this.jwtSessionTokens.issueAccessToken({
+      sub: user.id,
+      email: user.email,
+      emailVerified: true,
+    });
+    const { accessTokenExpiresIn } = this.jwtSessionConfig.getRequiredAccessTokenConfig();
+
     return {
       user: {
         id: user.id,
         email: user.email,
         emailVerified: true,
       },
+      accessToken,
+      accessTokenExpiresIn,
     };
   }
 

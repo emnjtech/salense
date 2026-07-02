@@ -12,6 +12,7 @@ import type {
   BcryptPasswordHasherService,
   EmailVerificationTokenService,
 } from "../security/index.js";
+import type { JwtSessionConfigService, JwtSessionTokenService } from "../session/index.js";
 import { AuthService } from "../auth.service.js";
 
 const registerRequest = {
@@ -37,6 +38,8 @@ function createAuthServiceMocks(): {
   readonly updateUser: jest.Mock;
   readonly updateVerificationToken: jest.Mock;
   readonly transaction: jest.Mock;
+  readonly issueAccessToken: jest.Mock;
+  readonly getRequiredAccessTokenConfig: jest.Mock;
 } {
   const findUnique = jest.fn();
   const create = jest.fn();
@@ -49,6 +52,8 @@ function createAuthServiceMocks(): {
   const findVerificationToken = jest.fn();
   const updateUser = jest.fn();
   const updateVerificationToken = jest.fn();
+  const issueAccessToken = jest.fn();
+  const getRequiredAccessTokenConfig = jest.fn();
   const transaction = jest.fn(async (callback: (client: unknown) => Promise<unknown>) =>
     callback({
       user: { update: updateUser },
@@ -79,9 +84,20 @@ function createAuthServiceMocks(): {
     getExpiryDate,
   } as unknown as EmailVerificationTokenService;
   const emailService = { sendVerificationEmail } as unknown as EmailService;
+  const jwtSessionTokens = { issueAccessToken } as unknown as JwtSessionTokenService;
+  const jwtSessionConfig = {
+    getRequiredAccessTokenConfig,
+  } as unknown as JwtSessionConfigService;
 
   return {
-    service: new AuthService(prismaService, passwordHasher, tokenService, emailService),
+    service: new AuthService(
+      prismaService,
+      passwordHasher,
+      tokenService,
+      emailService,
+      jwtSessionTokens,
+      jwtSessionConfig,
+    ),
     findUnique,
     create,
     hashPassword,
@@ -94,6 +110,8 @@ function createAuthServiceMocks(): {
     updateUser,
     updateVerificationToken,
     transaction,
+    issueAccessToken,
+    getRequiredAccessTokenConfig,
   };
 }
 
@@ -257,7 +275,7 @@ describe("AuthService", () => {
     expect(mocks.transaction).not.toHaveBeenCalled();
   });
 
-  it("allows login eligibility for a verified user with a matching password", async () => {
+  it("issues an access token for a verified user with a matching password", async () => {
     const mocks = createAuthServiceMocks();
     mocks.findUnique.mockResolvedValue({
       id: "user_1",
@@ -266,6 +284,11 @@ describe("AuthService", () => {
       emailVerified: true,
     });
     mocks.comparePassword.mockResolvedValue(true);
+    mocks.issueAccessToken.mockResolvedValue("access.jwt.token");
+    mocks.getRequiredAccessTokenConfig.mockReturnValue({
+      accessTokenSecret: "access-secret",
+      accessTokenExpiresIn: "15m",
+    });
 
     await expect(
       mocks.service.login({ email: "SARAH@EXAMPLE.COM", password: "Password123!" }),
@@ -275,6 +298,8 @@ describe("AuthService", () => {
         email: "sarah@example.com",
         emailVerified: true,
       },
+      accessToken: "access.jwt.token",
+      accessTokenExpiresIn: "15m",
     });
 
     expect(mocks.findUnique).toHaveBeenCalledWith({
@@ -287,6 +312,11 @@ describe("AuthService", () => {
       },
     });
     expect(mocks.comparePassword).toHaveBeenCalledWith("Password123!", "hashed-password");
+    expect(mocks.issueAccessToken).toHaveBeenCalledWith({
+      sub: "user_1",
+      email: "sarah@example.com",
+      emailVerified: true,
+    });
   });
 
   it("blocks login eligibility for an unverified user", async () => {
@@ -302,6 +332,7 @@ describe("AuthService", () => {
     await expect(
       mocks.service.login({ email: "sarah@example.com", password: "Password123!" }),
     ).rejects.toThrow(ForbiddenException);
+    expect(mocks.issueAccessToken).not.toHaveBeenCalled();
   });
 
   it("rejects login eligibility when the user does not exist", async () => {
@@ -327,9 +358,10 @@ describe("AuthService", () => {
     await expect(
       mocks.service.login({ email: "sarah@example.com", password: "WrongPass123!" }),
     ).rejects.toThrow(UnauthorizedException);
+    expect(mocks.issueAccessToken).not.toHaveBeenCalled();
   });
 
-  it("excludes sensitive fields from the login eligibility response", async () => {
+  it("fails login safely when JWT access token config is missing", async () => {
     const mocks = createAuthServiceMocks();
     mocks.findUnique.mockResolvedValue({
       id: "user_1",
@@ -338,6 +370,27 @@ describe("AuthService", () => {
       emailVerified: true,
     });
     mocks.comparePassword.mockResolvedValue(true);
+    mocks.issueAccessToken.mockRejectedValue(new Error("Missing JWT config."));
+
+    await expect(
+      mocks.service.login({ email: "sarah@example.com", password: "Password123!" }),
+    ).rejects.toThrow("Missing JWT config.");
+  });
+
+  it("excludes sensitive fields from the login response", async () => {
+    const mocks = createAuthServiceMocks();
+    mocks.findUnique.mockResolvedValue({
+      id: "user_1",
+      email: "sarah@example.com",
+      passwordHash: "hashed-password",
+      emailVerified: true,
+    });
+    mocks.comparePassword.mockResolvedValue(true);
+    mocks.issueAccessToken.mockResolvedValue("access.jwt.token");
+    mocks.getRequiredAccessTokenConfig.mockReturnValue({
+      accessTokenSecret: "access-secret",
+      accessTokenExpiresIn: "15m",
+    });
 
     const response = await mocks.service.login({
       email: "sarah@example.com",
@@ -346,7 +399,7 @@ describe("AuthService", () => {
 
     expect(JSON.stringify(response)).not.toContain("hashed-password");
     expect(JSON.stringify(response)).not.toContain("Password123!");
-    expect(JSON.stringify(response)).not.toContain("token");
+    expect(JSON.stringify(response)).not.toContain("refreshToken");
     expect(JSON.stringify(response)).not.toContain("session");
   });
 

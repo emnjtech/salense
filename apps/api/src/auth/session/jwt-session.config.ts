@@ -14,21 +14,32 @@ export interface JwtSessionConfig {
   readonly refreshTokenExpiresIn: string;
 }
 
+export interface JwtAccessTokenConfig {
+  readonly accessTokenSecret: string;
+  readonly accessTokenExpiresIn: string;
+}
+
 @Injectable()
 export class JwtSessionConfigService {
   constructor(private readonly environment: NodeJS.ProcessEnv = process.env) {}
 
   getRequiredConfig(): JwtSessionConfig {
-    const accessTokenSecret = this.getRequiredValue(JWT_SESSION_ENV_KEYS.accessTokenSecret);
-    const refreshTokenSecret = this.getRequiredValue(JWT_SESSION_ENV_KEYS.refreshTokenSecret);
-    const accessTokenExpiresIn = this.getRequiredValue(JWT_SESSION_ENV_KEYS.accessTokenExpiresIn);
+    const accessTokenConfig = this.getRequiredAccessTokenConfig();
     const refreshTokenExpiresIn = this.getRequiredValue(JWT_SESSION_ENV_KEYS.refreshTokenExpiresIn);
+    const refreshTokenSecret = this.getRequiredValue(JWT_SESSION_ENV_KEYS.refreshTokenSecret);
 
     return {
-      accessTokenSecret,
+      accessTokenSecret: accessTokenConfig.accessTokenSecret,
       refreshTokenSecret,
-      accessTokenExpiresIn,
+      accessTokenExpiresIn: accessTokenConfig.accessTokenExpiresIn,
       refreshTokenExpiresIn,
+    };
+  }
+
+  getRequiredAccessTokenConfig(): JwtAccessTokenConfig {
+    return {
+      accessTokenSecret: this.getRequiredValue(JWT_SESSION_ENV_KEYS.accessTokenSecret),
+      accessTokenExpiresIn: this.getRequiredValue(JWT_SESSION_ENV_KEYS.accessTokenExpiresIn),
     };
   }
 

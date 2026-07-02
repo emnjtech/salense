@@ -4,10 +4,6 @@ export interface LoginSessionResponse {
     readonly email: string;
     readonly emailVerified: true;
   };
-  readonly session: {
-    readonly accessToken: string;
-    readonly refreshToken: string;
-    readonly accessTokenExpiresIn: string;
-    readonly refreshTokenExpiresIn: string;
-  };
+  readonly accessToken: string;
+  readonly accessTokenExpiresIn: string;
 }

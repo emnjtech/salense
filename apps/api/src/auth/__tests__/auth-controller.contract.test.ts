@@ -6,6 +6,7 @@ import type { Test as HttpRequest } from "supertest";
 import { PrismaService } from "../../database/prisma.service.js";
 import { EmailService } from "../../email/email.service.js";
 import { BcryptPasswordHasherService, EmailVerificationTokenService } from "../security/index.js";
+import { JwtSessionConfigService, JwtSessionTokenService } from "../session/index.js";
 import { AuthModule } from "../auth.module.js";
 
 type HttpMethod = "post" | "put";
@@ -41,6 +42,12 @@ const emailVerificationTokens = {
 const emailService = {
   sendVerificationEmail: jest.fn(),
 };
+const jwtSessionTokens = {
+  issueAccessToken: jest.fn(),
+};
+const jwtSessionConfig = {
+  getRequiredAccessTokenConfig: jest.fn(),
+};
 
 async function createContractApp(): Promise<INestApplication> {
   const testingModule = await Test.createTestingModule({
@@ -54,6 +61,10 @@ async function createContractApp(): Promise<INestApplication> {
     .useValue(emailVerificationTokens)
     .overrideProvider(EmailService)
     .useValue(emailService)
+    .overrideProvider(JwtSessionTokenService)
+    .useValue(jwtSessionTokens)
+    .overrideProvider(JwtSessionConfigService)
+    .useValue(jwtSessionConfig)
     .compile();
 
   const app = testingModule.createNestApplication();
@@ -184,7 +195,7 @@ describe("Phase 1 authentication and user management controller contracts", () =
     );
   });
 
-  it("post /auth/login returns a safe eligibility response for a verified user", async () => {
+  it("post /auth/login returns an access token for a verified user", async () => {
     prismaClient.user.findUnique.mockResolvedValue({
       id: "user_1",
       email: "sarah@example.com",
@@ -192,6 +203,11 @@ describe("Phase 1 authentication and user management controller contracts", () =
       emailVerified: true,
     });
     passwordHasher.comparePassword.mockResolvedValue(true);
+    jwtSessionTokens.issueAccessToken.mockResolvedValue("access.jwt.token");
+    jwtSessionConfig.getRequiredAccessTokenConfig.mockReturnValue({
+      accessTokenSecret: "access-secret",
+      accessTokenExpiresIn: "15m",
+    });
 
     await withContractApp(async (server) => {
       const response = await sendRequest(server, {
@@ -207,12 +223,13 @@ describe("Phase 1 authentication and user management controller contracts", () =
           email: "sarah@example.com",
           emailVerified: true,
         },
+        accessToken: "access.jwt.token",
+        accessTokenExpiresIn: "15m",
       });
       expect(response.body.session).toBeUndefined();
-      expect(response.body.accessToken).toBeUndefined();
       expect(response.body.refreshToken).toBeUndefined();
       expect(JSON.stringify(response.body)).not.toContain("password");
-      expect(JSON.stringify(response.body)).not.toContain("token");
+      expect(JSON.stringify(response.body)).not.toContain("refreshToken");
       expect(JSON.stringify(response.body)).not.toContain("session");
       expect(prismaClient.user.findUnique).toHaveBeenCalledWith(
         expect.objectContaining({ where: { email: "sarah@example.com" } }),
@@ -221,6 +238,11 @@ describe("Phase 1 authentication and user management controller contracts", () =
         "Password123!",
         "hashed-password",
       );
+      expect(jwtSessionTokens.issueAccessToken).toHaveBeenCalledWith({
+        sub: "user_1",
+        email: "sarah@example.com",
+        emailVerified: true,
+      });
     });
   });
 

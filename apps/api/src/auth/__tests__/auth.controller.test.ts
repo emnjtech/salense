@@ -34,9 +34,11 @@ describe("AuthController", () => {
     ).resolves.toBe(response);
   });
 
-  it("delegates login eligibility to AuthService", async () => {
+  it("delegates login to AuthService", async () => {
     const response = {
       user: { id: "user_1", email: "sarah@example.com", emailVerified: true as const },
+      accessToken: "access.jwt.token",
+      accessTokenExpiresIn: "15m",
     };
     jest.mocked(authService.login).mockResolvedValueOnce(response);
 

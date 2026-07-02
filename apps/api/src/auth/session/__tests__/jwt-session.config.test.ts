@@ -23,4 +23,16 @@ describe("JwtSessionConfigService", () => {
       refreshTokenExpiresIn: "30d",
     });
   });
+
+  it("allows access token config without requiring refresh token config", () => {
+    const service = new JwtSessionConfigService({
+      [JWT_SESSION_ENV_KEYS.accessTokenSecret]: "access-secret",
+      [JWT_SESSION_ENV_KEYS.accessTokenExpiresIn]: "15m",
+    });
+
+    expect(service.getRequiredAccessTokenConfig()).toEqual({
+      accessTokenSecret: "access-secret",
+      accessTokenExpiresIn: "15m",
+    });
+  });
 });
