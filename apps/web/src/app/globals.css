@@ -498,6 +498,123 @@ button:disabled {
   min-height: 126px;
 }
 
+.orders-workspace {
+  max-width: 1320px;
+}
+
+.orders-panel {
+  display: grid;
+  gap: 18px;
+}
+
+.orders-toolbar {
+  align-items: center;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(240px, 1.2fr) minmax(150px, 0.65fr) minmax(120px, 0.55fr) repeat(
+      2,
+      minmax(140px, 0.55fr)
+    );
+}
+
+.orders-toolbar input,
+.orders-toolbar select {
+  background: #ffffff;
+  border: 1px solid #cfd7d0;
+  border-radius: 8px;
+  color: #243027;
+  min-height: 42px;
+  padding: 0 12px;
+  width: 100%;
+}
+
+.orders-toolbar input:focus,
+.orders-toolbar select:focus {
+  border-color: #1f6f55;
+  box-shadow: 0 0 0 3px #d8f0e4;
+  outline: 0;
+}
+
+.orders-search {
+  align-items: center;
+  display: flex;
+  position: relative;
+}
+
+.orders-search svg {
+  color: #647067;
+  left: 12px;
+  position: absolute;
+}
+
+.orders-search input {
+  padding-left: 38px;
+}
+
+.orders-table-wrap {
+  overflow-x: auto;
+}
+
+.orders-table {
+  border-collapse: collapse;
+  min-width: 980px;
+  width: 100%;
+}
+
+.orders-table th {
+  color: #647067;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.orders-table th,
+.orders-table td {
+  border-bottom: 1px solid #e4e9e4;
+  padding: 13px 12px;
+  vertical-align: top;
+}
+
+.orders-table tbody tr:hover {
+  background: #f7faf8;
+}
+
+.orders-table td {
+  color: #243027;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.orders-table td strong,
+.orders-table td span {
+  display: block;
+}
+
+.orders-table td span {
+  color: #647067;
+  font-size: 12px;
+  margin-top: 3px;
+}
+
+.order-status {
+  background: #eef5f0;
+  border-radius: 999px;
+  color: #1f6f55 !important;
+  display: inline-flex !important;
+  font-size: 12px;
+  font-weight: 750;
+  margin: 0 !important;
+  min-height: 24px;
+  padding: 3px 9px;
+  width: max-content;
+}
+
+.orders-empty-state {
+  min-height: 220px;
+}
+
 .content-grid {
   display: grid;
   gap: 18px;
@@ -905,12 +1022,13 @@ button:disabled {
   }
 
   .sidebar-nav {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .content-grid,
   .today-content-grid,
   .today-hero-grid,
+  .orders-toolbar,
   .store-row {
     grid-template-columns: 1fr;
   }
