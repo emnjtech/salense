@@ -1,146 +1,219 @@
-# WooCommerce Integration Checkpoint
+# Phase 2 Backend Checkpoint: Store Integrations and WooCommerce Sync
 
-This checkpoint maps the current WooCommerce integration work to PRD/SES Chapter 6.3 Store Integration and Chapter 6.19 Data Synchronisation Engine.
+This checkpoint records the current backend implementation status for Phase 2 against the Salense PRD/SES areas that govern store integrations, synchronisation, API/integration management, and audit history:
 
-## Current Status
+- Chapter 6.3 Store Integration Module
+- Chapter 6.18 Audit Log Module
+- Chapter 6.19 Data Synchronisation Engine
+- Chapter 6.20 API & Integration Management
+- Engineering Principle 001: Version 1 is read-only against connected commerce platforms
 
-Implemented foundation:
+## Executive Status
 
-- Supported-platform boundaries for WooCommerce, Amazon Seller, and TikTok Shop.
-- WooCommerce credential request validation without marketplace/admin password fields.
-- Encrypted credential metadata storage for WooCommerce consumer key and consumer secret.
-- Read-only WooCommerce credential validation through a safe REST API request.
-- Connected store records with `PENDING_VALIDATION`, `CONNECTED`, and `ERROR` outcomes during WooCommerce connection setup.
-- Read-only WooCommerce clients for orders, products, customers, inventory, categories, and refunds.
-- Raw-to-normalised WooCommerce mappers that preserve platform identity and source metadata.
-- Idempotent persistence for normalised commerce records using platform-scoped identifiers.
-- Protected manual sync endpoint that enqueues BullMQ jobs instead of running sync inline.
-- Worker bootstrap that processes WooCommerce sync jobs through the existing sync service.
-- Explicit scheduled sync scaffolding with recurring BullMQ jobs.
-- Protected WooCommerce disconnect lifecycle that removes future scheduled sync and preserves imported history.
+The Phase 2 backend foundation is implemented for WooCommerce. It supports secure connection setup, read-only credential validation, normalised commerce persistence, queued and scheduled sync scaffolding, worker processing, disconnect lifecycle, audit logging, sync cursors, and backend sync-status visibility.
 
-## Read-Only Principle
+Amazon Seller and TikTok Shop remain bounded as supported Version 1 platform types, but their real connection, sync, disconnect, and status lifecycles are intentionally deferred.
 
-Version 1 remains read-only.
+No frontend dashboard, analytics, AI logic, billing, or roles/permissions work is included in this checkpoint.
 
-- WooCommerce REST client methods use `GET` only.
-- Tests assert write methods such as `POST`, `PUT`, `PATCH`, and `DELETE` are not used by the read client.
-- Sync jobs read, map, and persist Salense-owned records; they do not mutate WooCommerce orders, products, prices, or inventory.
-- Scheduled sync uses the same read-only worker path as manual sync.
+## Implemented Capabilities
 
-## Source Integrity
+### Store Integration Lifecycle
 
-Source integrity is preserved by design:
-
-- Every commerce model stores `businessId`, `connectedStoreId`, `platform`, and the platform record ID.
-- Raw WooCommerce payloads are preserved in source metadata where represented.
-- Original currencies and transaction values are mapped into Salense records without cross-platform merging.
-- Products, customers, orders, refunds, categories, and inventory snapshots remain scoped to the connected store.
-- Upserts use platform-scoped unique constraints to prevent duplicate imports.
-
-## Store Lifecycle
-
-Current lifecycle behavior:
-
-- Company profile ownership is required before connection setup.
+- Supported-platform listing exists for WooCommerce, Amazon Seller, and TikTok Shop.
+- Company/business ownership is required before connecting stores.
 - Duplicate active/pending store connections are rejected.
-- WooCommerce connections are created as pending, then marked connected after credential validation or error after validation failure.
-- Manual sync requires an authenticated owner, platform `WOOCOMMERCE`, and status `CONNECTED`.
-- Scheduled sync must be explicitly requested and also requires a connected WooCommerce store.
-- WooCommerce disconnect requires an authenticated owner, requires a connected store, removes any recurring sync schedule, marks the store `DISCONNECTED`, and records `disconnectedAt`.
-- Disconnect does not delete imported commerce records or call WooCommerce write APIs.
+- WooCommerce connection requests validate store URL, consumer key, consumer secret, and supported API version.
+- WooCommerce admin or marketplace passwords are rejected by DTO validation.
+- WooCommerce connection records move through `PENDING_VALIDATION`, `CONNECTED`, and `ERROR` during credential validation.
+- WooCommerce disconnect is implemented for authenticated owners, marks the store `DISCONNECTED`, records `disconnectedAt`, removes recurring sync, and preserves imported history.
 
-Deferred lifecycle work:
+### WooCommerce Credential Handling and API Management
 
-- Amazon Seller and TikTok Shop disconnect remain explicit future work until their connection lifecycles exist.
-- Permanent deletion is not implemented; historical analytics are preserved by default.
-- `SYNCHRONISING` and `AUTHENTICATION_EXPIRED` transitions need production lifecycle rules.
-- User-facing platform-specific error surfaces remain to be refined.
+- WooCommerce consumer key and consumer secret are encrypted before persistence.
+- API responses exclude plaintext credentials, encrypted credential payloads, credential hashes, token material, and raw marketplace payloads.
+- Real WooCommerce credential validation uses a safe read-only REST request.
+- API/integration provider boundaries exist in `packages/integrations`, with WooCommerce implemented and Amazon/TikTok remaining placeholders.
 
-## Credential Handling
+### Read-Only Synchronisation
 
-Current safeguards:
+- WooCommerce REST read clients exist for orders, products, customers, inventory/product stock fields, categories, and refunds.
+- WooCommerce client methods use `GET` only.
+- Tests assert write-style methods are not called.
+- Sync jobs read, map, and persist Salense-owned records only; they do not mutate WooCommerce data.
 
-- WooCommerce admin or marketplace passwords are not accepted by DTO validation.
-- Consumer credentials are encrypted before persistence.
-- Plaintext credentials are only used transiently for validation and read client construction.
-- API responses exclude plaintext credentials, encrypted credential payloads, and credential hashes.
-- Worker and queue status responses avoid credential material.
+### Normalised Commerce Persistence
 
-Remaining hardening:
+- Prisma models exist for orders, order items, products, customers, inventory snapshots, categories, and refunds.
+- Every imported commerce model preserves `businessId`, `connectedStoreId`, `platform`, platform record identifiers, source metadata where represented, `importedAt`, and `lastSyncedAt`.
+- Upserts use platform/store-scoped uniqueness to prevent duplicate imports.
+- Source platform identity is never merged away; no automatic cross-platform product/customer matching is implemented.
 
-- Production key management and rotation for credential encryption.
-- Secret redaction standards for centralized logs and observability.
-- Connection health history and user notification for expired credentials.
+### Queue, Worker, and Scheduling
 
-## Manual Sync
-
-Current manual sync flow:
-
-1. Authenticated user requests sync for a connected store.
-2. API verifies store ownership, platform, and connection status.
-3. API enqueues a WooCommerce full-sync BullMQ job.
-4. Worker resolves the WooCommerce sync handler.
-5. Sync service decrypts credentials, performs read-only WooCommerce reads, maps raw records, persists normalised records, and updates `lastSynchronisedAt`.
-
-The manual sync response returns only safe job metadata: job id, store id, platform, status, and queued time.
-
-## Scheduled Sync
-
-Current scheduled sync scaffolding:
-
-- `REDIS_URL` configures BullMQ queue and worker Redis access.
-- `SYNC_SCHEDULE_INTERVAL_MS` configures the recurring WooCommerce full-sync interval and defaults to `3600000` milliseconds.
-- Intervals below `300000` milliseconds are rejected.
+- Manual WooCommerce sync endpoint enqueues BullMQ jobs rather than running sync inline.
+- Job types exist for manual full sync and resource-level WooCommerce sync.
+- `apps/worker` bootstraps a sync worker that delegates to the API WooCommerce sync handler.
+- Scheduled sync scaffolding uses recurring BullMQ jobs.
 - Scheduling is explicit; connecting a store does not silently schedule every store.
-- Duplicate recurring schedules are prevented with deterministic WooCommerce recurring job ids.
-- Schedule removal returns safe metadata and does not expose credentials.
-- WooCommerce disconnect invokes schedule removal so disconnected stores do not continue future automatic synchronisation.
+- Recurring schedule removal is wired into WooCommerce disconnect.
 
-Remaining scheduled sync work:
+### Audit Logging
 
-- Product decision for when to automatically create schedules.
-- Admin/user controls for schedule interval selection.
-- Robust production monitoring of delayed, failed, and retried jobs.
-- Backfill/retry policy for missed schedules.
+- `AuditLog` persistence exists for permanent append-only audit records.
+- WooCommerce lifecycle audit entries are recorded for:
+  - connection created
+  - validation success
+  - validation failure
+  - manual sync job queued
+  - scheduled sync created
+  - scheduled sync removed
+  - store disconnected
+- Audit entries include user id, business id, action, affected module, affected store, affected platform, result, timestamp, and safe metadata.
+- Audit metadata is sanitised to exclude credentials, encrypted credentials, hashes, tokens, raw payloads, and other sensitive values.
 
-## Chapter 6.19 Gaps
+### Sync Cursors and Status Visibility
 
-Implemented or scaffolded:
+- Per-store, per-resource cursors exist for orders, products, customers, inventory, categories, and refunds.
+- Cursors store last successful sync time, last attempted sync time, status, and safe error metadata.
+- WooCommerce sync reads cursors before resource syncs and uses incremental date parameters where WooCommerce supports them.
+- WooCommerce categories are handled safely without date filtering because WooCommerce category incremental filtering is unsupported.
+- Authenticated backend sync-status endpoint returns safe store status, resource cursor statuses, last sync times, safe error summaries, and available queued/running job state.
 
-- Initial/full sync path for WooCommerce resources currently represented.
-- Manual sync via queued jobs.
-- Scheduled sync scaffolding through recurring BullMQ jobs.
-- Per-store, per-resource WooCommerce sync cursors for incremental orders, products, customers, inventory, and refunds; categories remain safely full-read because WooCommerce category date filtering is unsupported.
-- Authenticated backend sync-status visibility for WooCommerce stores, including connection status, cursor state, safe error summaries, and available queued/running job status.
-- Duplicate import prevention through unique constraints and upserts.
-- Failed job retry attempts at the BullMQ job level.
-- Audit logging for WooCommerce connection creation, validation success/failure, manual sync queueing, scheduled sync creation/removal, and store disconnection.
+### Multi-Tenant Ownership and Source Integrity
 
-Remaining gaps:
+- Store list, connect, disconnect, manual sync, sync job status, scheduled sync, schedule removal, and sync status paths enforce authenticated ownership.
+- Users cannot act on stores belonging to another business.
+- Imported historical commerce records are not deleted during disconnect.
+- Version 1 remains read-only against WooCommerce, Amazon Seller, and TikTok Shop.
 
-- Backfill strategy for cursor resets and long-running incremental windows is not implemented.
-- Frontend dashboard/progress UI for sync status is not implemented.
-- Retry failed synchronisation needs operational policy and user-visible status.
-- Conflict detection rules beyond idempotent upsert are not implemented.
-- Rate limiting strategy is limited to safe error mapping; no adaptive throttling yet.
-- Token refresh is not implemented for WooCommerce and will differ by platform.
-- Settlements, returns, and shipping status are not modelled or synchronised yet.
-- Audit UI, audit export, and wider audit coverage outside the WooCommerce lifecycle are not implemented.
+## Requirement Trace
 
-## Test Coverage
+| PRD/SES Area | Current Backend Status |
+| --- | --- |
+| Chapter 6.3 Add Store | Supported-platform listing and WooCommerce connection setup exist. Amazon/TikTok real setup deferred. |
+| Chapter 6.3 Authentication | WooCommerce validates consumer credentials through read-only API. OAuth/official redirects for Amazon/TikTok deferred. |
+| Chapter 6.3 Connection Status | Connected store statuses are modelled. Production rules for `SYNCHRONISING` and `AUTHENTICATION_EXPIRED` remain deferred. |
+| Chapter 6.3 Synchronisation | WooCommerce initial/full and resource sync path exists for orders, products, customers, inventory, categories, and refunds. Settlements, returns, shipping status deferred. |
+| Chapter 6.3 Manual Synchronisation | Protected endpoint enqueues WooCommerce sync jobs. |
+| Chapter 6.3 Scheduled Synchronisation | Explicit recurring BullMQ scheduling scaffolding exists. Automatic scheduling policy deferred. |
+| Chapter 6.3 Disconnect Store | WooCommerce disconnect revokes future scheduled sync and preserves historical data. Permanent deletion deferred. |
+| Chapter 6.18 Audit Log | Store integration lifecycle audit persistence and safe metadata implemented. Audit UI/export/search deferred. |
+| Chapter 6.19 Incremental Synchronisation | Per-resource cursors implemented; incremental reads used where WooCommerce supports them. Cursor reset/backfill policy deferred. |
+| Chapter 6.19 Retry Failed Synchronisation | BullMQ job attempts/backoff configured. Operational retry policy and user-facing retry controls deferred. |
+| Chapter 6.19 Conflict Detection | Duplicate import prevention and idempotent upserts implemented. Rich conflict workflows deferred. |
+| Chapter 6.19 Rate Limiting | Errors are safely mapped. Adaptive throttling/quota management deferred. |
+| Chapter 6.19 Token Refresh | Not implemented for WooCommerce; future platform-specific work. |
+| Chapter 6.20 API Management | Provider contracts, registry/factory, WooCommerce API client, connection health validation, safe status surfaces implemented. Quota usage and API admin views deferred. |
 
-Major behavior currently covered:
+## Required Environment Variables
 
-- DTO validation rejects password fields and unsupported platform data.
-- Credential validation and safe connection responses.
-- Read-only WooCommerce HTTP behavior and pagination/incremental query parameters.
-- WooCommerce cursor reads, success updates, safe failure metadata, and unsupported category date filtering.
-- WooCommerce sync-status endpoint ownership checks, cursor sanitisation, safe job status, and credential exclusion.
+### API
+
+- `DATABASE_URL`: PostgreSQL connection string required by Prisma for live persistence.
+- `JWT_ACCESS_TOKEN_SECRET`: Required by authentication/session services.
+- `JWT_REFRESH_TOKEN_SECRET`: Required by authentication/session services.
+- `JWT_ACCESS_TOKEN_EXPIRES_IN`: Access token lifetime.
+- `JWT_REFRESH_TOKEN_EXPIRES_IN`: Refresh token lifetime.
+- `CREDENTIAL_ENCRYPTION_KEY`: Required for WooCommerce credential encryption/decryption in live connection and sync flows.
+- `REDIS_URL`: Required when API code enqueues, schedules, removes, or reads BullMQ sync jobs.
+- `SYNC_SCHEDULE_INTERVAL_MS`: Optional recurring WooCommerce full-sync interval. Defaults to `3600000`; values below `300000` are rejected.
+
+### Worker
+
+- `REDIS_URL`: Required to start the sync worker. Supports `redis://` and `rediss://`.
+- API package build output must be available because the worker loads the WooCommerce sync handler from `@salense/api/worker`.
+
+## Operational Commands
+
+Install dependencies:
+
+```bash
+pnpm install
+```
+
+Run quality checks:
+
+```bash
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+```
+
+Run the API locally:
+
+```bash
+pnpm --filter @salense/api dev
+```
+
+Run the sync worker locally:
+
+```bash
+pnpm --filter @salense/worker dev
+```
+
+Run only API tests:
+
+```bash
+pnpm --filter @salense/api test
+```
+
+Run only worker tests:
+
+```bash
+pnpm --filter @salense/worker test
+```
+
+Run only integration package tests:
+
+```bash
+pnpm --filter @salense/integrations test
+```
+
+## Deferred Capabilities
+
+- Amazon Seller real connection, credential validation, sync, disconnect, cursor, status, and audit lifecycles.
+- TikTok Shop real connection, credential validation, sync, disconnect, cursor, status, and audit lifecycles.
+- Frontend dashboard/progress UI for store integrations and sync status.
+- Analytics and AI/business intelligence over imported commerce records.
+- Billing and role/permission enforcement beyond current authenticated owner checks.
+- OAuth/official redirect flows where required by future platform implementations.
+- Automatic scheduling policy at connection time.
+- Permanent store deletion workflow and user-controlled historical data deletion.
+- Returns, shipping status, settlements, taxes, discounts, and coupons persistence/sync.
+- API quota usage views, connection history UI, and administrator integration management dashboards.
+- Audit search/export UI.
+
+## Remaining Risks and Hardening Items
+
+- Production credential key management and rotation need operational design.
+- Redis outage behavior needs product decisions for sync enqueue/status responses.
+- Cursor reset/backfill controls are not implemented.
+- Long-running incremental window strategy is not implemented.
+- Adaptive rate-limit handling and WooCommerce throttling policy are not implemented.
+- User notification for failed sync, expired credentials, and store disconnection is deferred.
+- `SYNCHRONISING` and `AUTHENTICATION_EXPIRED` state transitions need production lifecycle rules.
+- Audit retention/legal deletion policy is not implemented beyond append-only service behavior.
+- BullMQ retry attempts exist, but product-level retry visibility and manual retry controls remain deferred.
+
+## Test Coverage Summary
+
+Current tests cover:
+
+- DTO validation for supported platforms and rejected password fields.
+- WooCommerce credential validation success/failure and safe responses.
+- Read-only WooCommerce HTTP behavior, pagination, and incremental query parameters.
 - Raw-to-normalised mapper source metadata preservation.
-- Idempotent persistence and relationship handling.
+- Idempotent persistence and commerce relationship handling.
+- WooCommerce sync service read, map, persist, cursor, and read-only behavior.
 - Manual sync queueing and safe job status responses.
-- WooCommerce disconnect ownership enforcement, schedule removal, safe response, and historical-data preservation.
-- Store integration audit entries and sensitive metadata redaction.
-- Worker handler dispatch and safe result sanitisation.
-- Scheduled sync creation, duplicate prevention, invalid store rejection, removal, and safe responses.
+- Worker dispatch and safe failure handling.
+- Scheduled sync creation, duplicate prevention, removal, and safe metadata.
+- WooCommerce disconnect ownership, schedule removal, safe response, and historical-data preservation.
+- Audit entry creation and sensitive metadata redaction.
+- Sync cursor success/failure state and safe failure metadata.
+- Sync status endpoint ownership, cursor sanitisation, job status mapping, and credential exclusion.
+- Database schema assertions for commerce data, audit logs, and sync cursors.
+
+No new tests were required during this checkpoint review because the reviewed backend capabilities already have targeted unit/schema coverage.

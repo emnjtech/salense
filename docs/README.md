@@ -7,4 +7,4 @@ Product requirements are governed by the Salense PRD + SES.
 Operational notes:
 
 - [Sync scheduling](./sync-scheduling.md)
-- [WooCommerce integration checkpoint](./woocommerce-integration-checkpoint.md)
+- [Phase 2 backend checkpoint: Store Integrations and WooCommerce Sync](./woocommerce-integration-checkpoint.md)
