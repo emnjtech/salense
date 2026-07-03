@@ -11,6 +11,7 @@
   },
   "scripts": {
     "dev": "turbo run dev --parallel",
+    "demo:seed": "pnpm --filter @salense/worker exec tsx ../../scripts/seed.ts",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
