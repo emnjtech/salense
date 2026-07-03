@@ -273,6 +273,231 @@ button:disabled {
   line-height: 1;
 }
 
+.today-workspace {
+  max-width: 1280px;
+}
+
+.today-header .secondary-button {
+  flex: 0 0 auto;
+}
+
+.today-hero-grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(280px, 0.8fr) minmax(0, 1.2fr);
+}
+
+.health-card {
+  align-items: center;
+  background: #17211b;
+  border-radius: 8px;
+  color: #ffffff;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 222px;
+  padding: 24px;
+}
+
+.health-card strong {
+  font-size: 64px;
+  line-height: 0.95;
+}
+
+.health-card span {
+  color: #cbd7cf;
+  font-weight: 750;
+}
+
+.health-card p:not(.eyebrow) {
+  color: #dce6de;
+  grid-column: 1 / -1;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.health-ring {
+  align-items: center;
+  background: conic-gradient(#d9f99d var(--score), #35463d 0);
+  border-radius: 999px;
+  color: #17211b;
+  display: flex;
+  height: 88px;
+  justify-content: center;
+  position: relative;
+  width: 88px;
+}
+
+.health-ring::before {
+  background: #f7fbef;
+  border-radius: inherit;
+  content: "";
+  inset: 10px;
+  position: absolute;
+}
+
+.health-ring svg {
+  position: relative;
+  z-index: 1;
+}
+
+.today-hero-metrics {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.today-metric-tile small {
+  align-items: center;
+  color: #647067;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 12px;
+  gap: 4px;
+  line-height: 1.35;
+}
+
+.today-metric-tile small.positive {
+  color: #1e6145;
+}
+
+.today-metric-tile small.negative {
+  color: #923636;
+}
+
+.today-content-grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.platform-breakdown {
+  display: grid;
+  gap: 14px;
+}
+
+.platform-breakdown-row {
+  display: grid;
+  gap: 8px;
+}
+
+.platform-breakdown-row > div:first-child {
+  align-items: center;
+  display: flex;
+  font-size: 13px;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.platform-breakdown-row span {
+  color: #647067;
+  font-weight: 700;
+}
+
+.platform-bar {
+  background: #edf1ed;
+  border-radius: 999px;
+  height: 10px;
+  overflow: hidden;
+}
+
+.platform-bar span {
+  background: #1f6f55;
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+  min-width: 4px;
+}
+
+.focus-list,
+.insight-list {
+  display: grid;
+  gap: 12px;
+}
+
+.focus-item,
+.insight-item {
+  border: 1px solid #e4e9e4;
+  border-radius: 8px;
+  display: flex;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px;
+}
+
+.focus-icon {
+  align-items: center;
+  background: #eef5f0;
+  border-radius: 8px;
+  color: #1f6f55;
+  display: flex;
+  flex: 0 0 auto;
+  height: 36px;
+  justify-content: center;
+  width: 36px;
+}
+
+.focus-item div:last-child,
+.insight-item div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.focus-item span,
+.focus-item small,
+.insight-item span {
+  color: #647067;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.focus-item strong,
+.insight-item strong {
+  font-size: 14px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.insight-item.info {
+  background: #f7faf8;
+}
+
+.insight-item.success {
+  background: #eaf8ef;
+  border-color: #aed8bc;
+}
+
+.insight-item.warning {
+  background: #fff7df;
+  border-color: #ead59b;
+}
+
+.insight-item.success svg {
+  color: #1e6145;
+}
+
+.insight-item.warning svg {
+  color: #8a6100;
+}
+
+.today-loading {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #dfe4df;
+  border-radius: 8px;
+  color: #526059;
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  min-height: 260px;
+  padding: 24px;
+}
+
+.compact-empty {
+  min-height: 126px;
+}
+
 .content-grid {
   display: grid;
   gap: 18px;
@@ -684,12 +909,18 @@ button:disabled {
   }
 
   .content-grid,
+  .today-content-grid,
+  .today-hero-grid,
   .store-row {
     grid-template-columns: 1fr;
   }
 
   .overview-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .today-hero-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .auth-page {
@@ -716,6 +947,7 @@ button:disabled {
   }
 
   .overview-grid,
+  .today-hero-metrics,
   .store-actions,
   .store-meta,
   .sidebar-nav,

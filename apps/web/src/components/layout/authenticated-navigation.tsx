@@ -48,12 +48,8 @@ export function AuthenticatedNavigation() {
       </div>
 
       <nav className="sidebar-nav">
-        <NavigationLink
-          currentPath={pathname}
-          href="/store-integrations"
-          icon={<BarChart3 size={18} />}
-        >
-          Workspace
+        <NavigationLink currentPath={pathname} href="/today" icon={<BarChart3 size={18} />}>
+          Today
         </NavigationLink>
         <NavigationLink
           currentPath={pathname}

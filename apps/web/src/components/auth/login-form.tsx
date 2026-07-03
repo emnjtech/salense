@@ -24,7 +24,7 @@ export function LoginForm() {
     try {
       const session = await authClient.login({ email, password });
       saveDemoSession(session);
-      router.push(searchParams.get("next") ?? "/store-integrations");
+      router.push(searchParams.get("next") ?? "/today");
     } catch (caughtError) {
       setError(getMessage(caughtError));
     } finally {
