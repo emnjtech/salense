@@ -14,7 +14,9 @@ export interface IntegrationConfiguration {
   readonly storeUrl?: string;
   readonly region?: string;
   readonly apiVersion?: string;
+  readonly consumerKey?: string;
   readonly consumerKeyMetadata?: IntegrationCredentialMetadata;
+  readonly consumerSecret?: string;
   readonly consumerSecretMetadata?: IntegrationCredentialMetadata;
   readonly accessTokenHash?: string;
   readonly accessTokenMetadata?: Readonly<Record<string, unknown>>;

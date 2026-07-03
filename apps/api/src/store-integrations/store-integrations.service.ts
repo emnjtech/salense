@@ -62,6 +62,11 @@ interface StoreIntegrationsPrismaClient {
       readonly data: ConnectedStoreCreateData;
       readonly select: ConnectedStoreSelect;
     }): Promise<ConnectedStoreRecord>;
+    update(args: {
+      readonly where: { readonly id: string };
+      readonly data: ConnectedStoreUpdateData;
+      readonly select: ConnectedStoreSelect;
+    }): Promise<ConnectedStoreRecord>;
   };
 }
 
@@ -76,6 +81,10 @@ interface ConnectedStoreCreateData {
   readonly accessTokenMetadata?: Readonly<Record<string, unknown>>;
   readonly refreshTokenHash?: string;
   readonly refreshTokenMetadata?: Readonly<Record<string, unknown>>;
+}
+
+interface ConnectedStoreUpdateData {
+  readonly connectionStatus: StoreConnectionStatus;
 }
 
 interface ConnectedStoreSelect {
@@ -210,7 +219,36 @@ export class StoreIntegrationsService {
       select: connectedStoreSelect,
     });
 
-    return toConnectedStoreResponse(connectedStore);
+    const provider = this.integrationFactory.getProvider(IntegrationPlatform.WooCommerce);
+
+    try {
+      await provider.validateConnection(
+        createIntegrationConfiguration({
+          businessId: business.id,
+          platform: request.platform,
+          region,
+          storeId: connectedStore.id,
+          storeName: request.storeName.trim(),
+          storeUrl,
+          ...credentialConfiguration,
+        }),
+      );
+      const validatedStore = await prisma.connectedStore.update({
+        where: { id: connectedStore.id },
+        data: { connectionStatus: StoreConnectionStatus.Connected },
+        select: connectedStoreSelect,
+      });
+
+      return toConnectedStoreResponse(validatedStore);
+    } catch {
+      const failedStore = await prisma.connectedStore.update({
+        where: { id: connectedStore.id },
+        data: { connectionStatus: StoreConnectionStatus.Error },
+        select: connectedStoreSelect,
+      });
+
+      return toConnectedStoreResponse(failedStore);
+    }
   }
 
   private createCredentialConfiguration(
@@ -220,7 +258,9 @@ export class StoreIntegrationsService {
     | "accessTokenHash"
     | "accessTokenMetadata"
     | "apiVersion"
+    | "consumerKey"
     | "consumerKeyMetadata"
+    | "consumerSecret"
     | "consumerSecretMetadata"
     | "refreshTokenHash"
     | "refreshTokenMetadata"
@@ -256,10 +296,12 @@ export class StoreIntegrationsService {
         encryptedCredential: encryptedConsumerKey,
       },
       apiVersion: credentials.apiVersion,
+      consumerKey: credentials.consumerKey.trim(),
       consumerKeyMetadata: {
         configured: true,
         keyId: encryptedConsumerKey.keyId,
       },
+      consumerSecret: credentials.consumerSecret.trim(),
       consumerSecretMetadata: {
         configured: true,
         keyId: encryptedConsumerSecret.keyId,
@@ -382,7 +424,9 @@ function createIntegrationConfiguration(input: {
   readonly accessTokenHash?: string;
   readonly accessTokenMetadata?: Readonly<Record<string, unknown>>;
   readonly apiVersion?: string;
+  readonly consumerKey?: string;
   readonly consumerKeyMetadata?: IntegrationConfiguration["consumerKeyMetadata"];
+  readonly consumerSecret?: string;
   readonly consumerSecretMetadata?: IntegrationConfiguration["consumerSecretMetadata"];
   readonly refreshTokenHash?: string;
   readonly refreshTokenMetadata?: Readonly<Record<string, unknown>>;
@@ -393,7 +437,9 @@ function createIntegrationConfiguration(input: {
     ...(input.accessTokenHash ? { accessTokenHash: input.accessTokenHash } : {}),
     ...(input.accessTokenMetadata ? { accessTokenMetadata: input.accessTokenMetadata } : {}),
     ...(input.apiVersion ? { apiVersion: input.apiVersion } : {}),
+    ...(input.consumerKey ? { consumerKey: input.consumerKey } : {}),
     ...(input.consumerKeyMetadata ? { consumerKeyMetadata: input.consumerKeyMetadata } : {}),
+    ...(input.consumerSecret ? { consumerSecret: input.consumerSecret } : {}),
     ...(input.consumerSecretMetadata
       ? { consumerSecretMetadata: input.consumerSecretMetadata }
       : {}),

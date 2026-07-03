@@ -1,4 +1,7 @@
-import { IntegrationNotImplementedError } from "../../errors/integration-error.js";
+import {
+  IntegrationAuthenticationError,
+  IntegrationNotImplementedError,
+} from "../../errors/integration-error.js";
 import {
   READ_ONLY_COMMERCE_CAPABILITIES,
   type IntegrationCapabilities,
@@ -13,10 +16,20 @@ import {
 } from "../../types/synchronisation-result.js";
 import type { IntegrationProvider } from "../integration-provider.js";
 import { validateWooCommerceConfiguration } from "./woocommerce-configuration.js";
+import {
+  WooCommerceRestClient,
+  type WooCommerceConnectionValidationRequest,
+} from "./woocommerce-rest-client.js";
+
+export interface WooCommerceConnectionValidator {
+  validateConnection(request: WooCommerceConnectionValidationRequest): Promise<ConnectionHealth>;
+}
 
 export class WooCommerceIntegrationProvider implements IntegrationProvider {
   readonly platform = IntegrationPlatform.WooCommerce;
   readonly capabilities: IntegrationCapabilities = READ_ONLY_COMMERCE_CAPABILITIES;
+
+  constructor(private readonly restClient: WooCommerceConnectionValidator = new WooCommerceRestClient()) {}
 
   connect(configuration: IntegrationConfiguration): Promise<ConnectionHealth> {
     const wooCommerceConfiguration = validateWooCommerceConfiguration(configuration);
@@ -34,11 +47,22 @@ export class WooCommerceIntegrationProvider implements IntegrationProvider {
 
   validateConnection(configuration: IntegrationConfiguration): Promise<ConnectionHealth> {
     const wooCommerceConfiguration = validateWooCommerceConfiguration(configuration);
-    return Promise.reject(
-      this.createPlaceholderError("validateConnection", {
-        storeUrl: wooCommerceConfiguration.storeUrl,
-      }),
-    );
+
+    if (!wooCommerceConfiguration.consumerKey || !wooCommerceConfiguration.consumerSecret) {
+      return Promise.reject(
+        new IntegrationAuthenticationError("WooCommerce consumer credentials are required.", {
+          platform: this.platform,
+          metadata: { storeUrl: wooCommerceConfiguration.storeUrl },
+        }),
+      );
+    }
+
+    return this.restClient.validateConnection({
+      storeUrl: wooCommerceConfiguration.storeUrl,
+      consumerKey: wooCommerceConfiguration.consumerKey,
+      consumerSecret: wooCommerceConfiguration.consumerSecret,
+      apiVersion: wooCommerceConfiguration.apiVersion,
+    });
   }
 
   refreshAuthentication(configuration: IntegrationConfiguration): Promise<ConnectionHealth> {

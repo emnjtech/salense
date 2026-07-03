@@ -6,6 +6,7 @@ import {
   UnauthorizedException,
 } from "@nestjs/common";
 import {
+  IntegrationAuthenticationError,
   IntegrationNotImplementedError,
   IntegrationPlatform,
   WooCommerceApiVersion,
@@ -23,8 +24,10 @@ function createStoreIntegrationsServiceMocks(): {
   readonly findManyConnectedStores: jest.Mock;
   readonly findFirstConnectedStore: jest.Mock;
   readonly createConnectedStore: jest.Mock;
+  readonly updateConnectedStore: jest.Mock;
   readonly getProvider: jest.Mock;
   readonly connect: jest.Mock;
+  readonly validateConnection: jest.Mock;
   readonly disconnect: jest.Mock;
   readonly synchroniseOrders: jest.Mock;
   readonly encrypt: jest.Mock;
@@ -33,10 +36,17 @@ function createStoreIntegrationsServiceMocks(): {
   const findManyConnectedStores = jest.fn();
   const findFirstConnectedStore = jest.fn();
   const createConnectedStore = jest.fn();
+  const updateConnectedStore = jest.fn();
   const connect = jest.fn();
+  const validateConnection = jest.fn();
   const disconnect = jest.fn();
   const synchroniseOrders = jest.fn();
-  const getProvider = jest.fn().mockReturnValue({ connect, disconnect, synchroniseOrders });
+  const getProvider = jest.fn().mockReturnValue({
+    connect,
+    disconnect,
+    synchroniseOrders,
+    validateConnection,
+  });
   let encryptedCredentialCount = 0;
   const encrypt = jest.fn(() => ({
     algorithm: "aes-256-gcm" as const,
@@ -52,6 +62,7 @@ function createStoreIntegrationsServiceMocks(): {
         findMany: findManyConnectedStores,
         findFirst: findFirstConnectedStore,
         create: createConnectedStore,
+        update: updateConnectedStore,
       },
     },
   } as unknown as PrismaService;
@@ -64,8 +75,10 @@ function createStoreIntegrationsServiceMocks(): {
     findManyConnectedStores,
     findFirstConnectedStore,
     createConnectedStore,
+    updateConnectedStore,
     getProvider,
     connect,
+    validateConnection,
     disconnect,
     encrypt,
     synchroniseOrders,
@@ -222,13 +235,15 @@ describe("StoreIntegrationsService", () => {
     });
   });
 
-  it("creates a pending WooCommerce connection with credential placeholders", async () => {
+  it("validates WooCommerce credentials and marks the connection connected", async () => {
     const {
       service,
       findBusiness,
       findFirstConnectedStore,
       createConnectedStore,
+      updateConnectedStore,
       getProvider,
+      validateConnection,
       encrypt,
     } =
       createStoreIntegrationsServiceMocks();
@@ -252,6 +267,19 @@ describe("StoreIntegrationsService", () => {
       refreshTokenHash: "stored-secret-hash",
       refreshTokenMetadata: { encryptedCredential: "stored-secret" },
     });
+    validateConnection.mockResolvedValue({ status: "HEALTHY", checkedAt: new Date() });
+    updateConnectedStore.mockResolvedValue({
+      id: "store_1",
+      businessId: "business_1",
+      platform: StorePlatform.WooCommerce,
+      storeName: "Main Store",
+      storeUrl: "https://shop.example.com",
+      region: null,
+      connectionStatus: StoreConnectionStatus.Connected,
+      lastSynchronisedAt: null,
+      createdAt,
+      updatedAt,
+    });
 
     const response = await service.prepareStoreConnection("user_1", {
         platform: StorePlatform.WooCommerce,
@@ -264,7 +292,7 @@ describe("StoreIntegrationsService", () => {
         },
       });
 
-    expect(getProvider).not.toHaveBeenCalled();
+    expect(getProvider).toHaveBeenCalledWith(IntegrationPlatform.WooCommerce);
     expect(encrypt).toHaveBeenCalledWith("ck_live_placeholder");
     expect(encrypt).toHaveBeenCalledWith("cs_live_placeholder");
     expect(createConnectedStore).toHaveBeenCalledWith({
@@ -289,7 +317,56 @@ describe("StoreIntegrationsService", () => {
       }),
       select: expect.objectContaining({ id: true }),
     });
+    expect(validateConnection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        businessId: "business_1",
+        consumerKey: "ck_live_placeholder",
+        consumerSecret: "cs_live_placeholder",
+        platform: IntegrationPlatform.WooCommerce,
+        storeId: "store_1",
+        storeUrl: "https://shop.example.com",
+      }),
+    );
+    expect(updateConnectedStore).toHaveBeenCalledWith({
+      where: { id: "store_1" },
+      data: { connectionStatus: StoreConnectionStatus.Connected },
+      select: expect.objectContaining({ id: true }),
+    });
     expect(response).toEqual({
+      id: "store_1",
+      businessId: "business_1",
+      platform: StorePlatform.WooCommerce,
+      storeName: "Main Store",
+      storeUrl: "https://shop.example.com",
+      region: null,
+      connectionStatus: StoreConnectionStatus.Connected,
+      lastSynchronisedAt: null,
+      createdAt,
+      updatedAt,
+    });
+    expect(JSON.stringify(response)).not.toContain("ck_live_placeholder");
+    expect(JSON.stringify(response)).not.toContain("cs_live_placeholder");
+    expect(JSON.stringify(response)).not.toContain("stored-key-hash");
+    expect(JSON.stringify(response)).not.toContain("stored-secret-hash");
+    expect(JSON.stringify(createConnectedStore.mock.calls)).not.toContain("ck_live_placeholder");
+    expect(JSON.stringify(createConnectedStore.mock.calls)).not.toContain("cs_live_placeholder");
+    expect(JSON.stringify(response)).not.toContain("encrypted");
+  });
+
+  it("marks WooCommerce connection error when credential validation fails", async () => {
+    const {
+      service,
+      findBusiness,
+      findFirstConnectedStore,
+      createConnectedStore,
+      updateConnectedStore,
+      validateConnection,
+    } = createStoreIntegrationsServiceMocks();
+    const createdAt = new Date("2026-07-03T11:00:00.000Z");
+    const updatedAt = new Date("2026-07-03T11:00:01.000Z");
+    findBusiness.mockResolvedValue({ id: "business_1" });
+    findFirstConnectedStore.mockResolvedValue(null);
+    createConnectedStore.mockResolvedValue({
       id: "store_1",
       businessId: "business_1",
       platform: StorePlatform.WooCommerce,
@@ -301,12 +378,43 @@ describe("StoreIntegrationsService", () => {
       createdAt,
       updatedAt,
     });
+    validateConnection.mockRejectedValue(
+      new IntegrationAuthenticationError("WooCommerce authentication failed.", {
+        platform: IntegrationPlatform.WooCommerce,
+      }),
+    );
+    updateConnectedStore.mockResolvedValue({
+      id: "store_1",
+      businessId: "business_1",
+      platform: StorePlatform.WooCommerce,
+      storeName: "Main Store",
+      storeUrl: "https://shop.example.com",
+      region: null,
+      connectionStatus: StoreConnectionStatus.Error,
+      lastSynchronisedAt: null,
+      createdAt,
+      updatedAt,
+    });
+
+    const response = await service.prepareStoreConnection("user_1", {
+      platform: StorePlatform.WooCommerce,
+      storeName: "Main Store",
+      storeUrl: "https://shop.example.com",
+      wooCommerceCredentials: {
+        consumerKey: "ck_live_placeholder",
+        consumerSecret: "cs_live_placeholder",
+        apiVersion: WooCommerceApiVersion.WcV3,
+      },
+    });
+
+    expect(updateConnectedStore).toHaveBeenCalledWith({
+      where: { id: "store_1" },
+      data: { connectionStatus: StoreConnectionStatus.Error },
+      select: expect.objectContaining({ id: true }),
+    });
+    expect(response.connectionStatus).toBe(StoreConnectionStatus.Error);
     expect(JSON.stringify(response)).not.toContain("ck_live_placeholder");
     expect(JSON.stringify(response)).not.toContain("cs_live_placeholder");
-    expect(JSON.stringify(response)).not.toContain("stored-key-hash");
-    expect(JSON.stringify(response)).not.toContain("stored-secret-hash");
-    expect(JSON.stringify(createConnectedStore.mock.calls)).not.toContain("ck_live_placeholder");
-    expect(JSON.stringify(createConnectedStore.mock.calls)).not.toContain("cs_live_placeholder");
   });
 
   it("requires WooCommerce credentials before placeholder connection", async () => {

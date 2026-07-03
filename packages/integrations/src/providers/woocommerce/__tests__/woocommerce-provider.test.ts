@@ -1,4 +1,6 @@
 import {
+  ConnectionHealthStatus,
+  IntegrationAuthenticationError,
   IntegrationNotImplementedError,
   IntegrationPlatform,
   PlaceholderIntegrationProvider,
@@ -17,7 +19,9 @@ const configuration = {
   storeId: "store_1",
   storeName: "Main Woo Store",
   storeUrl: " https://shop.example.com ",
+  consumerKey: "ck_live_placeholder",
   consumerKeyMetadata: { configured: true, keyId: "ck_1" },
+  consumerSecret: "cs_live_placeholder",
   consumerSecretMetadata: { configured: true, keyId: "cs_1" },
   apiVersion: WooCommerceApiVersion.WcV3,
 };
@@ -108,12 +112,43 @@ describe("WooCommerceIntegrationProvider", () => {
     ).toThrow("WooCommerce API version is not supported.");
   });
 
+  it("validates WooCommerce credentials through the read-only REST client", async () => {
+    const restClient = {
+      validateConnection: jest.fn().mockResolvedValue({
+        status: ConnectionHealthStatus.Healthy,
+        checkedAt: new Date("2026-07-03T11:00:00.000Z"),
+      }),
+    };
+    const validatingProvider = new WooCommerceIntegrationProvider(restClient);
+
+    await expect(validatingProvider.validateConnection(configuration)).resolves.toMatchObject({
+      status: ConnectionHealthStatus.Healthy,
+    });
+    expect(restClient.validateConnection).toHaveBeenCalledWith({
+      storeUrl: "https://shop.example.com",
+      consumerKey: "ck_live_placeholder",
+      consumerSecret: "cs_live_placeholder",
+      apiVersion: WooCommerceApiVersion.WcV3,
+    });
+  });
+
+  it("rejects validation when transient credentials are missing", async () => {
+    await expect(
+      provider.validateConnection({
+        platform: IntegrationPlatform.WooCommerce,
+        businessId: "business_1",
+        storeUrl: "https://shop.example.com",
+        consumerKeyMetadata: { configured: true, keyId: "ck_1" },
+        consumerSecret: "cs_live_placeholder",
+        consumerSecretMetadata: { configured: true, keyId: "cs_1" },
+        apiVersion: WooCommerceApiVersion.WcV3,
+      }),
+    ).rejects.toThrow(IntegrationAuthenticationError);
+  });
+
   it("keeps connection and auth methods as explicit placeholders", async () => {
     await expect(provider.connect(configuration)).rejects.toThrow(IntegrationNotImplementedError);
     await expect(provider.disconnect(configuration)).rejects.toThrow(IntegrationNotImplementedError);
-    await expect(provider.validateConnection(configuration)).rejects.toThrow(
-      IntegrationNotImplementedError,
-    );
     await expect(provider.refreshAuthentication(configuration)).rejects.toThrow(
       IntegrationNotImplementedError,
     );

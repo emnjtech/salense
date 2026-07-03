@@ -7,7 +7,9 @@ import { IntegrationPlatform } from "../../types/integration-platform.js";
 export interface WooCommerceIntegrationConfiguration extends IntegrationConfiguration {
   readonly platform: IntegrationPlatform.WooCommerce;
   readonly storeUrl: string;
+  readonly consumerKey?: string;
   readonly consumerKeyMetadata: IntegrationCredentialMetadata;
+  readonly consumerSecret?: string;
   readonly consumerSecretMetadata: IntegrationCredentialMetadata;
   readonly apiVersion: WooCommerceApiVersion;
 }
