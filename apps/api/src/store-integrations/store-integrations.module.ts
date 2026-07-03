@@ -4,11 +4,12 @@ import { IntegrationFrameworkModule } from "../integrations/integration-framewor
 import { AesCredentialEncryptionService } from "./security/credential-encryption.service.js";
 import { StoreIntegrationsController } from "./store-integrations.controller.js";
 import { StoreIntegrationsService } from "./store-integrations.service.js";
+import { WooCommerceCommercePersistenceService } from "./woocommerce-commerce-persistence.service.js";
 
 @Module({
   imports: [DatabaseModule, IntegrationFrameworkModule],
   controllers: [StoreIntegrationsController],
-  providers: [AesCredentialEncryptionService, StoreIntegrationsService],
-  exports: [StoreIntegrationsService],
+  providers: [AesCredentialEncryptionService, StoreIntegrationsService, WooCommerceCommercePersistenceService],
+  exports: [StoreIntegrationsService, WooCommerceCommercePersistenceService],
 })
 export class StoreIntegrationsModule {}
