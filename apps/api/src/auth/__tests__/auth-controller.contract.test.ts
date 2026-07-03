@@ -5,7 +5,11 @@ import type { Server } from "node:http";
 import type { Test as HttpRequest } from "supertest";
 import { PrismaService } from "../../database/prisma.service.js";
 import { EmailService } from "../../email/email.service.js";
-import { BcryptPasswordHasherService, EmailVerificationTokenService } from "../security/index.js";
+import {
+  BcryptPasswordHasherService,
+  EmailVerificationTokenService,
+  PasswordResetTokenService,
+} from "../security/index.js";
 import { JwtSessionConfigService, JwtSessionTokenService } from "../session/index.js";
 import { AuthModule } from "../auth.module.js";
 
@@ -28,6 +32,11 @@ const prismaClient = {
     findUnique: jest.fn(),
     update: jest.fn(),
   },
+  passwordResetToken: {
+    create: jest.fn(),
+    findUnique: jest.fn(),
+    update: jest.fn(),
+  },
   $transaction: jest.fn(),
 };
 const passwordHasher = {
@@ -39,8 +48,14 @@ const emailVerificationTokens = {
   hashToken: jest.fn(),
   getExpiryDate: jest.fn(),
 };
+const passwordResetTokens = {
+  generateToken: jest.fn(),
+  hashToken: jest.fn(),
+  getExpiryDate: jest.fn(),
+};
 const emailService = {
   sendVerificationEmail: jest.fn(),
+  sendPasswordResetEmail: jest.fn(),
 };
 const jwtSessionTokens = {
   issueAccessToken: jest.fn(),
@@ -60,6 +75,8 @@ async function createContractApp(): Promise<INestApplication> {
     .useValue(passwordHasher)
     .overrideProvider(EmailVerificationTokenService)
     .useValue(emailVerificationTokens)
+    .overrideProvider(PasswordResetTokenService)
+    .useValue(passwordResetTokens)
     .overrideProvider(EmailService)
     .useValue(emailService)
     .overrideProvider(JwtSessionTokenService)
@@ -116,14 +133,6 @@ const registrationBody = {
 
 const unimplementedContracts = [
   {
-    method: "post",
-    path: "/auth/password-reset",
-    body: {
-      email: "sarah@example.com",
-    },
-    notImplementedMessage: "Password reset is not implemented in the Phase 1 skeleton.",
-  },
-  {
     method: "put",
     path: "/users/company-profile",
     body: {
@@ -172,6 +181,15 @@ const invalidContracts = [
     path: "/auth/password-reset",
     body: {
       email: "not-an-email",
+    },
+  },
+  {
+    method: "post",
+    path: "/auth/password-reset/confirm",
+    body: {
+      token: "",
+      password: "weak",
+      confirmPassword: "",
     },
   },
   {
@@ -322,6 +340,175 @@ describe("Phase 1 authentication and user management controller contracts", () =
           data: expect.objectContaining({ usedAt: expect.any(Date) }),
         }),
       );
+    });
+  });
+
+  it("post /auth/password-reset creates a reset token for an existing email", async () => {
+    prismaClient.user.findUnique.mockResolvedValue({
+      id: "user_1",
+      email: "sarah@example.com",
+      firstName: "Sarah",
+    });
+    passwordResetTokens.generateToken.mockReturnValue("raw-reset-token");
+    passwordResetTokens.hashToken.mockReturnValue("hashed-reset-token");
+    passwordResetTokens.getExpiryDate.mockReturnValue(new Date("2026-07-03T12:00:00.000Z"));
+
+    await withContractApp(async (server) => {
+      const response = await sendRequest(server, {
+        method: "post",
+        path: "/auth/password-reset",
+        body: { email: "SARAH@example.com" },
+      });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ passwordResetRequested: true });
+      expect(response.body.emailExists).toBeUndefined();
+      expect(JSON.stringify(response.body)).not.toContain("raw-reset-token");
+      expect(JSON.stringify(response.body)).not.toContain("hashed-reset-token");
+      expect(prismaClient.user.findUnique).toHaveBeenCalledWith({
+        where: { email: "sarah@example.com" },
+        select: { id: true, firstName: true, email: true },
+      });
+      expect(prismaClient.passwordResetToken.create).toHaveBeenCalledWith({
+        data: {
+          userId: "user_1",
+          tokenHash: "hashed-reset-token",
+          expiresAt: new Date("2026-07-03T12:00:00.000Z"),
+        },
+      });
+      expect(emailService.sendPasswordResetEmail).toHaveBeenCalledWith({
+        email: "sarah@example.com",
+        firstName: "Sarah",
+        resetToken: "raw-reset-token",
+      });
+    });
+  });
+
+  it("post /auth/password-reset returns the same generic response for a missing email", async () => {
+    prismaClient.user.findUnique.mockResolvedValue(null);
+
+    await withContractApp(async (server) => {
+      const response = await sendRequest(server, {
+        method: "post",
+        path: "/auth/password-reset",
+        body: { email: "missing@example.com" },
+      });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ passwordResetRequested: true });
+      expect(response.body.emailExists).toBeUndefined();
+      expect(prismaClient.passwordResetToken.create).not.toHaveBeenCalled();
+      expect(emailService.sendPasswordResetEmail).not.toHaveBeenCalled();
+    });
+  });
+
+  it("post /auth/password-reset/confirm updates the password and invalidates the token", async () => {
+    passwordResetTokens.hashToken.mockReturnValue("hashed-reset-token");
+    prismaClient.passwordResetToken.findUnique.mockResolvedValue({
+      id: "reset_token_1",
+      userId: "user_1",
+      expiresAt: new Date(Date.now() + 60_000),
+      usedAt: null,
+    });
+    passwordHasher.hashPassword.mockResolvedValue("new-hashed-password");
+
+    await withContractApp(async (server) => {
+      const response = await sendRequest(server, {
+        method: "post",
+        path: "/auth/password-reset/confirm",
+        body: {
+          token: "raw-reset-token",
+          password: "NewPassword123!",
+          confirmPassword: "NewPassword123!",
+        },
+      });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ passwordReset: true });
+      expect(JSON.stringify(response.body)).not.toContain("raw-reset-token");
+      expect(JSON.stringify(response.body)).not.toContain("new-hashed-password");
+      expect(prismaClient.passwordResetToken.findUnique).toHaveBeenCalledWith({
+        where: { tokenHash: "hashed-reset-token" },
+        select: { id: true, userId: true, expiresAt: true, usedAt: true },
+      });
+      expect(prismaClient.user.update).toHaveBeenCalledWith({
+        where: { id: "user_1" },
+        data: { passwordHash: "new-hashed-password" },
+      });
+      expect(prismaClient.passwordResetToken.update).toHaveBeenCalledWith({
+        where: { id: "reset_token_1" },
+        data: { usedAt: expect.any(Date) },
+      });
+    });
+  });
+
+  it("post /auth/password-reset/confirm rejects invalid reset tokens", async () => {
+    passwordResetTokens.hashToken.mockReturnValue("hashed-reset-token");
+    prismaClient.passwordResetToken.findUnique.mockResolvedValue(null);
+
+    await withContractApp(async (server) => {
+      const response = await sendRequest(server, {
+        method: "post",
+        path: "/auth/password-reset/confirm",
+        body: {
+          token: "raw-reset-token",
+          password: "NewPassword123!",
+          confirmPassword: "NewPassword123!",
+        },
+      });
+
+      expect(response.status).toBe(404);
+      expect(passwordHasher.hashPassword).not.toHaveBeenCalled();
+    });
+  });
+
+  it("post /auth/password-reset/confirm rejects expired reset tokens", async () => {
+    passwordResetTokens.hashToken.mockReturnValue("hashed-reset-token");
+    prismaClient.passwordResetToken.findUnique.mockResolvedValue({
+      id: "reset_token_1",
+      userId: "user_1",
+      expiresAt: new Date(Date.now() - 60_000),
+      usedAt: null,
+    });
+
+    await withContractApp(async (server) => {
+      const response = await sendRequest(server, {
+        method: "post",
+        path: "/auth/password-reset/confirm",
+        body: {
+          token: "raw-reset-token",
+          password: "NewPassword123!",
+          confirmPassword: "NewPassword123!",
+        },
+      });
+
+      expect(response.status).toBe(400);
+      expect(passwordHasher.hashPassword).not.toHaveBeenCalled();
+    });
+  });
+
+  it("post /auth/password-reset/confirm rejects reused reset tokens", async () => {
+    passwordResetTokens.hashToken.mockReturnValue("hashed-reset-token");
+    prismaClient.passwordResetToken.findUnique.mockResolvedValue({
+      id: "reset_token_1",
+      userId: "user_1",
+      expiresAt: new Date(Date.now() + 60_000),
+      usedAt: new Date(),
+    });
+
+    await withContractApp(async (server) => {
+      const response = await sendRequest(server, {
+        method: "post",
+        path: "/auth/password-reset/confirm",
+        body: {
+          token: "raw-reset-token",
+          password: "NewPassword123!",
+          confirmPassword: "NewPassword123!",
+        },
+      });
+
+      expect(response.status).toBe(404);
+      expect(passwordHasher.hashPassword).not.toHaveBeenCalled();
     });
   });
 

@@ -3,7 +3,6 @@ import {
   ConflictException,
   ForbiddenException,
   NotFoundException,
-  NotImplementedException,
   UnauthorizedException,
 } from "@nestjs/common";
 import type { PrismaService } from "../../database/prisma.service.js";
@@ -11,6 +10,7 @@ import type { EmailService } from "../../email/email.service.js";
 import type {
   BcryptPasswordHasherService,
   EmailVerificationTokenService,
+  PasswordResetTokenService,
 } from "../security/index.js";
 import type { JwtSessionConfigService, JwtSessionTokenService } from "../session/index.js";
 import { AuthService } from "../auth.service.js";
@@ -33,10 +33,17 @@ function createAuthServiceMocks(): {
   readonly generateToken: jest.Mock;
   readonly hashToken: jest.Mock;
   readonly getExpiryDate: jest.Mock;
+  readonly generatePasswordResetToken: jest.Mock;
+  readonly hashPasswordResetToken: jest.Mock;
+  readonly getPasswordResetExpiryDate: jest.Mock;
   readonly sendVerificationEmail: jest.Mock;
+  readonly sendPasswordResetEmail: jest.Mock;
   readonly findVerificationToken: jest.Mock;
+  readonly createPasswordResetToken: jest.Mock;
+  readonly findPasswordResetToken: jest.Mock;
   readonly updateUser: jest.Mock;
   readonly updateVerificationToken: jest.Mock;
+  readonly updatePasswordResetToken: jest.Mock;
   readonly transaction: jest.Mock;
   readonly issueAccessToken: jest.Mock;
   readonly getRequiredAccessTokenConfig: jest.Mock;
@@ -48,16 +55,24 @@ function createAuthServiceMocks(): {
   const generateToken = jest.fn();
   const hashToken = jest.fn();
   const getExpiryDate = jest.fn();
+  const generatePasswordResetToken = jest.fn();
+  const hashPasswordResetToken = jest.fn();
+  const getPasswordResetExpiryDate = jest.fn();
   const sendVerificationEmail = jest.fn();
+  const sendPasswordResetEmail = jest.fn();
   const findVerificationToken = jest.fn();
+  const createPasswordResetToken = jest.fn();
+  const findPasswordResetToken = jest.fn();
   const updateUser = jest.fn();
   const updateVerificationToken = jest.fn();
+  const updatePasswordResetToken = jest.fn();
   const issueAccessToken = jest.fn();
   const getRequiredAccessTokenConfig = jest.fn();
   const transaction = jest.fn(async (callback: (client: unknown) => Promise<unknown>) =>
     callback({
       user: { update: updateUser },
       emailVerificationToken: { update: updateVerificationToken },
+      passwordResetToken: { update: updatePasswordResetToken },
     }),
   );
   const prismaService = {
@@ -71,6 +86,11 @@ function createAuthServiceMocks(): {
         findUnique: findVerificationToken,
         update: updateVerificationToken,
       },
+      passwordResetToken: {
+        create: createPasswordResetToken,
+        findUnique: findPasswordResetToken,
+        update: updatePasswordResetToken,
+      },
       $transaction: transaction,
     },
   } as unknown as PrismaService;
@@ -83,7 +103,12 @@ function createAuthServiceMocks(): {
     hashToken,
     getExpiryDate,
   } as unknown as EmailVerificationTokenService;
-  const emailService = { sendVerificationEmail } as unknown as EmailService;
+  const passwordResetTokenService = {
+    generateToken: generatePasswordResetToken,
+    hashToken: hashPasswordResetToken,
+    getExpiryDate: getPasswordResetExpiryDate,
+  } as unknown as PasswordResetTokenService;
+  const emailService = { sendVerificationEmail, sendPasswordResetEmail } as unknown as EmailService;
   const jwtSessionTokens = { issueAccessToken } as unknown as JwtSessionTokenService;
   const jwtSessionConfig = {
     getRequiredAccessTokenConfig,
@@ -94,6 +119,7 @@ function createAuthServiceMocks(): {
       prismaService,
       passwordHasher,
       tokenService,
+      passwordResetTokenService,
       emailService,
       jwtSessionTokens,
       jwtSessionConfig,
@@ -105,10 +131,17 @@ function createAuthServiceMocks(): {
     generateToken,
     hashToken,
     getExpiryDate,
+    generatePasswordResetToken,
+    hashPasswordResetToken,
+    getPasswordResetExpiryDate,
     sendVerificationEmail,
+    sendPasswordResetEmail,
     findVerificationToken,
+    createPasswordResetToken,
+    findPasswordResetToken,
     updateUser,
     updateVerificationToken,
+    updatePasswordResetToken,
     transaction,
     issueAccessToken,
     getRequiredAccessTokenConfig,
@@ -442,11 +475,173 @@ describe("AuthService", () => {
     );
   });
 
-  it("keeps password reset unimplemented in the skeleton", () => {
-    const { service } = createAuthServiceMocks();
+  it("creates a hashed password reset token for an existing email", async () => {
+    const mocks = createAuthServiceMocks();
+    mocks.findUnique.mockResolvedValue({
+      id: "user_1",
+      email: "sarah@example.com",
+      firstName: "Sarah",
+    });
+    mocks.generatePasswordResetToken.mockReturnValue("raw-reset-token");
+    mocks.hashPasswordResetToken.mockReturnValue("hashed-reset-token");
+    mocks.getPasswordResetExpiryDate.mockReturnValue(new Date("2026-07-03T12:00:00.000Z"));
 
-    expect(() => service.requestPasswordReset({ email: "sarah@example.com" })).toThrow(
-      NotImplementedException,
-    );
+    await expect(
+      mocks.service.requestPasswordReset({ email: "SARAH@EXAMPLE.COM" }),
+    ).resolves.toEqual({
+      passwordResetRequested: true,
+    });
+
+    expect(mocks.findUnique).toHaveBeenCalledWith({
+      where: { email: "sarah@example.com" },
+      select: { id: true, firstName: true, email: true },
+    });
+    expect(mocks.createPasswordResetToken).toHaveBeenCalledWith({
+      data: {
+        userId: "user_1",
+        tokenHash: "hashed-reset-token",
+        expiresAt: new Date("2026-07-03T12:00:00.000Z"),
+      },
+    });
+    expect(mocks.sendPasswordResetEmail).toHaveBeenCalledWith({
+      email: "sarah@example.com",
+      firstName: "Sarah",
+      resetToken: "raw-reset-token",
+    });
+  });
+
+  it("returns the same generic password reset request response for a missing email", async () => {
+    const mocks = createAuthServiceMocks();
+    mocks.findUnique.mockResolvedValue(null);
+
+    await expect(
+      mocks.service.requestPasswordReset({ email: "missing@example.com" }),
+    ).resolves.toEqual({
+      passwordResetRequested: true,
+    });
+
+    expect(mocks.createPasswordResetToken).not.toHaveBeenCalled();
+    expect(mocks.sendPasswordResetEmail).not.toHaveBeenCalled();
+  });
+
+  it("updates the password hash and invalidates a valid password reset token", async () => {
+    const mocks = createAuthServiceMocks();
+    mocks.hashPasswordResetToken.mockReturnValue("hashed-reset-token");
+    mocks.findPasswordResetToken.mockResolvedValue({
+      id: "reset_token_1",
+      userId: "user_1",
+      expiresAt: new Date(Date.now() + 60_000),
+      usedAt: null,
+    });
+    mocks.hashPassword.mockResolvedValue("new-hashed-password");
+
+    await expect(
+      mocks.service.confirmPasswordReset({
+        token: "raw-reset-token",
+        password: "NewPassword123!",
+        confirmPassword: "NewPassword123!",
+      }),
+    ).resolves.toEqual({ passwordReset: true });
+
+    expect(mocks.findPasswordResetToken).toHaveBeenCalledWith({
+      where: { tokenHash: "hashed-reset-token" },
+      select: { id: true, userId: true, expiresAt: true, usedAt: true },
+    });
+    expect(mocks.hashPassword).toHaveBeenCalledWith("NewPassword123!");
+    expect(mocks.updateUser).toHaveBeenCalledWith({
+      where: { id: "user_1" },
+      data: { passwordHash: "new-hashed-password" },
+    });
+    expect(mocks.updatePasswordResetToken).toHaveBeenCalledWith({
+      where: { id: "reset_token_1" },
+      data: { usedAt: expect.any(Date) },
+    });
+  });
+
+  it("rejects an invalid password reset token", async () => {
+    const mocks = createAuthServiceMocks();
+    mocks.hashPasswordResetToken.mockReturnValue("hashed-reset-token");
+    mocks.findPasswordResetToken.mockResolvedValue(null);
+
+    await expect(
+      mocks.service.confirmPasswordReset({
+        token: "raw-reset-token",
+        password: "NewPassword123!",
+        confirmPassword: "NewPassword123!",
+      }),
+    ).rejects.toThrow(NotFoundException);
+    expect(mocks.hashPassword).not.toHaveBeenCalled();
+  });
+
+  it("rejects an expired password reset token", async () => {
+    const mocks = createAuthServiceMocks();
+    mocks.hashPasswordResetToken.mockReturnValue("hashed-reset-token");
+    mocks.findPasswordResetToken.mockResolvedValue({
+      id: "reset_token_1",
+      userId: "user_1",
+      expiresAt: new Date(Date.now() - 60_000),
+      usedAt: null,
+    });
+
+    await expect(
+      mocks.service.confirmPasswordReset({
+        token: "raw-reset-token",
+        password: "NewPassword123!",
+        confirmPassword: "NewPassword123!",
+      }),
+    ).rejects.toThrow(BadRequestException);
+    expect(mocks.hashPassword).not.toHaveBeenCalled();
+  });
+
+  it("prevents password reset token reuse", async () => {
+    const mocks = createAuthServiceMocks();
+    mocks.hashPasswordResetToken.mockReturnValue("hashed-reset-token");
+    mocks.findPasswordResetToken.mockResolvedValue({
+      id: "reset_token_1",
+      userId: "user_1",
+      expiresAt: new Date(Date.now() + 60_000),
+      usedAt: new Date(),
+    });
+
+    await expect(
+      mocks.service.confirmPasswordReset({
+        token: "raw-reset-token",
+        password: "NewPassword123!",
+        confirmPassword: "NewPassword123!",
+      }),
+    ).rejects.toThrow(NotFoundException);
+    expect(mocks.hashPassword).not.toHaveBeenCalled();
+  });
+
+  it("rejects weak password reset confirmation passwords", async () => {
+    const mocks = createAuthServiceMocks();
+
+    await expect(
+      mocks.service.confirmPasswordReset({
+        token: "raw-reset-token",
+        password: "weak",
+        confirmPassword: "weak",
+      }),
+    ).rejects.toThrow(BadRequestException);
+    expect(mocks.findPasswordResetToken).not.toHaveBeenCalled();
+  });
+
+  it("excludes sensitive fields from password reset responses", async () => {
+    const mocks = createAuthServiceMocks();
+    mocks.findUnique.mockResolvedValue({
+      id: "user_1",
+      email: "sarah@example.com",
+      firstName: "Sarah",
+    });
+    mocks.generatePasswordResetToken.mockReturnValue("raw-reset-token");
+    mocks.hashPasswordResetToken.mockReturnValue("hashed-reset-token");
+    mocks.getPasswordResetExpiryDate.mockReturnValue(new Date("2026-07-03T12:00:00.000Z"));
+
+    const response = await mocks.service.requestPasswordReset({ email: "sarah@example.com" });
+
+    expect(JSON.stringify(response)).not.toContain("raw-reset-token");
+    expect(JSON.stringify(response)).not.toContain("hashed-reset-token");
+    expect(JSON.stringify(response)).not.toContain("NewPassword123!");
+    expect(JSON.stringify(response)).not.toContain("passwordHash");
   });
 });

@@ -5,7 +5,11 @@ import { UsersModule } from "../users/users.module.js";
 import { AuthController } from "./auth.controller.js";
 import { AuthService } from "./auth.service.js";
 import { JwtAccessTokenGuard } from "./guards/jwt-access-token.guard.js";
-import { BcryptPasswordHasherService, EmailVerificationTokenService } from "./security/index.js";
+import {
+  BcryptPasswordHasherService,
+  EmailVerificationTokenService,
+  PasswordResetTokenService,
+} from "./security/index.js";
 import { JwtSessionConfigService, JwtSessionTokenService } from "./session/index.js";
 
 @Module({
@@ -15,6 +19,7 @@ import { JwtSessionConfigService, JwtSessionTokenService } from "./session/index
     AuthService,
     BcryptPasswordHasherService,
     EmailVerificationTokenService,
+    PasswordResetTokenService,
     {
       provide: JwtSessionConfigService,
       useFactory: () => new JwtSessionConfigService(),

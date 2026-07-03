@@ -15,6 +15,8 @@ import { EmailVerificationRequestDto } from "./dto/email-verification-request.dt
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- Nest validation requires runtime DTO metadata.
 import { LoginRequestDto } from "./dto/login-request.dto.js";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- Nest validation requires runtime DTO metadata.
+import { PasswordResetConfirmationRequestDto } from "./dto/password-reset-confirmation-request.dto.js";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- Nest validation requires runtime DTO metadata.
 import { PasswordResetRequestDto } from "./dto/password-reset-request.dto.js";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- Nest validation requires runtime DTO metadata.
 import { RegisterRequestDto } from "./dto/register-request.dto.js";
@@ -23,6 +25,10 @@ import { AuthService } from "./auth.service.js";
 import type { CurrentUserResponse } from "./types/current-user-response.type.js";
 import type { EmailVerificationResponse } from "./types/email-verification-response.type.js";
 import type { LoginSessionResponse } from "./types/login-session-response.type.js";
+import type {
+  PasswordResetConfirmationResponse,
+  PasswordResetRequestResponse,
+} from "./types/password-reset-response.type.js";
 import type { RegistrationResponse } from "./types/registration-response.type.js";
 
 @Controller("auth")
@@ -49,8 +55,19 @@ export class AuthController {
   }
 
   @Post("password-reset")
-  requestPasswordReset(@Body() passwordResetRequest: PasswordResetRequestDto): never {
+  @HttpCode(200)
+  requestPasswordReset(
+    @Body() passwordResetRequest: PasswordResetRequestDto,
+  ): Promise<PasswordResetRequestResponse> {
     return this.authService.requestPasswordReset(passwordResetRequest);
+  }
+
+  @Post("password-reset/confirm")
+  @HttpCode(200)
+  confirmPasswordReset(
+    @Body() passwordResetConfirmationRequest: PasswordResetConfirmationRequestDto,
+  ): Promise<PasswordResetConfirmationResponse> {
+    return this.authService.confirmPasswordReset(passwordResetConfirmationRequest);
   }
 
   @Get("me")

@@ -5,24 +5,29 @@ import {
   Inject,
   Injectable,
   NotFoundException,
-  NotImplementedException,
   UnauthorizedException,
 } from "@nestjs/common";
 import { EmailService } from "../email/email.service.js";
 import { PrismaService } from "../database/prisma.service.js";
 import type { EmailVerificationRequestDto } from "./dto/email-verification-request.dto.js";
 import type { LoginRequestDto } from "./dto/login-request.dto.js";
+import type { PasswordResetConfirmationRequestDto } from "./dto/password-reset-confirmation-request.dto.js";
 import type { PasswordResetRequestDto } from "./dto/password-reset-request.dto.js";
 import type { RegisterRequestDto } from "./dto/register-request.dto.js";
 import {
   BcryptPasswordHasherService,
   EmailVerificationTokenService,
   isPasswordPolicyCompliant,
+  PasswordResetTokenService,
 } from "./security/index.js";
 import { JwtSessionConfigService, JwtSessionTokenService } from "./session/index.js";
 import type { CurrentUserResponse } from "./types/current-user-response.type.js";
 import type { EmailVerificationResponse } from "./types/email-verification-response.type.js";
 import type { LoginSessionResponse } from "./types/login-session-response.type.js";
+import type {
+  PasswordResetConfirmationResponse,
+  PasswordResetRequestResponse,
+} from "./types/password-reset-response.type.js";
 import type { RegistrationResponse } from "./types/registration-response.type.js";
 
 interface RegistrationPrismaClient {
@@ -88,10 +93,41 @@ interface RegistrationPrismaClient {
     }>;
     update(args: {
       readonly where: { readonly id: string };
-      readonly data: { readonly emailVerified: true; readonly emailVerifiedAt: Date };
+      readonly data: {
+        readonly emailVerified?: true;
+        readonly emailVerifiedAt?: Date;
+        readonly passwordHash?: string;
+      };
     }): Promise<unknown>;
   };
   readonly emailVerificationToken: {
+    findUnique(args: {
+      readonly where: { readonly tokenHash: string };
+      readonly select: {
+        readonly id: true;
+        readonly userId: true;
+        readonly expiresAt: true;
+        readonly usedAt: true;
+      };
+    }): Promise<{
+      readonly id: string;
+      readonly userId: string;
+      readonly expiresAt: Date;
+      readonly usedAt: Date | null;
+    } | null>;
+    update(args: {
+      readonly where: { readonly id: string };
+      readonly data: { readonly usedAt: Date };
+    }): Promise<unknown>;
+  };
+  readonly passwordResetToken: {
+    create(args: {
+      readonly data: {
+        readonly userId: string;
+        readonly tokenHash: string;
+        readonly expiresAt: Date;
+      };
+    }): Promise<unknown>;
     findUnique(args: {
       readonly where: { readonly tokenHash: string };
       readonly select: {
@@ -122,6 +158,8 @@ export class AuthService {
     private readonly passwordHasher: BcryptPasswordHasherService,
     @Inject(EmailVerificationTokenService)
     private readonly emailVerificationTokens: EmailVerificationTokenService,
+    @Inject(PasswordResetTokenService)
+    private readonly passwordResetTokens: PasswordResetTokenService,
     @Inject(EmailService) private readonly emailService: EmailService,
     @Inject(JwtSessionTokenService)
     private readonly jwtSessionTokens: JwtSessionTokenService,
@@ -327,8 +365,92 @@ export class AuthService {
     };
   }
 
-  requestPasswordReset(passwordResetRequest: PasswordResetRequestDto): never {
-    void passwordResetRequest;
-    throw new NotImplementedException("Password reset is not implemented in the Phase 1 skeleton.");
+  async requestPasswordReset(
+    passwordResetRequest: PasswordResetRequestDto,
+  ): Promise<PasswordResetRequestResponse> {
+    const normalizedEmail = passwordResetRequest.email.trim().toLowerCase();
+    const prisma = this.prismaService.client as unknown as RegistrationPrismaClient;
+    const user = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      select: {
+        id: true,
+        firstName: true,
+        email: true,
+      },
+    });
+
+    if (user?.id && user.email && user.firstName) {
+      const resetToken = this.passwordResetTokens.generateToken();
+      const tokenHash = this.passwordResetTokens.hashToken(resetToken);
+      const expiresAt = this.passwordResetTokens.getExpiryDate();
+
+      await prisma.passwordResetToken.create({
+        data: {
+          userId: user.id,
+          tokenHash,
+          expiresAt,
+        },
+      });
+      await this.emailService.sendPasswordResetEmail({
+        email: user.email,
+        firstName: user.firstName,
+        resetToken,
+      });
+    }
+
+    return { passwordResetRequested: true };
+  }
+
+  async confirmPasswordReset(
+    passwordResetConfirmationRequest: PasswordResetConfirmationRequestDto,
+  ): Promise<PasswordResetConfirmationResponse> {
+    if (
+      passwordResetConfirmationRequest.password !== passwordResetConfirmationRequest.confirmPassword
+    ) {
+      throw new BadRequestException("Password confirmation does not match.");
+    }
+
+    if (!isPasswordPolicyCompliant(passwordResetConfirmationRequest.password)) {
+      throw new BadRequestException("Password does not meet Chapter 6.1 requirements.");
+    }
+
+    const prisma = this.prismaService.client as unknown as RegistrationPrismaClient;
+    const tokenHash = this.passwordResetTokens.hashToken(passwordResetConfirmationRequest.token);
+    const resetToken = await prisma.passwordResetToken.findUnique({
+      where: { tokenHash },
+      select: {
+        id: true,
+        userId: true,
+        expiresAt: true,
+        usedAt: true,
+      },
+    });
+
+    if (!resetToken || resetToken.usedAt) {
+      throw new NotFoundException("Password reset token is invalid.");
+    }
+
+    const resetAt = new Date();
+
+    if (resetToken.expiresAt <= resetAt) {
+      throw new BadRequestException("Password reset token has expired.");
+    }
+
+    const passwordHash = await this.passwordHasher.hashPassword(
+      passwordResetConfirmationRequest.password,
+    );
+
+    await prisma.$transaction(async (transaction) => {
+      await transaction.user.update({
+        where: { id: resetToken.userId },
+        data: { passwordHash },
+      });
+      await transaction.passwordResetToken.update({
+        where: { id: resetToken.id },
+        data: { usedAt: resetAt },
+      });
+    });
+
+    return { passwordReset: true };
   }
 }

@@ -18,4 +18,22 @@ describe("PlaceholderEmailService", () => {
       },
     ]);
   });
+
+  it("stores outgoing password reset requests for tests without sending email", async () => {
+    const service = new PlaceholderEmailService();
+
+    await service.sendPasswordResetEmail({
+      email: "sarah@example.com",
+      firstName: "Sarah",
+      resetToken: "raw-reset-token",
+    });
+
+    expect(service.getPasswordResetRequests()).toEqual([
+      {
+        email: "sarah@example.com",
+        firstName: "Sarah",
+        resetToken: "raw-reset-token",
+      },
+    ]);
+  });
 });
