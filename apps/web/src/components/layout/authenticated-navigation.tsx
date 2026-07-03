@@ -1,6 +1,14 @@
 "use client";
 
-import { BarChart3, Building2, Link2, ListOrdered, LogOut, Settings } from "lucide-react";
+import {
+  BarChart3,
+  Building2,
+  Link2,
+  ListOrdered,
+  LogOut,
+  PackageSearch,
+  Settings,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
@@ -53,6 +61,9 @@ export function AuthenticatedNavigation() {
         </NavigationLink>
         <NavigationLink currentPath={pathname} href="/orders" icon={<ListOrdered size={18} />}>
           Orders
+        </NavigationLink>
+        <NavigationLink currentPath={pathname} href="/products" icon={<PackageSearch size={18} />}>
+          Products
         </NavigationLink>
         <NavigationLink
           currentPath={pathname}
