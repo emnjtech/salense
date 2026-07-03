@@ -9,7 +9,10 @@ export interface WooCommerceRawOrder {
   readonly number?: string;
   readonly status?: string;
   readonly currency?: string;
+  readonly discount_total?: string;
+  readonly shipping_total?: string;
   readonly total?: string;
+  readonly total_tax?: string;
   readonly date_created_gmt?: string;
   readonly date_modified_gmt?: string;
   readonly customer_id?: number;
@@ -20,6 +23,7 @@ export interface WooCommerceRawOrder {
 export interface WooCommerceRawOrderLineItem extends WooCommerceRawMoneyTotals {
   readonly id: number;
   readonly name?: string;
+  readonly price?: number;
   readonly product_id?: number;
   readonly variation_id?: number;
   readonly quantity?: number;
@@ -87,6 +91,7 @@ export interface WooCommerceRawProductCategory {
 
 export interface WooCommerceRawRefund extends WooCommerceRawMoneyTotals {
   readonly id: number;
+  readonly status?: string;
   readonly reason?: string;
   readonly date_created_gmt?: string;
   readonly amount?: string;
