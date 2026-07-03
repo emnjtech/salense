@@ -1,5 +1,5 @@
 import { InternalServerErrorException } from "@nestjs/common";
-import { Queue, type JobsOptions } from "bullmq";
+import { Queue, type JobType, type JobsOptions } from "bullmq";
 import { StorePlatform } from "../types/store-platform.enum.js";
 import {
   syncQueueName,
@@ -10,6 +10,7 @@ import {
   type SyncJobEnqueueResult,
   type SyncJobStatusResult,
   type SyncQueuePort,
+  type StoreSyncJobStatusResult,
   type WooCommerceSyncJobData,
   type WooCommerceSyncJobName,
 } from "./sync-queue.types.js";
@@ -20,6 +21,16 @@ const defaultJobOptions = {
   removeOnComplete: 100,
   removeOnFail: 500,
 } satisfies JobsOptions;
+
+const storeStatusJobTypes = [
+  "active",
+  "completed",
+  "delayed",
+  "failed",
+  "prioritized",
+  "waiting",
+  "waiting-children",
+] satisfies JobType[];
 
 export class BullMqSyncQueue implements SyncQueuePort {
   private queue?: Queue<WooCommerceSyncJobData, unknown, WooCommerceSyncJobName>;
@@ -57,6 +68,30 @@ export class BullMqSyncQueue implements SyncQueuePort {
       status: toSafeJobStatus(state),
       storeId: job.data.storeId,
     };
+  }
+
+  async getWooCommerceStoreJobStatuses(
+    storeId: string,
+  ): Promise<readonly StoreSyncJobStatusResult[]> {
+    const jobs = await this.getQueue().getJobs(storeStatusJobTypes, 0, 50, false);
+
+    return Promise.all(
+      jobs
+        .filter((job) => job.data.storeId === storeId)
+        .map(async (job) => {
+          const state = await job.getState();
+
+          return {
+            ...(job.failedReason ? { failedReason: job.failedReason } : {}),
+            ...(job.finishedOn ? { finishedAt: new Date(job.finishedOn) } : {}),
+            jobId: String(job.id),
+            platform: job.data.platform,
+            queuedAt: new Date(job.data.queuedAt),
+            status: toSafeJobStatus(state),
+            storeId: job.data.storeId,
+          };
+        }),
+    );
   }
 
   async getRecurringWooCommerceSyncJob(

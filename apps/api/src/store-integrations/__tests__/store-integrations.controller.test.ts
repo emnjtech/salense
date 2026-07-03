@@ -13,6 +13,7 @@ describe("StoreIntegrationsController", () => {
     prepareStoreConnection: jest.fn(),
     disconnectStore: jest.fn(),
     getManualSyncJobStatus: jest.fn(),
+    getStoreSyncStatus: jest.fn(),
     removeAutomaticSyncSchedule: jest.fn(),
     requestManualSync: jest.fn(),
     scheduleAutomaticSync: jest.fn(),
@@ -169,6 +170,30 @@ describe("StoreIntegrationsController", () => {
     expect(storeIntegrationsService.getManualSyncJobStatus).toHaveBeenCalledWith("user_1", "job_1");
   });
 
+  it("delegates store sync status lookup for authenticated users", async () => {
+    const lastSynchronisedAt = new Date("2026-07-03T14:00:00.000Z");
+    const response = {
+      connectionStatus: StoreConnectionStatus.Connected,
+      cursors: [],
+      jobs: [],
+      lastSynchronisedAt,
+      platform: StorePlatform.WooCommerce,
+      storeId: "store_1",
+    };
+    jest.mocked(storeIntegrationsService.getStoreSyncStatus).mockResolvedValueOnce(response);
+
+    await expect(
+      controller.getStoreSyncStatus(
+        {
+          headers: {},
+          user: { sub: "user_1", email: "owner@example.com", emailVerified: true },
+        },
+        "store_1",
+      ),
+    ).resolves.toBe(response);
+    expect(storeIntegrationsService.getStoreSyncStatus).toHaveBeenCalledWith("user_1", "store_1");
+  });
+
   it("delegates sync schedule actions for authenticated users", async () => {
     const scheduledAt = new Date("2026-07-03T15:00:00.000Z");
     const removedAt = new Date("2026-07-03T16:00:00.000Z");
@@ -233,6 +258,9 @@ describe("StoreIntegrationsController", () => {
       UnauthorizedException,
     );
     expect(() => controller.getManualSyncJobStatus({ headers: {} }, "job_1")).toThrow(
+      UnauthorizedException,
+    );
+    expect(() => controller.getStoreSyncStatus({ headers: {} }, "store_1")).toThrow(
       UnauthorizedException,
     );
     expect(() => controller.scheduleAutomaticSync({ headers: {} }, { storeId: "store_1" })).toThrow(

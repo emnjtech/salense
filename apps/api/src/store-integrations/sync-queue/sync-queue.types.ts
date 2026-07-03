@@ -44,6 +44,16 @@ export interface SyncJobStatusResult {
   readonly storeId: string;
 }
 
+export interface StoreSyncJobStatusResult {
+  readonly failedReason?: string;
+  readonly finishedAt?: Date;
+  readonly jobId: string;
+  readonly platform: StorePlatform.WooCommerce;
+  readonly queuedAt: Date;
+  readonly status: "QUEUED" | "ACTIVE" | "COMPLETED" | "FAILED" | "UNKNOWN";
+  readonly storeId: string;
+}
+
 export interface RecurringSyncScheduleRequest {
   readonly everyMs: number;
   readonly jobId: string;
@@ -81,6 +91,9 @@ export interface SyncQueuePort {
     data: WooCommerceSyncJobData,
   ): Promise<SyncJobEnqueueResult>;
   getJobStatus(jobId: string): Promise<SyncJobStatusResult | null>;
+  getWooCommerceStoreJobStatuses(
+    storeId: string,
+  ): Promise<readonly StoreSyncJobStatusResult[]>;
   getRecurringWooCommerceSyncJob(
     jobId: string,
   ): Promise<RecurringSyncScheduleLookupResult | null>;

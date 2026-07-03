@@ -21,11 +21,16 @@ import {
   AuditLogModule,
   AuditLogResult,
   AuditLogService,
+  sanitizeAuditMetadata,
 } from "../audit/index.js";
 import { PrismaService } from "../database/prisma.service.js";
 import type { PrepareStoreConnectionRequestDto } from "./dto/prepare-store-connection-request.dto.js";
 import type { StoreActionRequestDto } from "./dto/store-action-request.dto.js";
 import { AesCredentialEncryptionService } from "./security/credential-encryption.service.js";
+import {
+  CommerceSyncCursorResource,
+  type CommerceSyncCursorStatus,
+} from "./sync-cursors/commerce-sync-cursor.types.js";
 import {
   SYNC_QUEUE,
   WooCommerceSyncJobName,
@@ -45,6 +50,11 @@ import type {
   SyncScheduleRemovalResponse,
   SyncScheduleResponse,
 } from "./types/sync-schedule-response.type.js";
+import type {
+  StoreSyncCursorStatusResponse,
+  StoreSyncJobStatusResponse,
+  StoreSyncStatusResponse,
+} from "./types/store-sync-status-response.type.js";
 import {
   isSupportedStorePlatform,
   StorePlatform,
@@ -89,6 +99,13 @@ interface StoreIntegrationsPrismaClient {
       readonly data: ConnectedStoreUpdateData;
       readonly select: ConnectedStoreSelect | ConnectedStoreActionSelect;
     }): Promise<ConnectedStoreRecord | ConnectedStoreActionRecord>;
+  };
+  readonly commerceSyncCursor: {
+    findMany(args: {
+      readonly where: { readonly connectedStoreId: string };
+      readonly orderBy: { readonly resource: "asc" };
+      readonly select: CommerceSyncCursorSelect;
+    }): Promise<readonly CommerceSyncCursorRecord[]>;
   };
 }
 
@@ -154,6 +171,22 @@ interface ConnectedStoreActionSelect {
   readonly platform: true;
 }
 
+interface CommerceSyncCursorSelect {
+  readonly errorMetadata: true;
+  readonly lastAttemptedSyncedAt: true;
+  readonly lastSuccessfulSyncedAt: true;
+  readonly resource: true;
+  readonly status: true;
+}
+
+interface CommerceSyncCursorRecord {
+  readonly errorMetadata: Readonly<Record<string, unknown>> | null;
+  readonly lastAttemptedSyncedAt: Date | null;
+  readonly lastSuccessfulSyncedAt: Date | null;
+  readonly resource: CommerceSyncCursorResource;
+  readonly status: CommerceSyncCursorStatus;
+}
+
 const connectedStoreSelect = {
   id: true,
   businessId: true,
@@ -175,6 +208,23 @@ const connectedStoreActionSelect = {
   lastSynchronisedAt: true,
   platform: true,
 } satisfies ConnectedStoreActionSelect;
+
+const commerceSyncCursorSelect = {
+  errorMetadata: true,
+  lastAttemptedSyncedAt: true,
+  lastSuccessfulSyncedAt: true,
+  resource: true,
+  status: true,
+} satisfies CommerceSyncCursorSelect;
+
+const syncStatusResources = [
+  CommerceSyncCursorResource.Orders,
+  CommerceSyncCursorResource.Products,
+  CommerceSyncCursorResource.Customers,
+  CommerceSyncCursorResource.Inventory,
+  CommerceSyncCursorResource.Categories,
+  CommerceSyncCursorResource.Refunds,
+] as const;
 
 @Injectable()
 export class StoreIntegrationsService {
@@ -500,6 +550,34 @@ export class StoreIntegrationsService {
     return toManualSyncJobStatusResponse(jobStatus);
   }
 
+  async getStoreSyncStatus(
+    userId: string,
+    storeId: string,
+  ): Promise<StoreSyncStatusResponse> {
+    const store = await this.assertStoreBelongsToUser(userId, storeId);
+
+    if (store.platform !== StorePlatform.WooCommerce) {
+      throw new BadRequestException("Sync status is currently available for WooCommerce stores only.");
+    }
+
+    const prisma = this.prismaService.client as unknown as StoreIntegrationsPrismaClient;
+    const cursors = await prisma.commerceSyncCursor.findMany({
+      where: { connectedStoreId: store.id },
+      orderBy: { resource: "asc" },
+      select: commerceSyncCursorSelect,
+    });
+    const jobs = await this.getSafeStoreJobStatuses(store.id);
+
+    return {
+      connectionStatus: store.connectionStatus,
+      cursors: toStoreSyncCursorStatuses(cursors),
+      jobs,
+      lastSynchronisedAt: store.lastSynchronisedAt,
+      platform: store.platform,
+      storeId: store.id,
+    };
+  }
+
   async scheduleAutomaticSync(
     userId: string,
     request: StoreActionRequestDto,
@@ -566,6 +644,18 @@ export class StoreIntegrationsService {
       result: input.result,
       userId: input.userId,
     });
+  }
+
+  private async getSafeStoreJobStatuses(
+    storeId: string,
+  ): Promise<readonly StoreSyncJobStatusResponse[]> {
+    try {
+      const jobs = await this.syncQueue.getWooCommerceStoreJobStatuses(storeId);
+
+      return jobs.map(toStoreSyncJobStatusResponse);
+    } catch {
+      return [];
+    }
   }
 
   private assertSupportedPlatform(platform: string): asserts platform is StorePlatform {
@@ -705,6 +795,60 @@ function toManualSyncResponse(queuedJob: SyncJobEnqueueResult): ManualSyncRespon
 function toManualSyncJobStatusResponse(
   jobStatus: SyncJobStatusResult,
 ): ManualSyncJobStatusResponse {
+  return {
+    ...(jobStatus.failedReason ? { failedReason: jobStatus.failedReason } : {}),
+    ...(jobStatus.finishedAt ? { finishedAt: jobStatus.finishedAt } : {}),
+    jobId: jobStatus.jobId,
+    platform: jobStatus.platform,
+    queuedAt: jobStatus.queuedAt,
+    status: jobStatus.status,
+    storeId: jobStatus.storeId,
+  };
+}
+
+function toStoreSyncCursorStatuses(
+  cursors: readonly CommerceSyncCursorRecord[],
+): readonly StoreSyncCursorStatusResponse[] {
+  const cursorByResource = new Map(cursors.map((cursor) => [cursor.resource, cursor]));
+
+  return syncStatusResources.map((resource) => {
+    const cursor = cursorByResource.get(resource);
+
+    if (!cursor) {
+      return {
+        errorSummary: null,
+        lastAttemptedSyncedAt: null,
+        lastSuccessfulSyncedAt: null,
+        resource,
+        status: "NOT_STARTED",
+      };
+    }
+
+    return {
+      errorSummary: toSafeErrorSummary(cursor.errorMetadata),
+      lastAttemptedSyncedAt: cursor.lastAttemptedSyncedAt,
+      lastSuccessfulSyncedAt: cursor.lastSuccessfulSyncedAt,
+      resource: cursor.resource,
+      status: cursor.status,
+    };
+  });
+}
+
+function toSafeErrorSummary(
+  errorMetadata: Readonly<Record<string, unknown>> | null,
+): Readonly<Record<string, unknown>> | null {
+  if (!errorMetadata) {
+    return null;
+  }
+
+  const sanitized = sanitizeAuditMetadata(errorMetadata);
+
+  return Object.keys(sanitized).length > 0 ? sanitized : null;
+}
+
+function toStoreSyncJobStatusResponse(
+  jobStatus: StoreSyncJobStatusResponse,
+): StoreSyncJobStatusResponse {
   return {
     ...(jobStatus.failedReason ? { failedReason: jobStatus.failedReason } : {}),
     ...(jobStatus.finishedAt ? { finishedAt: jobStatus.finishedAt } : {}),

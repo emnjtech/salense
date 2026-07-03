@@ -28,6 +28,7 @@ import type {
   SyncScheduleRemovalResponse,
   SyncScheduleResponse,
 } from "./types/sync-schedule-response.type.js";
+import type { StoreSyncStatusResponse } from "./types/store-sync-status-response.type.js";
 import type { SupportedStorePlatform } from "./types/store-platform.enum.js";
 
 @Controller("store-integrations")
@@ -93,6 +94,18 @@ export class StoreIntegrationsController {
     return this.storeIntegrationsService.getManualSyncJobStatus(
       getAuthenticatedUserId(request),
       jobId,
+    );
+  }
+
+  @Get("stores/:storeId/sync-status")
+  @UseGuards(JwtAccessTokenGuard)
+  getStoreSyncStatus(
+    @Req() request: AuthenticatedRequest,
+    @Param("storeId") storeId: string,
+  ): Promise<StoreSyncStatusResponse> {
+    return this.storeIntegrationsService.getStoreSyncStatus(
+      getAuthenticatedUserId(request),
+      storeId,
     );
   }
 

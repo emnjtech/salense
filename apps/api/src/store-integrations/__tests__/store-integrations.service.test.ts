@@ -17,6 +17,10 @@ import { AuditAction, AuditLogModule, AuditLogResult } from "../../audit/types/a
 import type { PrismaService } from "../../database/prisma.service.js";
 import type { AesCredentialEncryptionService } from "../security/credential-encryption.service.js";
 import { StoreIntegrationsService } from "../store-integrations.service.js";
+import {
+  CommerceSyncCursorResource,
+  CommerceSyncCursorStatus,
+} from "../sync-cursors/commerce-sync-cursor.types.js";
 import type { WooCommerceSyncSchedulingService } from "../sync-queue/woocommerce-sync-scheduling.service.js";
 import { WooCommerceSyncJobName, type SyncQueuePort } from "../sync-queue/sync-queue.types.js";
 import { StoreConnectionStatus } from "../types/store-connection-status.enum.js";
@@ -36,6 +40,8 @@ function createStoreIntegrationsServiceMocks(): {
   readonly synchroniseOrders: jest.Mock;
   readonly enqueueWooCommerceSyncJob: jest.Mock;
   readonly getJobStatus: jest.Mock;
+  readonly getWooCommerceStoreJobStatuses: jest.Mock;
+  readonly findManySyncCursors: jest.Mock;
   readonly scheduleAutomaticSync: jest.Mock;
   readonly removeAutomaticSync: jest.Mock;
   readonly recordAuditLog: jest.Mock;
@@ -58,6 +64,8 @@ function createStoreIntegrationsServiceMocks(): {
   const synchroniseOrders = jest.fn();
   const enqueueWooCommerceSyncJob = jest.fn();
   const getJobStatus = jest.fn();
+  const getWooCommerceStoreJobStatuses = jest.fn().mockResolvedValue([]);
+  const findManySyncCursors = jest.fn().mockResolvedValue([]);
   const scheduleAutomaticSync = jest.fn();
   const removeAutomaticSync = jest.fn();
   const recordAuditLog = jest.fn().mockResolvedValue(undefined);
@@ -90,6 +98,7 @@ function createStoreIntegrationsServiceMocks(): {
         create: createConnectedStore,
         update: updateConnectedStore,
       },
+      commerceSyncCursor: { findMany: findManySyncCursors },
       commerceOrder: { deleteMany: deleteCommerceOrders },
       commerceProduct: { deleteMany: deleteCommerceProducts },
       commerceCustomer: { deleteMany: deleteCommerceCustomers },
@@ -100,7 +109,11 @@ function createStoreIntegrationsServiceMocks(): {
   } as unknown as PrismaService;
   const integrationFactory = { getProvider } as unknown as IntegrationFactory;
   const credentialEncryption = { encrypt } as unknown as AesCredentialEncryptionService;
-  const syncQueue = { enqueueWooCommerceSyncJob, getJobStatus } as unknown as SyncQueuePort;
+  const syncQueue = {
+    enqueueWooCommerceSyncJob,
+    getJobStatus,
+    getWooCommerceStoreJobStatuses,
+  } as unknown as SyncQueuePort;
   const syncSchedulingService = {
     removeAutomaticSync,
     scheduleAutomaticSync,
@@ -128,6 +141,8 @@ function createStoreIntegrationsServiceMocks(): {
     encrypt,
     enqueueWooCommerceSyncJob,
     getJobStatus,
+    getWooCommerceStoreJobStatuses,
+    findManySyncCursors,
     scheduleAutomaticSync,
     removeAutomaticSync,
     recordAuditLog,
@@ -955,6 +970,150 @@ describe("StoreIntegrationsService", () => {
       NotFoundException,
     );
     expect(findFirstConnectedStore).not.toHaveBeenCalled();
+  });
+
+  it("allows the authenticated owner to view safe WooCommerce sync status", async () => {
+    const {
+      service,
+      findFirstConnectedStore,
+      findManySyncCursors,
+      getWooCommerceStoreJobStatuses,
+    } = createStoreIntegrationsServiceMocks();
+    const lastSynchronisedAt = new Date("2026-07-03T14:00:00.000Z");
+    const lastSuccessfulSyncedAt = new Date("2026-07-03T13:55:00.000Z");
+    const lastAttemptedSyncedAt = new Date("2026-07-03T13:56:00.000Z");
+    const queuedAt = new Date("2026-07-03T14:05:00.000Z");
+    findFirstConnectedStore.mockResolvedValue({
+      id: "store_1",
+      businessId: "business_1",
+      connectionStatus: StoreConnectionStatus.Connected,
+      disconnectedAt: null,
+      lastSynchronisedAt,
+      platform: StorePlatform.WooCommerce,
+    });
+    findManySyncCursors.mockResolvedValue([
+      {
+        errorMetadata: null,
+        lastAttemptedSyncedAt,
+        lastSuccessfulSyncedAt,
+        resource: CommerceSyncCursorResource.Orders,
+        status: CommerceSyncCursorStatus.Success,
+      },
+      {
+        errorMetadata: {
+          encryptedCredential: "should-not-leak",
+          errorName: "Error",
+          message: "WooCommerce sync failed.",
+          rawMarketplacePayload: { id: 1 },
+        },
+        lastAttemptedSyncedAt,
+        lastSuccessfulSyncedAt: null,
+        resource: CommerceSyncCursorResource.Products,
+        status: CommerceSyncCursorStatus.Error,
+      },
+    ]);
+    getWooCommerceStoreJobStatuses.mockResolvedValue([
+      {
+        failedReason: "WooCommerce timeout",
+        jobId: "job_1",
+        platform: StorePlatform.WooCommerce,
+        queuedAt,
+        status: "ACTIVE",
+        storeId: "store_1",
+        accessTokenHash: "should-not-leak",
+      },
+    ]);
+
+    const response = await service.getStoreSyncStatus("user_1", "store_1");
+
+    expect(findFirstConnectedStore).toHaveBeenCalledWith({
+      where: { id: "store_1", business: { ownerId: "user_1" } },
+      select: expect.objectContaining({ id: true, businessId: true, platform: true }),
+    });
+    expect(findManySyncCursors).toHaveBeenCalledWith({
+      where: { connectedStoreId: "store_1" },
+      orderBy: { resource: "asc" },
+      select: expect.objectContaining({ errorMetadata: true }),
+    });
+    expect(getWooCommerceStoreJobStatuses).toHaveBeenCalledWith("store_1");
+    expect(response).toMatchObject({
+      connectionStatus: StoreConnectionStatus.Connected,
+      jobs: [
+        {
+          failedReason: "WooCommerce timeout",
+          jobId: "job_1",
+          platform: StorePlatform.WooCommerce,
+          queuedAt,
+          status: "ACTIVE",
+          storeId: "store_1",
+        },
+      ],
+      lastSynchronisedAt,
+      platform: StorePlatform.WooCommerce,
+      storeId: "store_1",
+    });
+    expect(response.cursors).toHaveLength(6);
+    expect(response.cursors).toEqual(
+      expect.arrayContaining([
+        {
+          errorSummary: null,
+          lastAttemptedSyncedAt,
+          lastSuccessfulSyncedAt,
+          resource: CommerceSyncCursorResource.Orders,
+          status: CommerceSyncCursorStatus.Success,
+        },
+        {
+          errorSummary: {
+            errorName: "Error",
+            message: "WooCommerce sync failed.",
+          },
+          lastAttemptedSyncedAt,
+          lastSuccessfulSyncedAt: null,
+          resource: CommerceSyncCursorResource.Products,
+          status: CommerceSyncCursorStatus.Error,
+        },
+        expect.objectContaining({
+          errorSummary: null,
+          resource: CommerceSyncCursorResource.Customers,
+          status: "NOT_STARTED",
+        }),
+      ]),
+    );
+    expect(JSON.stringify(response)).not.toContain("should-not-leak");
+    expect(JSON.stringify(response)).not.toContain("encryptedCredential");
+    expect(JSON.stringify(response)).not.toContain("accessTokenHash");
+    expect(JSON.stringify(response)).not.toContain("rawMarketplacePayload");
+  });
+
+  it("rejects sync status for stores outside the authenticated user's business", async () => {
+    const { service, findFirstConnectedStore, findManySyncCursors, getWooCommerceStoreJobStatuses } =
+      createStoreIntegrationsServiceMocks();
+    findFirstConnectedStore.mockResolvedValue(null);
+
+    await expect(service.getStoreSyncStatus("user_1", "missing_store")).rejects.toThrow(
+      NotFoundException,
+    );
+    expect(findManySyncCursors).not.toHaveBeenCalled();
+    expect(getWooCommerceStoreJobStatuses).not.toHaveBeenCalled();
+  });
+
+  it("keeps Amazon and TikTok sync status as explicit future work", async () => {
+    const { service, findFirstConnectedStore, findManySyncCursors, getWooCommerceStoreJobStatuses } =
+      createStoreIntegrationsServiceMocks();
+    findFirstConnectedStore.mockResolvedValue({
+      id: "store_1",
+      businessId: "business_1",
+      connectionStatus: StoreConnectionStatus.Connected,
+      disconnectedAt: null,
+      lastSynchronisedAt: null,
+      platform: StorePlatform.AmazonSeller,
+    });
+
+    await expect(service.getStoreSyncStatus("user_1", "store_1")).rejects.toThrow(
+      BadRequestException,
+    );
+    expect(findManySyncCursors).not.toHaveBeenCalled();
+    expect(getWooCommerceStoreJobStatuses).not.toHaveBeenCalled();
   });
 
   it("schedules automatic sync for stores owned by the authenticated user", async () => {
