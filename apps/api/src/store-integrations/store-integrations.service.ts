@@ -2,10 +2,12 @@ import {
   INTEGRATION_FACTORY,
   IntegrationNotImplementedError,
   IntegrationPlatform,
+  WooCommerceApiVersion,
   type IntegrationConfiguration,
   type IntegrationFactory,
   type SynchronisationContext,
 } from "@salense/integrations";
+import { createHash } from "node:crypto";
 import {
   BadRequestException,
   ConflictException,
@@ -18,6 +20,7 @@ import {
 import { PrismaService } from "../database/prisma.service.js";
 import type { PrepareStoreConnectionRequestDto } from "./dto/prepare-store-connection-request.dto.js";
 import type { StoreActionRequestDto } from "./dto/store-action-request.dto.js";
+import { AesCredentialEncryptionService } from "./security/credential-encryption.service.js";
 import type { ConnectedStoreResponse } from "./types/connected-store-response.type.js";
 import type { StoreConnectionStatus } from "./types/store-connection-status.enum.js";
 import {
@@ -108,6 +111,8 @@ export class StoreIntegrationsService {
   constructor(
     @Inject(PrismaService) private readonly prismaService: PrismaService,
     @Inject(INTEGRATION_FACTORY) private readonly integrationFactory: IntegrationFactory,
+    @Inject(AesCredentialEncryptionService)
+    private readonly credentialEncryption: AesCredentialEncryptionService,
   ) {}
 
   listSupportedPlatforms(): readonly SupportedStorePlatform[] {
@@ -157,6 +162,8 @@ export class StoreIntegrationsService {
       throw new ConflictException("Duplicate store connections are prohibited.");
     }
 
+    const credentialConfiguration = this.createCredentialConfiguration(request);
+
     return this.runPlaceholderIntegrationOperation(
       this.integrationFactory.getProvider(toIntegrationPlatform(request.platform)).connect(
         createIntegrationConfiguration({
@@ -165,9 +172,68 @@ export class StoreIntegrationsService {
           region,
           storeName: request.storeName.trim(),
           storeUrl,
+          ...credentialConfiguration,
         }),
       ),
     );
+  }
+
+  private createCredentialConfiguration(
+    request: PrepareStoreConnectionRequestDto,
+  ): Pick<
+    IntegrationConfiguration,
+    | "accessTokenHash"
+    | "accessTokenMetadata"
+    | "apiVersion"
+    | "consumerKeyMetadata"
+    | "consumerSecretMetadata"
+    | "refreshTokenHash"
+    | "refreshTokenMetadata"
+  > {
+    if (request.platform !== StorePlatform.WooCommerce) {
+      return {};
+    }
+
+    if (!request.storeUrl?.trim()) {
+      throw new BadRequestException("WooCommerce store URL is required.");
+    }
+
+    const credentials = request.wooCommerceCredentials;
+
+    if (!credentials) {
+      throw new BadRequestException("WooCommerce credentials are required.");
+    }
+
+    if (credentials.apiVersion !== WooCommerceApiVersion.WcV3) {
+      throw new BadRequestException("WooCommerce API version is not supported.");
+    }
+
+    const encryptedConsumerKey = this.credentialEncryption.encrypt(credentials.consumerKey.trim());
+    const encryptedConsumerSecret = this.credentialEncryption.encrypt(
+      credentials.consumerSecret.trim(),
+    );
+
+    return {
+      accessTokenHash: hashCredentialPlaceholder(credentials.consumerKey),
+      accessTokenMetadata: {
+        credentialKind: "woocommerce_consumer_key",
+        encryptedCredential: encryptedConsumerKey,
+      },
+      apiVersion: credentials.apiVersion,
+      consumerKeyMetadata: {
+        configured: true,
+        keyId: encryptedConsumerKey.keyId,
+      },
+      consumerSecretMetadata: {
+        configured: true,
+        keyId: encryptedConsumerSecret.keyId,
+      },
+      refreshTokenHash: hashCredentialPlaceholder(credentials.consumerSecret),
+      refreshTokenMetadata: {
+        credentialKind: "woocommerce_consumer_secret",
+        encryptedCredential: encryptedConsumerSecret,
+      },
+    };
   }
 
   async disconnectStore(userId: string, request: StoreActionRequestDto): Promise<never> {
@@ -237,6 +303,10 @@ function normalizeOptionalValue(value: string | undefined): string | null {
   return normalizedValue ? normalizedValue : null;
 }
 
+function hashCredentialPlaceholder(value: string): string {
+  return createHash("sha256").update(value.trim(), "utf8").digest("hex");
+}
+
 function toConnectedStoreResponse(store: ConnectedStoreRecord): ConnectedStoreResponse {
   return {
     id: store.id,
@@ -272,11 +342,27 @@ function createIntegrationConfiguration(input: {
   readonly storeId?: string;
   readonly storeName?: string;
   readonly storeUrl?: string | null;
+  readonly accessTokenHash?: string;
+  readonly accessTokenMetadata?: Readonly<Record<string, unknown>>;
+  readonly apiVersion?: string;
+  readonly consumerKeyMetadata?: IntegrationConfiguration["consumerKeyMetadata"];
+  readonly consumerSecretMetadata?: IntegrationConfiguration["consumerSecretMetadata"];
+  readonly refreshTokenHash?: string;
+  readonly refreshTokenMetadata?: Readonly<Record<string, unknown>>;
 }): IntegrationConfiguration {
   return {
     businessId: input.businessId,
     platform: toIntegrationPlatform(input.platform),
+    ...(input.accessTokenHash ? { accessTokenHash: input.accessTokenHash } : {}),
+    ...(input.accessTokenMetadata ? { accessTokenMetadata: input.accessTokenMetadata } : {}),
+    ...(input.apiVersion ? { apiVersion: input.apiVersion } : {}),
+    ...(input.consumerKeyMetadata ? { consumerKeyMetadata: input.consumerKeyMetadata } : {}),
+    ...(input.consumerSecretMetadata
+      ? { consumerSecretMetadata: input.consumerSecretMetadata }
+      : {}),
     ...(input.region ? { region: input.region } : {}),
+    ...(input.refreshTokenHash ? { refreshTokenHash: input.refreshTokenHash } : {}),
+    ...(input.refreshTokenMetadata ? { refreshTokenMetadata: input.refreshTokenMetadata } : {}),
     ...(input.storeId ? { storeId: input.storeId } : {}),
     ...(input.storeName ? { storeName: input.storeName } : {}),
     ...(input.storeUrl ? { storeUrl: input.storeUrl } : {}),

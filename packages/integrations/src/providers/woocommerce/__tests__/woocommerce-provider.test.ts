@@ -67,8 +67,45 @@ describe("WooCommerceIntegrationProvider", () => {
       validateWooCommerceConfiguration({
         platform: IntegrationPlatform.WooCommerce,
         businessId: "business_1",
+        apiVersion: WooCommerceApiVersion.WcV3,
+        consumerKeyMetadata: { configured: true },
+        consumerSecretMetadata: { configured: true },
       }),
     ).toThrow("WooCommerce store URL is required.");
+  });
+
+  it("rejects missing credential metadata", () => {
+    expect(() =>
+      validateWooCommerceConfiguration({
+        platform: IntegrationPlatform.WooCommerce,
+        businessId: "business_1",
+        storeUrl: "https://shop.example.com",
+        apiVersion: WooCommerceApiVersion.WcV3,
+      }),
+    ).toThrow("WooCommerce consumer key metadata is required.");
+
+    expect(() =>
+      validateWooCommerceConfiguration({
+        platform: IntegrationPlatform.WooCommerce,
+        businessId: "business_1",
+        storeUrl: "https://shop.example.com",
+        apiVersion: WooCommerceApiVersion.WcV3,
+        consumerKeyMetadata: { configured: true },
+      }),
+    ).toThrow("WooCommerce consumer secret metadata is required.");
+  });
+
+  it("rejects unsupported API versions", () => {
+    expect(() =>
+      validateWooCommerceConfiguration({
+        platform: IntegrationPlatform.WooCommerce,
+        businessId: "business_1",
+        storeUrl: "https://shop.example.com",
+        apiVersion: "wc/v2",
+        consumerKeyMetadata: { configured: true },
+        consumerSecretMetadata: { configured: true },
+      }),
+    ).toThrow("WooCommerce API version is not supported.");
   });
 
   it("keeps connection and auth methods as explicit placeholders", async () => {

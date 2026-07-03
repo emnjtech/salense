@@ -3,6 +3,7 @@ import { StoreIntegrationsController } from "../store-integrations.controller.js
 import type { StoreIntegrationsService } from "../store-integrations.service.js";
 import type { ConnectedStoreResponse } from "../types/connected-store-response.type.js";
 import { StorePlatform } from "../types/store-platform.enum.js";
+import { WooCommerceApiVersion } from "@salense/integrations";
 
 describe("StoreIntegrationsController", () => {
   const storeIntegrationsService = {
@@ -62,6 +63,11 @@ describe("StoreIntegrationsController", () => {
           platform: StorePlatform.WooCommerce,
           storeName: "Main Store",
           storeUrl: "https://shop.example.com",
+          wooCommerceCredentials: {
+            consumerKey: "ck_live_placeholder",
+            consumerSecret: "cs_live_placeholder",
+            apiVersion: WooCommerceApiVersion.WcV3,
+          },
         },
       ),
     ).rejects.toThrow("placeholder");
@@ -69,6 +75,11 @@ describe("StoreIntegrationsController", () => {
       platform: StorePlatform.WooCommerce,
       storeName: "Main Store",
       storeUrl: "https://shop.example.com",
+      wooCommerceCredentials: {
+        consumerKey: "ck_live_placeholder",
+        consumerSecret: "cs_live_placeholder",
+        apiVersion: WooCommerceApiVersion.WcV3,
+      },
     });
   });
 
