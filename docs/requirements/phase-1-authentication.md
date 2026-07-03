@@ -2,23 +2,19 @@
 
 Source: Salense PRD + SES, Chapter 6.1 - Authentication & User Account Management.
 
-This document maps the current skeleton to the Chapter 6.1 requirements. It does not mark the requirements as implemented.
+This document maps the current implementation to the Chapter 6.1 requirements.
 
-| Requirement                 | Skeleton mapping                                                                                     | Implementation status |
-| --------------------------- | ---------------------------------------------------------------------------------------------------- | --------------------- |
-| FR-6.1.1 User Registration  | `AuthModule`, `AuthController.register`, `AuthService.register`, `RegisterRequestDto`                | Skeleton only         |
-| FR-6.1.2 Email Verification | `AuthController.verifyEmail`, `AuthService.verifyEmail`, `EmailVerificationRequestDto`               | Skeleton only         |
-| FR-6.1.3 Login              | `AuthController.login`, `AuthService.login`, `LoginRequestDto`                                       | Skeleton only         |
-| FR-6.1.4 Session Management | `AuthenticatedUser` type, placeholder guard and strategy folders                                     | Skeleton only         |
-| FR-6.1.5 Password Reset     | `AuthController.requestPasswordReset`, `AuthService.requestPasswordReset`, `PasswordResetRequestDto` | Skeleton only         |
-| FR-6.1.6 Company Profile    | `UsersModule`, `UsersController.updateCompanyProfile`, `CompanyProfileRequestDto`                    | Skeleton only         |
+| Requirement                 | Implementation mapping                                                                                                    | Implementation status |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| FR-6.1.1 User Registration  | `AuthModule`, `AuthController.register`, `AuthService.register`, `RegisterRequestDto`                                     | Implemented           |
+| FR-6.1.2 Email Verification | `AuthController.verifyEmail`, `AuthService.verifyEmail`, `EmailVerificationRequestDto`, placeholder `EmailService`        | Implemented           |
+| FR-6.1.3 Login              | `AuthController.login`, `AuthService.login`, `LoginRequestDto`, `JwtSessionTokenService`                                  | Implemented           |
+| FR-6.1.4 Session Management | `JwtAccessTokenGuard`, refresh token persistence, `AuthController.refreshSession`, `AuthController.logout`                | Implemented           |
+| FR-6.1.5 Password Reset     | `AuthController.requestPasswordReset`, `AuthController.confirmPasswordReset`, `PasswordResetRequestDto`, reset token hash | Implemented           |
+| FR-6.1.6 Company Profile    | `UsersModule`, `UsersController.updateCompanyProfile`, `UsersService.updateCompanyProfile`, `CompanyProfileRequestDto`    | Implemented           |
 
 ## Safety Boundaries
 
-- No registration flow is implemented.
-- No login flow is implemented.
-- No JWTs, refresh tokens, sessions, or cookies are issued.
-- No password hashing or password reset token generation exists yet.
-- No email verification token generation or email delivery exists yet.
-- No database models, repositories, migrations, or persistence have been added.
-- Placeholder methods throw `NotImplementedException` rather than returning success responses.
+- Real email delivery is still abstracted behind the placeholder `EmailService`.
+- Multiple businesses, roles/permissions, billing, store integrations, dashboards, and AI logic remain out of scope for Phase 1 authentication.
+- Refresh tokens are returned in API responses for now; cookie transport policy is still a production-hardening decision.

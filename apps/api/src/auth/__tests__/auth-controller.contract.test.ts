@@ -12,6 +12,7 @@ import {
 } from "../security/index.js";
 import { JwtSessionConfigService, JwtSessionTokenService } from "../session/index.js";
 import { AuthModule } from "../auth.module.js";
+import { UsersModule } from "../../users/users.module.js";
 
 type HttpMethod = "post" | "put";
 
@@ -41,6 +42,9 @@ const prismaClient = {
     create: jest.fn(),
     findUnique: jest.fn(),
     update: jest.fn(),
+  },
+  business: {
+    upsert: jest.fn(),
   },
   $transaction: jest.fn(),
 };
@@ -77,7 +81,7 @@ const jwtSessionConfig = {
 
 async function createContractApp(): Promise<INestApplication> {
   const testingModule = await Test.createTestingModule({
-    imports: [AuthModule],
+    imports: [AuthModule, UsersModule],
   })
     .overrideProvider(PrismaService)
     .useValue({ client: prismaClient })
@@ -141,23 +145,6 @@ const registrationBody = {
   companyName: "Example Company",
 };
 
-const unimplementedContracts = [
-  {
-    method: "put",
-    path: "/users/company-profile",
-    body: {
-      businessName: "Example Company",
-      businessLogoUrl: "https://example.com/logo.png",
-      country: "GB",
-      timeZone: "Europe/London",
-      currency: "GBP",
-      taxPreference: "standard",
-      industry: "E-commerce",
-    },
-    notImplementedMessage: "Company profile management is not implemented in the Phase 1 skeleton.",
-  },
-] as const satisfies readonly ContractCase[];
-
 const invalidContracts = [
   {
     method: "post",
@@ -214,18 +201,6 @@ const invalidContracts = [
     path: "/auth/logout",
     body: {
       refreshToken: "",
-    },
-  },
-  {
-    method: "put",
-    path: "/users/company-profile",
-    body: {
-      businessName: "",
-      country: "United Kingdom",
-      timeZone: "",
-      currency: "Pounds",
-      taxPreference: "",
-      industry: "",
     },
   },
 ] as const satisfies readonly Omit<ContractCase, "notImplementedMessage">[];
@@ -456,6 +431,129 @@ describe("Phase 1 authentication and user management controller contracts", () =
         data: { revokedAt: expect.any(Date) },
       });
       expect(JSON.stringify(response.body)).not.toContain("hashed-refresh-token");
+    });
+  });
+
+  it("put /users/company-profile updates the authenticated user's company profile", async () => {
+    jwtSessionTokens.verifyAccessToken.mockResolvedValue({
+      sub: "user_1",
+      email: "sarah@example.com",
+      emailVerified: true,
+    });
+    prismaClient.user.findUnique.mockResolvedValue({ id: "user_1" });
+    prismaClient.business.upsert.mockResolvedValue({
+      id: "business_1",
+      name: "Example Company",
+      businessLogoUrl: "https://example.com/logo.png",
+      country: "GB",
+      timeZone: "Europe/London",
+      currency: "GBP",
+      taxPreference: "standard",
+      industry: "E-commerce",
+    });
+
+    await withContractApp(async (server) => {
+      const response = await request(server)
+        .put("/users/company-profile")
+        .set("Authorization", "Bearer access.jwt.token")
+        .send({
+          businessName: "Example Company",
+          businessLogoUrl: "https://example.com/logo.png",
+          country: "GB",
+          timeZone: "Europe/London",
+          currency: "GBP",
+          taxPreference: "standard",
+          industry: "E-commerce",
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        id: "business_1",
+        businessName: "Example Company",
+        businessLogoUrl: "https://example.com/logo.png",
+        country: "GB",
+        timeZone: "Europe/London",
+        currency: "GBP",
+        taxPreference: "standard",
+        industry: "E-commerce",
+      });
+      expect(jwtSessionTokens.verifyAccessToken).toHaveBeenCalledWith("access.jwt.token");
+      expect(prismaClient.business.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { ownerId: "user_1" },
+          create: expect.objectContaining({ ownerId: "user_1", name: "Example Company" }),
+          update: expect.objectContaining({ name: "Example Company" }),
+        }),
+      );
+      expect(JSON.stringify(response.body)).not.toContain("password");
+      expect(JSON.stringify(response.body)).not.toContain("token");
+    });
+  });
+
+  it("put /users/company-profile rejects unauthenticated requests", async () => {
+    await withContractApp(async (server) => {
+      const response = await request(server).put("/users/company-profile").send({
+        businessName: "Example Company",
+        country: "GB",
+        timeZone: "Europe/London",
+        currency: "GBP",
+        taxPreference: "standard",
+        industry: "E-commerce",
+      });
+
+      expect(response.status).toBe(401);
+      expect(prismaClient.business.upsert).not.toHaveBeenCalled();
+    });
+  });
+
+  it("put /users/company-profile rejects missing users", async () => {
+    jwtSessionTokens.verifyAccessToken.mockResolvedValue({
+      sub: "deleted_user",
+      email: "deleted@example.com",
+      emailVerified: true,
+    });
+    prismaClient.user.findUnique.mockResolvedValue(null);
+
+    await withContractApp(async (server) => {
+      const response = await request(server)
+        .put("/users/company-profile")
+        .set("Authorization", "Bearer access.jwt.token")
+        .send({
+          businessName: "Example Company",
+          country: "GB",
+          timeZone: "Europe/London",
+          currency: "GBP",
+          taxPreference: "standard",
+          industry: "E-commerce",
+        });
+
+      expect(response.status).toBe(401);
+      expect(prismaClient.business.upsert).not.toHaveBeenCalled();
+    });
+  });
+
+  it("put /users/company-profile rejects invalid request bodies for authenticated users", async () => {
+    jwtSessionTokens.verifyAccessToken.mockResolvedValue({
+      sub: "user_1",
+      email: "sarah@example.com",
+      emailVerified: true,
+    });
+
+    await withContractApp(async (server) => {
+      const response = await request(server)
+        .put("/users/company-profile")
+        .set("Authorization", "Bearer access.jwt.token")
+        .send({
+          businessName: "",
+          country: "United Kingdom",
+          timeZone: "",
+          currency: "Pounds",
+          taxPreference: "",
+          industry: "",
+        });
+
+      expect(response.status).toBe(400);
+      expect(prismaClient.business.upsert).not.toHaveBeenCalled();
     });
   });
 
@@ -804,22 +902,6 @@ describe("Phase 1 authentication and user management controller contracts", () =
       expect(response.status).toBe(401);
     });
   });
-
-  it.each(unimplementedContracts)(
-    "$method $path route exists and returns explicit NotImplementedException",
-    async (contract) => {
-      await withContractApp(async (server) => {
-        const response = await sendRequest(server, contract);
-
-        expect(response.status).toBe(501);
-        expect(response.body).toMatchObject({
-          error: "Not Implemented",
-          message: contract.notImplementedMessage,
-          statusCode: 501,
-        });
-      });
-    },
-  );
 
   it.each(invalidContracts)("$method $path rejects invalid request bodies", async (contract) => {
     await withContractApp(async (server) => {
