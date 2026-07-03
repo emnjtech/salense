@@ -48,10 +48,60 @@ model Business {
 
   owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
+  connectedStores ConnectedStore[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("businesses")
+}
+
+/// Supported commerce platforms for Version 1 store connections.
+/// Future platforms must be added intentionally so unsupported integrations are rejected.
+enum StorePlatform {
+  WOOCOMMERCE
+  AMAZON_SELLER
+  TIKTOK_SHOP
+}
+
+/// Store connection lifecycle shown to users in the Store Integration Module.
+enum StoreConnectionStatus {
+  CONNECTED
+  SYNCHRONISING
+  DISCONNECTED
+  AUTHENTICATION_EXPIRED
+  ERROR
+}
+
+/// Read-only marketplace connection metadata for a business.
+/// Salense never stores marketplace passwords; token fields store hashes or non-secret metadata only.
+/// Disconnecting a store revokes future synchronisation without deleting historical analytics.
+model ConnectedStore {
+  id                   String                @id @default(cuid())
+  businessId           String
+  platform             StorePlatform
+  storeName            String
+  storeUrl             String?
+  region               String?
+  connectionStatus     StoreConnectionStatus @default(DISCONNECTED)
+  accessTokenHash      String?
+  accessTokenMetadata  Json?
+  refreshTokenHash     String?
+  refreshTokenMetadata Json?
+  lastSynchronisedAt   DateTime?
+  disconnectedAt       DateTime?
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([businessId])
+  @@index([platform])
+  @@index([connectionStatus])
+  @@index([lastSynchronisedAt])
+  @@unique([businessId, platform, storeUrl, region])
+  @@map("connected_stores")
 }
 
 /// Hashed email verification token generated after registration.
