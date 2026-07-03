@@ -17,6 +17,7 @@ import {
 } from "../../lib/api/products-client";
 import { StorePlatform } from "../../lib/api/store-integrations-client";
 import { readDemoSession } from "../../lib/auth-session";
+import { DemoModeBanner } from "../demo/demo-mode-banner";
 
 const allPlatforms = "ALL";
 
@@ -49,7 +50,7 @@ export function ProductsWorkspace() {
 
     if (!session) {
       setProducts([]);
-      setError("Sign in to view unified products.");
+      setError("Sign in as demo@salense.local to view the seeded unified products.");
       setLoading(false);
       return;
     }
@@ -86,10 +87,10 @@ export function ProductsWorkspace() {
       <header className="workspace-header">
         <div>
           <p className="eyebrow">Unified Products</p>
-          <h1>See product performance without changing source inventory.</h1>
+          <h1>See product performance across every connected channel.</h1>
           <p>
-            Review platform-scoped products, stock state, units sold, and revenue while keeping
-            marketplace records authoritative and read-only.
+            Review seeded platform-scoped products, stock state, units sold, and revenue while
+            keeping marketplace records authoritative and read-only.
           </p>
         </div>
         <button className="secondary-button" onClick={() => void loadProducts()} type="button">
@@ -97,6 +98,8 @@ export function ProductsWorkspace() {
           Refresh
         </button>
       </header>
+
+      <DemoModeBanner />
 
       {error ? (
         <section className="state-banner error" role="alert">
@@ -204,7 +207,7 @@ function ProductsLoadingState() {
   return (
     <section className="today-loading" aria-label="Loading products">
       <Loader2 className="spin" size={24} aria-hidden="true" />
-      <span>Loading unified products...</span>
+      <span>Loading seeded product performance across all three platforms...</span>
     </section>
   );
 }
@@ -214,7 +217,9 @@ function ProductsEmptyState() {
     <div className="empty-state orders-empty-state">
       <PackageSearch size={22} aria-hidden="true" />
       <strong>No products match this view</strong>
-      <span>Sync stores or adjust the filters to see normalized product performance.</span>
+      <span>
+        Clear filters, run the demo seed, or sync stores to see normalized product performance.
+      </span>
     </div>
   );
 }

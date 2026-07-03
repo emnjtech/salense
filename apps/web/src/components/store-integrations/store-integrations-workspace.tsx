@@ -24,6 +24,7 @@ import {
   type SupportedStorePlatform,
 } from "../../lib/api/store-integrations-client";
 import { getDemoAccessToken } from "../../lib/auth-session";
+import { DemoModeBanner } from "../demo/demo-mode-banner";
 
 interface WooCommerceFormState {
   readonly consumerKey: string;
@@ -140,10 +141,10 @@ export function StoreIntegrationsWorkspace() {
       <header className="workspace-header">
         <div>
           <p className="eyebrow">Store Integrations</p>
-          <h1>Connect commerce data without changing marketplace records.</h1>
+          <h1>Three connected channels, one read-only commerce layer.</h1>
           <p>
-            Manage supported platforms, monitor WooCommerce sync health, and keep imports read-only
-            from the first connection.
+            Review seeded WooCommerce, Amazon Seller, and TikTok Shop connections while preserving
+            marketplace data and credentials safely.
           </p>
         </div>
         <button className="secondary-button" type="button" onClick={() => void loadWorkspace()}>
@@ -152,11 +153,12 @@ export function StoreIntegrationsWorkspace() {
         </button>
       </header>
 
+      <DemoModeBanner />
+
       {!hasAccessToken ? (
         <section className="state-banner warning" aria-live="polite">
           <ShieldCheck size={18} aria-hidden="true" />
-          Add a valid access token to this browser session before managing protected store
-          connections.
+          Sign in as demo@salense.local before managing the seeded protected store connections.
         </section>
       ) : null}
 
@@ -200,7 +202,7 @@ export function StoreIntegrationsWorkspace() {
           <div className="panel-heading">
             <div>
               <h2>Supported Platforms</h2>
-              <p>WooCommerce is active first. Amazon Seller and TikTok Shop remain placeholders.</p>
+              <p>The MVP demo presents WooCommerce, Amazon Seller, and TikTok Shop side by side.</p>
             </div>
           </div>
 
@@ -222,7 +224,7 @@ export function StoreIntegrationsWorkspace() {
             <div>
               <h2>Connect WooCommerce</h2>
               <p>
-                Consumer credentials are sent only to the API for encrypted storage and validation.
+                Optional live WooCommerce setup for local testing; demo stores are already seeded.
               </p>
             </div>
           </div>
@@ -305,7 +307,7 @@ export function StoreIntegrationsWorkspace() {
         <div className="panel-heading">
           <div>
             <h2>Connected Stores</h2>
-            <p>Connection state, last sync, and safe WooCommerce sync summaries.</p>
+            <p>Connection state, last sync, and safe seeded channel summaries.</p>
           </div>
         </div>
 
@@ -313,7 +315,7 @@ export function StoreIntegrationsWorkspace() {
         {!loading && stores.length === 0 ? (
           <EmptyState
             title="No connected stores"
-            body="Connect WooCommerce when the business is ready to import read-only commerce data."
+            body="Run the demo seed to create connected WooCommerce, Amazon Seller, and TikTok Shop stores."
           />
         ) : null}
 
@@ -471,8 +473,8 @@ function SyncSummary({ syncStatus }: { readonly syncStatus: StoreSyncStatus | un
 function PlaceholderSummary() {
   return (
     <div className="sync-summary muted">
-      <strong>Placeholder</strong>
-      <span>Connection UI is reserved for a future platform implementation.</span>
+      <strong>Seeded demo channel</strong>
+      <span>Imported commerce data is available; live sync remains deferred.</span>
     </div>
   );
 }
@@ -490,11 +492,11 @@ function PlatformRow({ platform }: { readonly platform: SupportedStorePlatform }
         <p>
           {isWooCommerce
             ? "Credential validation and read-only sync available."
-            : "Supported platform placeholder."}
+            : "Seeded MVP data available; live platform sync deferred."}
         </p>
       </div>
       <span className={isWooCommerce ? "platform-state active" : "platform-state"}>
-        {isWooCommerce ? "Active" : "Planned"}
+        {isWooCommerce ? "Active" : "Seeded"}
       </span>
     </article>
   );

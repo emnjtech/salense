@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  AlertCircle,
-  CheckCircle2,
-  Loader2,
-  RefreshCcw,
-  Search,
-  ShoppingCart,
-} from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2, RefreshCcw, Search, ShoppingCart } from "lucide-react";
 import { type ChangeEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
   OrdersClientError,
@@ -17,6 +10,7 @@ import {
 } from "../../lib/api/orders-client";
 import { StorePlatform } from "../../lib/api/store-integrations-client";
 import { readDemoSession } from "../../lib/auth-session";
+import { DemoModeBanner } from "../demo/demo-mode-banner";
 
 const allPlatforms = "ALL";
 
@@ -53,7 +47,7 @@ export function OrdersWorkspace() {
 
     if (!session) {
       setOrders([]);
-      setError("Sign in to view unified orders.");
+      setError("Sign in as demo@salense.local to view the seeded unified orders.");
       setLoading(false);
       return;
     }
@@ -92,10 +86,10 @@ export function OrdersWorkspace() {
       <header className="workspace-header">
         <div>
           <p className="eyebrow">Unified Orders</p>
-          <h1>Every channel’s orders in one read-only view.</h1>
+          <h1>Every channel’s orders, ready for the MVP walkthrough.</h1>
           <p>
-            Search and filter normalized marketplace orders while preserving each source platform’s
-            identity and transaction values.
+            Filter seeded WooCommerce, Amazon Seller, and TikTok Shop orders while preserving each
+            platform’s identity, customer context, and transaction values.
           </p>
         </div>
         <button className="secondary-button" onClick={() => void loadOrders()} type="button">
@@ -103,6 +97,8 @@ export function OrdersWorkspace() {
           Refresh
         </button>
       </header>
+
+      <DemoModeBanner />
 
       {error ? (
         <section className="state-banner error" role="alert">
@@ -222,7 +218,7 @@ function OrdersLoadingState() {
   return (
     <section className="today-loading" aria-label="Loading orders">
       <Loader2 className="spin" size={24} aria-hidden="true" />
-      <span>Loading unified orders...</span>
+      <span>Loading seeded orders across WooCommerce, Amazon Seller, and TikTok Shop...</span>
     </section>
   );
 }
@@ -232,7 +228,9 @@ function OrdersEmptyState() {
     <div className="empty-state orders-empty-state">
       <ShoppingCart size={22} aria-hidden="true" />
       <strong>No orders match this view</strong>
-      <span>Sync stores or adjust the filters to see normalized commerce orders.</span>
+      <span>
+        Clear filters, run the demo seed, or sync stores to see normalized commerce orders.
+      </span>
     </div>
   );
 }

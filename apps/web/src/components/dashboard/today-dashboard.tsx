@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import type { CSSProperties, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { DemoModeBanner } from "../demo/demo-mode-banner";
 import {
   DashboardClientError,
   createDashboardApiClient,
@@ -40,7 +41,7 @@ export function TodayDashboard() {
 
     if (!session) {
       setDashboard(null);
-      setError("Sign in to view today's business dashboard.");
+      setError("Sign in as demo@salense.local to view today's seeded business dashboard.");
       setLoading(false);
       return;
     }
@@ -64,10 +65,10 @@ export function TodayDashboard() {
       <header className="workspace-header today-header">
         <div>
           <p className="eyebrow">Unified Today</p>
-          <h1>Know what changed across every channel.</h1>
+          <h1>Multi-channel commerce intelligence in one daily view.</h1>
           <p>
-            A read-only daily view of revenue, orders, products, stock risk, and platform
-            performance.
+            Compare WooCommerce, Amazon Seller, and TikTok Shop revenue, orders, product momentum,
+            stock risk, and Business Health Score without changing source records.
           </p>
         </div>
         <button className="secondary-button" onClick={() => void loadDashboard()} type="button">
@@ -75,6 +76,8 @@ export function TodayDashboard() {
           Refresh
         </button>
       </header>
+
+      <DemoModeBanner />
 
       {loading ? <TodayLoadingState /> : null}
       {!loading && error ? <TodayErrorState message={error} /> : null}
@@ -91,7 +94,7 @@ function TodayDashboardContent({ dashboard }: { readonly dashboard: TodayDashboa
       {isEmpty ? (
         <section className="state-banner warning">
           <Store size={18} aria-hidden="true" />
-          Connect and sync a store to turn this into your daily operating view.
+          Seed the demo data or sync a connected store to populate this daily operating view.
         </section>
       ) : null}
 
@@ -145,7 +148,7 @@ function TodayDashboardContent({ dashboard }: { readonly dashboard: TodayDashboa
           <div className="panel-heading">
             <div>
               <h2>Revenue by Platform</h2>
-              <p>Platform identity is preserved from the normalized commerce records.</p>
+              <p>Amazon, TikTok, and WooCommerce stay separate so channel performance is clear.</p>
             </div>
           </div>
           <PlatformBreakdown
@@ -158,7 +161,7 @@ function TodayDashboardContent({ dashboard }: { readonly dashboard: TodayDashboa
           <div className="panel-heading">
             <div>
               <h2>Orders by Platform</h2>
-              <p>Today’s order count split by source channel.</p>
+              <p>Today’s source-channel order count for quick comparison.</p>
             </div>
           </div>
           <PlatformBreakdown
@@ -173,7 +176,7 @@ function TodayDashboardContent({ dashboard }: { readonly dashboard: TodayDashboa
           <div className="panel-heading">
             <div>
               <h2>Today’s Focus</h2>
-              <p>Simple signals for the demo-ready operating view.</p>
+              <p>Best platform, top product, and inventory signal from the seeded commerce data.</p>
             </div>
           </div>
           <div className="focus-list">
@@ -211,7 +214,7 @@ function TodayDashboardContent({ dashboard }: { readonly dashboard: TodayDashboa
           <div className="panel-heading">
             <div>
               <h2>Rule-Based Insights</h2>
-              <p>No AI or forecasting yet, only explainable MVP rules.</p>
+              <p>Explainable MVP rules before AI forecasting is introduced.</p>
             </div>
           </div>
           <InsightList insights={dashboard.basicRuleBasedInsights} />
@@ -365,7 +368,7 @@ function TodayLoadingState() {
   return (
     <section className="today-loading" aria-label="Loading Today dashboard">
       <Loader2 className="spin" size={24} aria-hidden="true" />
-      <span>Loading today’s commerce view...</span>
+      <span>Loading today’s multi-channel commerce view...</span>
     </section>
   );
 }
