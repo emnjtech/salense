@@ -29,6 +29,7 @@ import {
 } from "./sync-queue/sync-queue.types.js";
 import { WooCommerceSyncSchedulingService } from "./sync-queue/woocommerce-sync-scheduling.service.js";
 import type { ConnectedStoreResponse } from "./types/connected-store-response.type.js";
+import type { DisconnectStoreResponse } from "./types/disconnect-store-response.type.js";
 import { StoreConnectionStatus } from "./types/store-connection-status.enum.js";
 import type {
   ManualSyncJobStatusResponse,
@@ -80,8 +81,8 @@ interface StoreIntegrationsPrismaClient {
     update(args: {
       readonly where: { readonly id: string };
       readonly data: ConnectedStoreUpdateData;
-      readonly select: ConnectedStoreSelect;
-    }): Promise<ConnectedStoreRecord>;
+      readonly select: ConnectedStoreSelect | ConnectedStoreActionSelect;
+    }): Promise<ConnectedStoreRecord | ConnectedStoreActionRecord>;
   };
 }
 
@@ -100,6 +101,7 @@ interface ConnectedStoreCreateData {
 
 interface ConnectedStoreUpdateData {
   readonly connectionStatus: StoreConnectionStatus;
+  readonly disconnectedAt?: Date | null;
 }
 
 interface ConnectedStoreSelect {
@@ -132,6 +134,7 @@ interface ConnectedStoreActionRecord {
   readonly id: string;
   readonly businessId: string;
   readonly connectionStatus: StoreConnectionStatus;
+  readonly disconnectedAt: Date | null;
   readonly lastSynchronisedAt: Date | null;
   readonly platform: StorePlatform;
 }
@@ -140,6 +143,7 @@ interface ConnectedStoreActionSelect {
   readonly id: true;
   readonly businessId: true;
   readonly connectionStatus: true;
+  readonly disconnectedAt: true;
   readonly lastSynchronisedAt: true;
   readonly platform: true;
 }
@@ -161,6 +165,7 @@ const connectedStoreActionSelect = {
   id: true,
   businessId: true,
   connectionStatus: true,
+  disconnectedAt: true,
   lastSynchronisedAt: true,
   platform: true,
 } satisfies ConnectedStoreActionSelect;
@@ -276,7 +281,7 @@ export class StoreIntegrationsService {
         select: connectedStoreSelect,
       });
 
-      return toConnectedStoreResponse(validatedStore);
+      return toConnectedStoreResponse(validatedStore as ConnectedStoreRecord);
     } catch {
       const failedStore = await prisma.connectedStore.update({
         where: { id: connectedStore.id },
@@ -284,7 +289,7 @@ export class StoreIntegrationsService {
         select: connectedStoreSelect,
       });
 
-      return toConnectedStoreResponse(failedStore);
+      return toConnectedStoreResponse(failedStore as ConnectedStoreRecord);
     }
   }
 
@@ -352,17 +357,35 @@ export class StoreIntegrationsService {
     };
   }
 
-  async disconnectStore(userId: string, request: StoreActionRequestDto): Promise<never> {
+  async disconnectStore(
+    userId: string,
+    request: StoreActionRequestDto,
+  ): Promise<DisconnectStoreResponse> {
     const store = await this.assertStoreBelongsToUser(userId, request.storeId);
-    return this.runPlaceholderIntegrationOperation(
-      this.integrationFactory.getProvider(toIntegrationPlatform(store.platform)).disconnect(
-        createIntegrationConfiguration({
-          businessId: store.businessId,
-          platform: store.platform,
-          storeId: store.id,
-        }),
-      ),
-    );
+
+    if (store.platform !== StorePlatform.WooCommerce) {
+      throw new NotImplementedException(
+        "Disconnect is currently implemented for WooCommerce stores only.",
+      );
+    }
+
+    if (store.connectionStatus !== StoreConnectionStatus.Connected) {
+      throw new ConflictException("Store must be connected before it can be disconnected.");
+    }
+
+    await this.syncSchedulingService.removeAutomaticSync(store);
+
+    const prisma = this.prismaService.client as unknown as StoreIntegrationsPrismaClient;
+    const disconnectedStore = await prisma.connectedStore.update({
+      where: { id: store.id },
+      data: {
+        connectionStatus: StoreConnectionStatus.Disconnected,
+        disconnectedAt: new Date(),
+      },
+      select: connectedStoreActionSelect,
+    });
+
+    return toDisconnectStoreResponse(disconnectedStore as ConnectedStoreActionRecord);
   }
 
   async requestManualSync(userId: string, request: StoreActionRequestDto): Promise<ManualSyncResponse> {
@@ -485,6 +508,15 @@ function toConnectedStoreResponse(store: ConnectedStoreRecord): ConnectedStoreRe
     lastSynchronisedAt: store.lastSynchronisedAt,
     createdAt: store.createdAt,
     updatedAt: store.updatedAt,
+  };
+}
+
+function toDisconnectStoreResponse(store: ConnectedStoreActionRecord): DisconnectStoreResponse {
+  return {
+    disconnectedAt: store.disconnectedAt,
+    platform: store.platform,
+    status: StoreConnectionStatus.Disconnected,
+    storeId: store.id,
   };
 }
 

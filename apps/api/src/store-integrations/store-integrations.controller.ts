@@ -19,6 +19,7 @@ import { PrepareStoreConnectionRequestDto } from "./dto/prepare-store-connection
 import { StoreActionRequestDto } from "./dto/store-action-request.dto.js";
 import { StoreIntegrationsService } from "./store-integrations.service.js";
 import type { ConnectedStoreResponse } from "./types/connected-store-response.type.js";
+import type { DisconnectStoreResponse } from "./types/disconnect-store-response.type.js";
 import type {
   ManualSyncJobStatusResponse,
   ManualSyncResponse,
@@ -64,7 +65,7 @@ export class StoreIntegrationsController {
   disconnectStore(
     @Req() request: AuthenticatedRequest,
     @Body() storeActionRequest: StoreActionRequestDto,
-  ): Promise<never> {
+  ): Promise<DisconnectStoreResponse> {
     return this.storeIntegrationsService.disconnectStore(
       getAuthenticatedUserId(request),
       storeActionRequest,

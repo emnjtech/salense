@@ -36,6 +36,12 @@ function createStoreIntegrationsServiceMocks(): {
   readonly getJobStatus: jest.Mock;
   readonly scheduleAutomaticSync: jest.Mock;
   readonly removeAutomaticSync: jest.Mock;
+  readonly deleteCommerceOrders: jest.Mock;
+  readonly deleteCommerceProducts: jest.Mock;
+  readonly deleteCommerceCustomers: jest.Mock;
+  readonly deleteCommerceInventorySnapshots: jest.Mock;
+  readonly deleteCommerceCategories: jest.Mock;
+  readonly deleteCommerceRefunds: jest.Mock;
   readonly encrypt: jest.Mock;
 } {
   const findBusiness = jest.fn();
@@ -51,6 +57,12 @@ function createStoreIntegrationsServiceMocks(): {
   const getJobStatus = jest.fn();
   const scheduleAutomaticSync = jest.fn();
   const removeAutomaticSync = jest.fn();
+  const deleteCommerceOrders = jest.fn();
+  const deleteCommerceProducts = jest.fn();
+  const deleteCommerceCustomers = jest.fn();
+  const deleteCommerceInventorySnapshots = jest.fn();
+  const deleteCommerceCategories = jest.fn();
+  const deleteCommerceRefunds = jest.fn();
   const getProvider = jest.fn().mockReturnValue({
     connect,
     disconnect,
@@ -74,6 +86,12 @@ function createStoreIntegrationsServiceMocks(): {
         create: createConnectedStore,
         update: updateConnectedStore,
       },
+      commerceOrder: { deleteMany: deleteCommerceOrders },
+      commerceProduct: { deleteMany: deleteCommerceProducts },
+      commerceCustomer: { deleteMany: deleteCommerceCustomers },
+      commerceInventorySnapshot: { deleteMany: deleteCommerceInventorySnapshots },
+      commerceCategory: { deleteMany: deleteCommerceCategories },
+      commerceRefund: { deleteMany: deleteCommerceRefunds },
     },
   } as unknown as PrismaService;
   const integrationFactory = { getProvider } as unknown as IntegrationFactory;
@@ -106,6 +124,12 @@ function createStoreIntegrationsServiceMocks(): {
     getJobStatus,
     scheduleAutomaticSync,
     removeAutomaticSync,
+    deleteCommerceOrders,
+    deleteCommerceProducts,
+    deleteCommerceCustomers,
+    deleteCommerceInventorySnapshots,
+    deleteCommerceCategories,
+    deleteCommerceRefunds,
     synchroniseOrders,
   };
 }
@@ -458,32 +482,167 @@ describe("StoreIntegrationsService", () => {
     expect(getProvider).not.toHaveBeenCalled();
   });
 
-  it("uses the shared integration framework for platform disconnect", async () => {
-    const { service, findFirstConnectedStore, getProvider, disconnect } =
+  it("allows the authenticated owner to disconnect a connected WooCommerce store", async () => {
+    const {
+      service,
+      findFirstConnectedStore,
+      updateConnectedStore,
+      getProvider,
+      disconnect,
+      removeAutomaticSync,
+      deleteCommerceOrders,
+      deleteCommerceProducts,
+      deleteCommerceCustomers,
+      deleteCommerceInventorySnapshots,
+      deleteCommerceCategories,
+      deleteCommerceRefunds,
+    } = createStoreIntegrationsServiceMocks();
+    const disconnectedAt = new Date("2026-07-03T17:00:00.000Z");
+    findFirstConnectedStore.mockResolvedValue({
+      id: "store_1",
+      businessId: "business_1",
+      connectionStatus: StoreConnectionStatus.Connected,
+      disconnectedAt: null,
+      lastSynchronisedAt: null,
+      platform: StorePlatform.WooCommerce,
+    });
+    removeAutomaticSync.mockResolvedValue({
+      jobId: "woocommerce:auto:full-sync:store_1",
+      platform: StorePlatform.WooCommerce,
+      removedAt: disconnectedAt,
+      status: "REMOVED",
+      storeId: "store_1",
+    });
+    updateConnectedStore.mockResolvedValue({
+      id: "store_1",
+      businessId: "business_1",
+      connectionStatus: StoreConnectionStatus.Disconnected,
+      disconnectedAt,
+      lastSynchronisedAt: new Date("2026-07-03T16:00:00.000Z"),
+      platform: StorePlatform.WooCommerce,
+      accessTokenHash: "should-not-leak",
+      refreshTokenHash: "should-not-leak",
+      accessTokenMetadata: { encryptedCredential: "should-not-leak" },
+      refreshTokenMetadata: { encryptedCredential: "should-not-leak" },
+    });
+
+    await expect(
+      service.disconnectStore("user_1", { storeId: "store_1" }),
+    ).resolves.toEqual({
+      disconnectedAt,
+      platform: StorePlatform.WooCommerce,
+      status: StoreConnectionStatus.Disconnected,
+      storeId: "store_1",
+    });
+    expect(removeAutomaticSync).toHaveBeenCalledWith({
+      id: "store_1",
+      businessId: "business_1",
+      connectionStatus: StoreConnectionStatus.Connected,
+      disconnectedAt: null,
+      lastSynchronisedAt: null,
+      platform: StorePlatform.WooCommerce,
+    });
+    expect(updateConnectedStore).toHaveBeenCalledWith({
+      where: { id: "store_1" },
+      data: {
+        connectionStatus: StoreConnectionStatus.Disconnected,
+        disconnectedAt: expect.any(Date),
+      },
+      select: expect.objectContaining({
+        disconnectedAt: true,
+        id: true,
+        platform: true,
+      }),
+    });
+    expect(getProvider).not.toHaveBeenCalled();
+    expect(disconnect).not.toHaveBeenCalled();
+    expect(deleteCommerceOrders).not.toHaveBeenCalled();
+    expect(deleteCommerceProducts).not.toHaveBeenCalled();
+    expect(deleteCommerceCustomers).not.toHaveBeenCalled();
+    expect(deleteCommerceInventorySnapshots).not.toHaveBeenCalled();
+    expect(deleteCommerceCategories).not.toHaveBeenCalled();
+    expect(deleteCommerceRefunds).not.toHaveBeenCalled();
+  });
+
+  it("does not expose credential material in disconnect responses", async () => {
+    const { service, findFirstConnectedStore, updateConnectedStore, removeAutomaticSync } =
       createStoreIntegrationsServiceMocks();
     findFirstConnectedStore.mockResolvedValue({
       id: "store_1",
       businessId: "business_1",
       connectionStatus: StoreConnectionStatus.Connected,
+      disconnectedAt: null,
       lastSynchronisedAt: null,
       platform: StorePlatform.WooCommerce,
     });
-    disconnect.mockRejectedValue(
-      new IntegrationNotImplementedError("WooCommerce disconnect is not implemented.", {
-        platform: IntegrationPlatform.WooCommerce,
-      }),
-    );
-
-    await expect(
-      service.disconnectStore("user_1", { storeId: "store_1" }),
-    ).rejects.toThrow(NotImplementedException);
-    expect(getProvider).toHaveBeenCalledWith(IntegrationPlatform.WooCommerce);
-    expect(disconnect).toHaveBeenCalledWith({
-      businessId: "business_1",
-      platform: IntegrationPlatform.WooCommerce,
+    removeAutomaticSync.mockResolvedValue({
+      jobId: "woocommerce:auto:full-sync:store_1",
+      platform: StorePlatform.WooCommerce,
+      removedAt: new Date("2026-07-03T17:00:00.000Z"),
+      status: "REMOVED",
       storeId: "store_1",
     });
+    updateConnectedStore.mockResolvedValue({
+      id: "store_1",
+      businessId: "business_1",
+      connectionStatus: StoreConnectionStatus.Disconnected,
+      disconnectedAt: new Date("2026-07-03T17:00:00.000Z"),
+      lastSynchronisedAt: null,
+      platform: StorePlatform.WooCommerce,
+      accessTokenHash: "should-not-leak",
+      refreshTokenHash: "should-not-leak",
+      encryptedCredential: "should-not-leak",
+    });
+
+    const response = await service.disconnectStore("user_1", { storeId: "store_1" });
+
+    expect(JSON.stringify(response)).not.toContain("should-not-leak");
+    expect(JSON.stringify(response)).not.toContain("accessTokenHash");
+    expect(JSON.stringify(response)).not.toContain("refreshTokenHash");
+    expect(JSON.stringify(response)).not.toContain("encryptedCredential");
   });
+
+  it("keeps Amazon and TikTok disconnect as explicit future work", async () => {
+    const { service, findFirstConnectedStore, updateConnectedStore, removeAutomaticSync, getProvider } =
+      createStoreIntegrationsServiceMocks();
+    findFirstConnectedStore.mockResolvedValue({
+      id: "store_1",
+      businessId: "business_1",
+      connectionStatus: StoreConnectionStatus.Connected,
+      disconnectedAt: null,
+      lastSynchronisedAt: null,
+      platform: StorePlatform.TikTokShop,
+    });
+
+    await expect(service.disconnectStore("user_1", { storeId: "store_1" })).rejects.toThrow(
+      NotImplementedException,
+    );
+    expect(removeAutomaticSync).not.toHaveBeenCalled();
+    expect(updateConnectedStore).not.toHaveBeenCalled();
+    expect(getProvider).not.toHaveBeenCalled();
+  });
+
+  it.each([StoreConnectionStatus.Disconnected, StoreConnectionStatus.Error])(
+    "rejects disconnect for %s WooCommerce stores",
+    async (connectionStatus) => {
+      const { service, findFirstConnectedStore, updateConnectedStore, removeAutomaticSync } =
+        createStoreIntegrationsServiceMocks();
+      findFirstConnectedStore.mockResolvedValue({
+        id: "store_1",
+        businessId: "business_1",
+        connectionStatus,
+        disconnectedAt: null,
+        lastSynchronisedAt: null,
+        platform: StorePlatform.WooCommerce,
+      });
+
+      await expect(service.disconnectStore("user_1", { storeId: "store_1" })).rejects.toThrow(
+        ConflictException,
+      );
+      expect(removeAutomaticSync).not.toHaveBeenCalled();
+      expect(updateConnectedStore).not.toHaveBeenCalled();
+    },
+  );
 
   it("allows the authenticated owner to enqueue a manual WooCommerce sync job", async () => {
     const { service, findFirstConnectedStore, getProvider, enqueueWooCommerceSyncJob } =

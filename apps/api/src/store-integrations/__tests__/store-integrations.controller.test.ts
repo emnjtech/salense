@@ -99,9 +99,13 @@ describe("StoreIntegrationsController", () => {
 
   it("delegates disconnect and sync actions for authenticated users", async () => {
     const queuedAt = new Date("2026-07-03T14:00:00.000Z");
-    jest.mocked(storeIntegrationsService.disconnectStore).mockRejectedValueOnce(
-      new Error("disconnect placeholder"),
-    );
+    const disconnectedAt = new Date("2026-07-03T17:00:00.000Z");
+    jest.mocked(storeIntegrationsService.disconnectStore).mockResolvedValueOnce({
+      disconnectedAt,
+      platform: StorePlatform.WooCommerce,
+      status: StoreConnectionStatus.Disconnected,
+      storeId: "store_1",
+    });
     jest.mocked(storeIntegrationsService.requestManualSync).mockResolvedValueOnce({
       jobId: "job_1",
       platform: StorePlatform.WooCommerce,
@@ -118,7 +122,12 @@ describe("StoreIntegrationsController", () => {
         },
         { storeId: "store_1" },
       ),
-    ).rejects.toThrow("disconnect placeholder");
+    ).resolves.toEqual({
+      disconnectedAt,
+      platform: StorePlatform.WooCommerce,
+      status: StoreConnectionStatus.Disconnected,
+      storeId: "store_1",
+    });
     await expect(
       controller.requestManualSync(
         {
@@ -217,6 +226,9 @@ describe("StoreIntegrationsController", () => {
         { platform: StorePlatform.WooCommerce, storeName: "Main Store" },
       ),
     ).toThrow(UnauthorizedException);
+    expect(() => controller.disconnectStore({ headers: {} }, { storeId: "store_1" })).toThrow(
+      UnauthorizedException,
+    );
     expect(() => controller.requestManualSync({ headers: {} }, { storeId: "store_1" })).toThrow(
       UnauthorizedException,
     );

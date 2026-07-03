@@ -17,6 +17,7 @@ Implemented foundation:
 - Protected manual sync endpoint that enqueues BullMQ jobs instead of running sync inline.
 - Worker bootstrap that processes WooCommerce sync jobs through the existing sync service.
 - Explicit scheduled sync scaffolding with recurring BullMQ jobs.
+- Protected WooCommerce disconnect lifecycle that removes future scheduled sync and preserves imported history.
 
 ## Read-Only Principle
 
@@ -46,11 +47,14 @@ Current lifecycle behavior:
 - WooCommerce connections are created as pending, then marked connected after credential validation or error after validation failure.
 - Manual sync requires an authenticated owner, platform `WOOCOMMERCE`, and status `CONNECTED`.
 - Scheduled sync must be explicitly requested and also requires a connected WooCommerce store.
+- WooCommerce disconnect requires an authenticated owner, requires a connected store, removes any recurring sync schedule, marks the store `DISCONNECTED`, and records `disconnectedAt`.
+- Disconnect does not delete imported commerce records or call WooCommerce write APIs.
 
 Deferred lifecycle work:
 
-- Real disconnect is still a placeholder; schedule removal has explicit scaffolding but is not yet invoked by a completed disconnect flow.
-- `SYNCHRONISING`, `DISCONNECTED`, and `AUTHENTICATION_EXPIRED` transitions need production lifecycle rules.
+- Amazon Seller and TikTok Shop disconnect remain explicit future work until their connection lifecycles exist.
+- Permanent deletion is not implemented; historical analytics are preserved by default.
+- `SYNCHRONISING` and `AUTHENTICATION_EXPIRED` transitions need production lifecycle rules.
 - User-facing platform-specific error surfaces remain to be refined.
 
 ## Credential Handling
@@ -91,6 +95,7 @@ Current scheduled sync scaffolding:
 - Scheduling is explicit; connecting a store does not silently schedule every store.
 - Duplicate recurring schedules are prevented with deterministic WooCommerce recurring job ids.
 - Schedule removal returns safe metadata and does not expose credentials.
+- WooCommerce disconnect invokes schedule removal so disconnected stores do not continue future automatic synchronisation.
 
 Remaining scheduled sync work:
 
@@ -129,6 +134,6 @@ Major behavior currently covered:
 - Raw-to-normalised mapper source metadata preservation.
 - Idempotent persistence and relationship handling.
 - Manual sync queueing and safe job status responses.
+- WooCommerce disconnect ownership enforcement, schedule removal, safe response, and historical-data preservation.
 - Worker handler dispatch and safe result sanitisation.
 - Scheduled sync creation, duplicate prevention, invalid store rejection, removal, and safe responses.
-
