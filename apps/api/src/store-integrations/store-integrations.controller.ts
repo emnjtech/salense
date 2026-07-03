@@ -23,6 +23,10 @@ import type {
   ManualSyncJobStatusResponse,
   ManualSyncResponse,
 } from "./types/manual-sync-response.type.js";
+import type {
+  SyncScheduleRemovalResponse,
+  SyncScheduleResponse,
+} from "./types/sync-schedule-response.type.js";
 import type { SupportedStorePlatform } from "./types/store-platform.enum.js";
 
 @Controller("store-integrations")
@@ -88,6 +92,30 @@ export class StoreIntegrationsController {
     return this.storeIntegrationsService.getManualSyncJobStatus(
       getAuthenticatedUserId(request),
       jobId,
+    );
+  }
+
+  @Post("sync-schedules")
+  @UseGuards(JwtAccessTokenGuard)
+  scheduleAutomaticSync(
+    @Req() request: AuthenticatedRequest,
+    @Body() storeActionRequest: StoreActionRequestDto,
+  ): Promise<SyncScheduleResponse> {
+    return this.storeIntegrationsService.scheduleAutomaticSync(
+      getAuthenticatedUserId(request),
+      storeActionRequest,
+    );
+  }
+
+  @Post("sync-schedules/remove")
+  @UseGuards(JwtAccessTokenGuard)
+  removeAutomaticSyncSchedule(
+    @Req() request: AuthenticatedRequest,
+    @Body() storeActionRequest: StoreActionRequestDto,
+  ): Promise<SyncScheduleRemovalResponse> {
+    return this.storeIntegrationsService.removeAutomaticSyncSchedule(
+      getAuthenticatedUserId(request),
+      storeActionRequest,
     );
   }
 }

@@ -1,5 +1,7 @@
 export const syncQueueName = "salense-sync";
 
+export const defaultSyncScheduleIntervalMs = 60 * 60 * 1000;
+
 export enum WooCommerceSyncJobName {
   ManualFullSync = "woocommerce.manual.full-sync",
   OrdersSync = "woocommerce.orders.sync",
@@ -11,3 +13,7 @@ export enum WooCommerceSyncJobName {
 }
 
 export const wooCommerceSyncJobNames = Object.values(WooCommerceSyncJobName);
+
+export function createWooCommerceRecurringSyncJobId(storeId: string): string {
+  return `woocommerce:auto:full-sync:${storeId}`;
+}

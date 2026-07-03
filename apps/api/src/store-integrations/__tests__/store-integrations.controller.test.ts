@@ -13,7 +13,9 @@ describe("StoreIntegrationsController", () => {
     prepareStoreConnection: jest.fn(),
     disconnectStore: jest.fn(),
     getManualSyncJobStatus: jest.fn(),
+    removeAutomaticSyncSchedule: jest.fn(),
     requestManualSync: jest.fn(),
+    scheduleAutomaticSync: jest.fn(),
   } as unknown as StoreIntegrationsService;
   const controller = new StoreIntegrationsController(storeIntegrationsService);
 
@@ -158,6 +160,55 @@ describe("StoreIntegrationsController", () => {
     expect(storeIntegrationsService.getManualSyncJobStatus).toHaveBeenCalledWith("user_1", "job_1");
   });
 
+  it("delegates sync schedule actions for authenticated users", async () => {
+    const scheduledAt = new Date("2026-07-03T15:00:00.000Z");
+    const removedAt = new Date("2026-07-03T16:00:00.000Z");
+    jest.mocked(storeIntegrationsService.scheduleAutomaticSync).mockResolvedValueOnce({
+      everyMs: 3_600_000,
+      jobId: "woocommerce:auto:full-sync:store_1",
+      platform: StorePlatform.WooCommerce,
+      scheduledAt,
+      status: "SCHEDULED",
+      storeId: "store_1",
+    });
+    jest.mocked(storeIntegrationsService.removeAutomaticSyncSchedule).mockResolvedValueOnce({
+      jobId: "woocommerce:auto:full-sync:store_1",
+      platform: StorePlatform.WooCommerce,
+      removedAt,
+      status: "REMOVED",
+      storeId: "store_1",
+    });
+
+    const request = {
+      headers: {},
+      user: { sub: "user_1", email: "owner@example.com", emailVerified: true },
+    } as const;
+
+    await expect(controller.scheduleAutomaticSync(request, { storeId: "store_1" })).resolves.toEqual({
+      everyMs: 3_600_000,
+      jobId: "woocommerce:auto:full-sync:store_1",
+      platform: StorePlatform.WooCommerce,
+      scheduledAt,
+      status: "SCHEDULED",
+      storeId: "store_1",
+    });
+    await expect(
+      controller.removeAutomaticSyncSchedule(request, { storeId: "store_1" }),
+    ).resolves.toEqual({
+      jobId: "woocommerce:auto:full-sync:store_1",
+      platform: StorePlatform.WooCommerce,
+      removedAt,
+      status: "REMOVED",
+      storeId: "store_1",
+    });
+    expect(storeIntegrationsService.scheduleAutomaticSync).toHaveBeenCalledWith("user_1", {
+      storeId: "store_1",
+    });
+    expect(storeIntegrationsService.removeAutomaticSyncSchedule).toHaveBeenCalledWith("user_1", {
+      storeId: "store_1",
+    });
+  });
+
   it("rejects protected actions when authenticated context is missing", async () => {
     expect(() => controller.listConnectedStores({ headers: {} })).toThrow(UnauthorizedException);
     expect(() =>
@@ -172,5 +223,11 @@ describe("StoreIntegrationsController", () => {
     expect(() => controller.getManualSyncJobStatus({ headers: {} }, "job_1")).toThrow(
       UnauthorizedException,
     );
+    expect(() => controller.scheduleAutomaticSync({ headers: {} }, { storeId: "store_1" })).toThrow(
+      UnauthorizedException,
+    );
+    expect(() =>
+      controller.removeAutomaticSyncSchedule({ headers: {} }, { storeId: "store_1" }),
+    ).toThrow(UnauthorizedException);
   });
 });

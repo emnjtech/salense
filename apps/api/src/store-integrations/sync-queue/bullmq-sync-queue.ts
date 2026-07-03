@@ -1,7 +1,12 @@
 import { InternalServerErrorException } from "@nestjs/common";
 import { Queue, type JobsOptions } from "bullmq";
+import { StorePlatform } from "../types/store-platform.enum.js";
 import {
   syncQueueName,
+  type RecurringSyncScheduleLookupResult,
+  type RecurringSyncScheduleRemovalResult,
+  type RecurringSyncScheduleRequest,
+  type RecurringSyncScheduleResult,
   type SyncJobEnqueueResult,
   type SyncJobStatusResult,
   type SyncQueuePort,
@@ -54,6 +59,71 @@ export class BullMqSyncQueue implements SyncQueuePort {
     };
   }
 
+  async getRecurringWooCommerceSyncJob(
+    jobId: string,
+  ): Promise<RecurringSyncScheduleLookupResult | null> {
+    const repeatableJobs = await this.getQueue().getRepeatableJobs();
+    const repeatableJob = repeatableJobs.find((job) => job.id === jobId);
+
+    if (!repeatableJob) {
+      return null;
+    }
+
+    return {
+      everyMs: Number(repeatableJob.every ?? 0),
+      jobId,
+      platform: StorePlatform.WooCommerce,
+      storeId: storeIdFromRecurringJobId(jobId),
+    };
+  }
+
+  async removeRecurringWooCommerceSyncJob(
+    jobId: string,
+    storeId: string,
+  ): Promise<RecurringSyncScheduleRemovalResult> {
+    const repeatableJobs = await this.getQueue().getRepeatableJobs();
+    const repeatableJob = repeatableJobs.find((job) => job.id === jobId);
+
+    if (!repeatableJob) {
+      return {
+        jobId,
+        platform: StorePlatform.WooCommerce,
+        removedAt: new Date(),
+        status: "NOT_FOUND",
+        storeId,
+      };
+    }
+
+    await this.getQueue().removeRepeatableByKey(repeatableJob.key);
+
+    return {
+      jobId,
+      platform: StorePlatform.WooCommerce,
+      removedAt: new Date(),
+      status: "REMOVED",
+      storeId,
+    };
+  }
+
+  async scheduleRecurringWooCommerceSyncJob(
+    request: RecurringSyncScheduleRequest,
+  ): Promise<RecurringSyncScheduleResult> {
+    await this.getQueue().add(request.name, request.data, {
+      ...defaultJobOptions,
+      jobId: request.jobId,
+      repeat: { every: request.everyMs },
+    });
+
+    return {
+      everyMs: request.everyMs,
+      jobId: request.jobId,
+      platform: request.data.platform,
+      scheduledAt: new Date(request.data.queuedAt),
+      status: "SCHEDULED",
+      storeId: request.data.storeId,
+    };
+  }
+
   private getQueue(): Queue<WooCommerceSyncJobData, unknown, WooCommerceSyncJobName> {
     if (!this.queue) {
       const connection = createRedisConnectionOptions();
@@ -65,6 +135,10 @@ export class BullMqSyncQueue implements SyncQueuePort {
 
     return this.queue;
   }
+}
+
+function storeIdFromRecurringJobId(jobId: string): string {
+  return jobId.split(":").at(-1) ?? jobId;
 }
 
 export function createBullMqSyncQueue(): SyncQueuePort {

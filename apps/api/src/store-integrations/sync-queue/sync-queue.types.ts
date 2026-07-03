@@ -1,5 +1,7 @@
 import type { Job } from "bullmq";
 export {
+  createWooCommerceRecurringSyncJobId,
+  defaultSyncScheduleIntervalMs,
   syncQueueName,
   WooCommerceSyncJobName,
   wooCommerceSyncJobNames,
@@ -42,10 +44,51 @@ export interface SyncJobStatusResult {
   readonly storeId: string;
 }
 
+export interface RecurringSyncScheduleRequest {
+  readonly everyMs: number;
+  readonly jobId: string;
+  readonly name: WooCommerceSyncJobName;
+  readonly data: WooCommerceSyncJobData;
+}
+
+export interface RecurringSyncScheduleResult {
+  readonly everyMs: number;
+  readonly jobId: string;
+  readonly platform: StorePlatform.WooCommerce;
+  readonly scheduledAt: Date;
+  readonly status: "SCHEDULED";
+  readonly storeId: string;
+}
+
+export interface RecurringSyncScheduleLookupResult {
+  readonly everyMs: number;
+  readonly jobId: string;
+  readonly platform: StorePlatform.WooCommerce;
+  readonly storeId: string;
+}
+
+export interface RecurringSyncScheduleRemovalResult {
+  readonly jobId: string;
+  readonly platform: StorePlatform.WooCommerce;
+  readonly removedAt: Date;
+  readonly status: "REMOVED" | "NOT_FOUND";
+  readonly storeId: string;
+}
+
 export interface SyncQueuePort {
   enqueueWooCommerceSyncJob(
     name: WooCommerceSyncJobName,
     data: WooCommerceSyncJobData,
   ): Promise<SyncJobEnqueueResult>;
   getJobStatus(jobId: string): Promise<SyncJobStatusResult | null>;
+  getRecurringWooCommerceSyncJob(
+    jobId: string,
+  ): Promise<RecurringSyncScheduleLookupResult | null>;
+  removeRecurringWooCommerceSyncJob(
+    jobId: string,
+    storeId: string,
+  ): Promise<RecurringSyncScheduleRemovalResult>;
+  scheduleRecurringWooCommerceSyncJob(
+    request: RecurringSyncScheduleRequest,
+  ): Promise<RecurringSyncScheduleResult>;
 }

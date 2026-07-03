@@ -15,6 +15,7 @@ import {
 import type { PrismaService } from "../../database/prisma.service.js";
 import type { AesCredentialEncryptionService } from "../security/credential-encryption.service.js";
 import { StoreIntegrationsService } from "../store-integrations.service.js";
+import type { WooCommerceSyncSchedulingService } from "../sync-queue/woocommerce-sync-scheduling.service.js";
 import { WooCommerceSyncJobName, type SyncQueuePort } from "../sync-queue/sync-queue.types.js";
 import { StoreConnectionStatus } from "../types/store-connection-status.enum.js";
 import { StorePlatform } from "../types/store-platform.enum.js";
@@ -33,6 +34,8 @@ function createStoreIntegrationsServiceMocks(): {
   readonly synchroniseOrders: jest.Mock;
   readonly enqueueWooCommerceSyncJob: jest.Mock;
   readonly getJobStatus: jest.Mock;
+  readonly scheduleAutomaticSync: jest.Mock;
+  readonly removeAutomaticSync: jest.Mock;
   readonly encrypt: jest.Mock;
 } {
   const findBusiness = jest.fn();
@@ -46,6 +49,8 @@ function createStoreIntegrationsServiceMocks(): {
   const synchroniseOrders = jest.fn();
   const enqueueWooCommerceSyncJob = jest.fn();
   const getJobStatus = jest.fn();
+  const scheduleAutomaticSync = jest.fn();
+  const removeAutomaticSync = jest.fn();
   const getProvider = jest.fn().mockReturnValue({
     connect,
     disconnect,
@@ -74,6 +79,10 @@ function createStoreIntegrationsServiceMocks(): {
   const integrationFactory = { getProvider } as unknown as IntegrationFactory;
   const credentialEncryption = { encrypt } as unknown as AesCredentialEncryptionService;
   const syncQueue = { enqueueWooCommerceSyncJob, getJobStatus } as unknown as SyncQueuePort;
+  const syncSchedulingService = {
+    removeAutomaticSync,
+    scheduleAutomaticSync,
+  } as unknown as WooCommerceSyncSchedulingService;
 
   return {
     service: new StoreIntegrationsService(
@@ -81,6 +90,7 @@ function createStoreIntegrationsServiceMocks(): {
       integrationFactory,
       credentialEncryption,
       syncQueue,
+      syncSchedulingService,
     ),
     findBusiness,
     findManyConnectedStores,
@@ -94,6 +104,8 @@ function createStoreIntegrationsServiceMocks(): {
     encrypt,
     enqueueWooCommerceSyncJob,
     getJobStatus,
+    scheduleAutomaticSync,
+    removeAutomaticSync,
     synchroniseOrders,
   };
 }
@@ -699,5 +711,69 @@ describe("StoreIntegrationsService", () => {
       NotFoundException,
     );
     expect(findFirstConnectedStore).not.toHaveBeenCalled();
+  });
+
+  it("schedules automatic sync for stores owned by the authenticated user", async () => {
+    const { service, findFirstConnectedStore, scheduleAutomaticSync } =
+      createStoreIntegrationsServiceMocks();
+    const scheduledAt = new Date("2026-07-03T15:00:00.000Z");
+    const store = {
+      id: "store_1",
+      businessId: "business_1",
+      connectionStatus: StoreConnectionStatus.Connected,
+      lastSynchronisedAt: null,
+      platform: StorePlatform.WooCommerce,
+    };
+    findFirstConnectedStore.mockResolvedValue(store);
+    scheduleAutomaticSync.mockResolvedValue({
+      everyMs: 3_600_000,
+      jobId: "woocommerce:auto:full-sync:store_1",
+      platform: StorePlatform.WooCommerce,
+      scheduledAt,
+      status: "SCHEDULED",
+      storeId: "store_1",
+    });
+
+    await expect(service.scheduleAutomaticSync("user_1", { storeId: "store_1" })).resolves.toEqual({
+      everyMs: 3_600_000,
+      jobId: "woocommerce:auto:full-sync:store_1",
+      platform: StorePlatform.WooCommerce,
+      scheduledAt,
+      status: "SCHEDULED",
+      storeId: "store_1",
+    });
+    expect(scheduleAutomaticSync).toHaveBeenCalledWith(store, "user_1");
+  });
+
+  it("removes automatic sync schedules for stores owned by the authenticated user", async () => {
+    const { service, findFirstConnectedStore, removeAutomaticSync } =
+      createStoreIntegrationsServiceMocks();
+    const removedAt = new Date("2026-07-03T15:00:00.000Z");
+    const store = {
+      id: "store_1",
+      businessId: "business_1",
+      connectionStatus: StoreConnectionStatus.Disconnected,
+      lastSynchronisedAt: null,
+      platform: StorePlatform.WooCommerce,
+    };
+    findFirstConnectedStore.mockResolvedValue(store);
+    removeAutomaticSync.mockResolvedValue({
+      jobId: "woocommerce:auto:full-sync:store_1",
+      platform: StorePlatform.WooCommerce,
+      removedAt,
+      status: "REMOVED",
+      storeId: "store_1",
+    });
+
+    await expect(
+      service.removeAutomaticSyncSchedule("user_1", { storeId: "store_1" }),
+    ).resolves.toEqual({
+      jobId: "woocommerce:auto:full-sync:store_1",
+      platform: StorePlatform.WooCommerce,
+      removedAt,
+      status: "REMOVED",
+      storeId: "store_1",
+    });
+    expect(removeAutomaticSync).toHaveBeenCalledWith(store);
   });
 });

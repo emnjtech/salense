@@ -27,12 +27,17 @@ import {
   type SyncJobStatusResult,
   type SyncQueuePort,
 } from "./sync-queue/sync-queue.types.js";
+import { WooCommerceSyncSchedulingService } from "./sync-queue/woocommerce-sync-scheduling.service.js";
 import type { ConnectedStoreResponse } from "./types/connected-store-response.type.js";
 import { StoreConnectionStatus } from "./types/store-connection-status.enum.js";
 import type {
   ManualSyncJobStatusResponse,
   ManualSyncResponse,
 } from "./types/manual-sync-response.type.js";
+import type {
+  SyncScheduleRemovalResponse,
+  SyncScheduleResponse,
+} from "./types/sync-schedule-response.type.js";
 import {
   isSupportedStorePlatform,
   StorePlatform,
@@ -169,6 +174,8 @@ export class StoreIntegrationsService {
     private readonly credentialEncryption: AesCredentialEncryptionService,
     @Inject(SYNC_QUEUE)
     private readonly syncQueue: SyncQueuePort,
+    @Inject(WooCommerceSyncSchedulingService)
+    private readonly syncSchedulingService: WooCommerceSyncSchedulingService,
   ) {}
 
   listSupportedPlatforms(): readonly SupportedStorePlatform[] {
@@ -397,6 +404,24 @@ export class StoreIntegrationsService {
     await this.assertStoreBelongsToUser(userId, jobStatus.storeId);
 
     return toManualSyncJobStatusResponse(jobStatus);
+  }
+
+  async scheduleAutomaticSync(
+    userId: string,
+    request: StoreActionRequestDto,
+  ): Promise<SyncScheduleResponse> {
+    const store = await this.assertStoreBelongsToUser(userId, request.storeId);
+
+    return this.syncSchedulingService.scheduleAutomaticSync(store, userId);
+  }
+
+  async removeAutomaticSyncSchedule(
+    userId: string,
+    request: StoreActionRequestDto,
+  ): Promise<SyncScheduleRemovalResponse> {
+    const store = await this.assertStoreBelongsToUser(userId, request.storeId);
+
+    return this.syncSchedulingService.removeAutomaticSync(store);
   }
 
   private assertSupportedPlatform(platform: string): asserts platform is StorePlatform {

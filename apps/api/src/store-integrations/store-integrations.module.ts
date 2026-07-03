@@ -6,6 +6,7 @@ import { StoreIntegrationsController } from "./store-integrations.controller.js"
 import { StoreIntegrationsService } from "./store-integrations.service.js";
 import { createBullMqSyncQueue } from "./sync-queue/bullmq-sync-queue.js";
 import { SYNC_QUEUE } from "./sync-queue/sync-queue.types.js";
+import { WooCommerceSyncSchedulingService } from "./sync-queue/woocommerce-sync-scheduling.service.js";
 import { WooCommerceSyncWorkerHandler } from "./sync-queue/woocommerce-sync-worker.handler.js";
 import { WooCommerceCommercePersistenceService } from "./woocommerce-commerce-persistence.service.js";
 import {
@@ -21,6 +22,7 @@ import {
     AesCredentialEncryptionService,
     StoreIntegrationsService,
     WooCommerceCommercePersistenceService,
+    WooCommerceSyncSchedulingService,
     WooCommerceSyncService,
     WooCommerceSyncWorkerHandler,
     { provide: SYNC_QUEUE, useFactory: createBullMqSyncQueue },
@@ -29,6 +31,7 @@ import {
   exports: [
     StoreIntegrationsService,
     WooCommerceCommercePersistenceService,
+    WooCommerceSyncSchedulingService,
     WooCommerceSyncService,
     WooCommerceSyncWorkerHandler,
   ],
