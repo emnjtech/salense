@@ -10,6 +10,7 @@ describe("AuthController", () => {
     requestPasswordReset: jest.fn(),
     confirmPasswordReset: jest.fn(),
     getCurrentUser: jest.fn(),
+    changePassword: jest.fn(),
     logout: jest.fn(),
   } as unknown as AuthService;
   const controller = new AuthController(authService);
@@ -114,6 +115,25 @@ describe("AuthController", () => {
         headers: {},
         user: { sub: "user_1", email: "sarah@example.com", emailVerified: true },
       }),
+    ).resolves.toBe(response);
+  });
+
+  it("delegates change password to AuthService", async () => {
+    const response = { passwordChanged: true as const };
+    jest.mocked(authService.changePassword).mockResolvedValueOnce(response);
+
+    await expect(
+      controller.changePassword(
+        {
+          headers: {},
+          user: { sub: "user_1", email: "sarah@example.com", emailVerified: true },
+        },
+        {
+          currentPassword: "CurrentPassword123!",
+          newPassword: "NewPassword123!",
+          confirmNewPassword: "NewPassword123!",
+        },
+      ),
     ).resolves.toBe(response);
   });
 

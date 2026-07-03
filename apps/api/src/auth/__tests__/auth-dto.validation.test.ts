@@ -1,5 +1,6 @@
 import { plainToInstance } from "class-transformer";
 import { validate } from "class-validator";
+import { ChangePasswordRequestDto } from "../dto/change-password-request.dto.js";
 import { EmailVerificationRequestDto } from "../dto/email-verification-request.dto.js";
 import { LoginRequestDto } from "../dto/login-request.dto.js";
 import { LogoutRequestDto } from "../dto/logout-request.dto.js";
@@ -100,5 +101,35 @@ describe("authentication DTO validation", () => {
     const errors = await validateDto(LogoutRequestDto, { refreshToken: "" });
 
     expect(errors.some((error) => error.property === "refreshToken")).toBe(true);
+  });
+
+  it("accepts a change password shape with a compliant new password", async () => {
+    const errors = await validateDto(ChangePasswordRequestDto, {
+      currentPassword: "CurrentPassword123!",
+      newPassword: "NewPassword123!",
+      confirmNewPassword: "NewPassword123!",
+    });
+
+    expect(errors).toHaveLength(0);
+  });
+
+  it("rejects weak change password new passwords", async () => {
+    const errors = await validateDto(ChangePasswordRequestDto, {
+      currentPassword: "CurrentPassword123!",
+      newPassword: "weak",
+      confirmNewPassword: "weak",
+    });
+
+    expect(errors.some((error) => error.property === "newPassword")).toBe(true);
+  });
+
+  it("requires the current password for change password", async () => {
+    const errors = await validateDto(ChangePasswordRequestDto, {
+      currentPassword: "",
+      newPassword: "NewPassword123!",
+      confirmNewPassword: "NewPassword123!",
+    });
+
+    expect(errors.some((error) => error.property === "currentPassword")).toBe(true);
   });
 });

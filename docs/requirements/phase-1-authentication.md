@@ -12,6 +12,7 @@ This document maps the current implementation to the Chapter 6.1 requirements.
 | FR-6.1.4 Session Management | `JwtAccessTokenGuard`, refresh token persistence, `AuthController.refreshSession`, `AuthController.logout`                | Implemented           |
 | FR-6.1.5 Password Reset     | `AuthController.requestPasswordReset`, `AuthController.confirmPasswordReset`, `PasswordResetRequestDto`, reset token hash | Implemented           |
 | FR-6.1.6 Company Profile    | `UsersModule`, `UsersController.updateCompanyProfile`, `UsersService.updateCompanyProfile`, `CompanyProfileRequestDto`    | Implemented           |
+| Version 1 Change Password   | `AuthController.changePassword`, `AuthService.changePassword`, `ChangePasswordRequestDto`, refresh token revocation       | Implemented           |
 
 ## Safety Boundaries
 

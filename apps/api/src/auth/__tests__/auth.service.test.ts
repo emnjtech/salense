@@ -47,6 +47,7 @@ function createAuthServiceMocks(): {
   readonly createRefreshToken: jest.Mock;
   readonly findRefreshToken: jest.Mock;
   readonly updateRefreshToken: jest.Mock;
+  readonly updateManyRefreshTokens: jest.Mock;
   readonly transaction: jest.Mock;
   readonly issueAccessToken: jest.Mock;
   readonly issueRefreshToken: jest.Mock;
@@ -77,6 +78,7 @@ function createAuthServiceMocks(): {
   const createRefreshToken = jest.fn();
   const findRefreshToken = jest.fn();
   const updateRefreshToken = jest.fn();
+  const updateManyRefreshTokens = jest.fn();
   const issueAccessToken = jest.fn();
   const issueRefreshToken = jest.fn();
   const verifyRefreshToken = jest.fn();
@@ -89,7 +91,7 @@ function createAuthServiceMocks(): {
       user: { update: updateUser },
       emailVerificationToken: { update: updateVerificationToken },
       passwordResetToken: { update: updatePasswordResetToken },
-      refreshToken: { update: updateRefreshToken },
+      refreshToken: { update: updateRefreshToken, updateMany: updateManyRefreshTokens },
     }),
   );
   const prismaService = {
@@ -112,6 +114,7 @@ function createAuthServiceMocks(): {
         create: createRefreshToken,
         findUnique: findRefreshToken,
         update: updateRefreshToken,
+        updateMany: updateManyRefreshTokens,
       },
       $transaction: transaction,
     },
@@ -174,6 +177,7 @@ function createAuthServiceMocks(): {
     createRefreshToken,
     findRefreshToken,
     updateRefreshToken,
+    updateManyRefreshTokens,
     transaction,
     issueAccessToken,
     issueRefreshToken,
@@ -658,6 +662,111 @@ describe("AuthService", () => {
     await expect(mocks.service.getCurrentUser("deleted_user")).rejects.toThrow(
       UnauthorizedException,
     );
+  });
+
+  it("changes the password and revokes existing refresh tokens", async () => {
+    const mocks = createAuthServiceMocks();
+    mocks.findUnique.mockResolvedValue({ id: "user_1", passwordHash: "current-hash" });
+    mocks.comparePassword.mockResolvedValue(true);
+    mocks.hashPassword.mockResolvedValue("new-hashed-password");
+
+    await expect(
+      mocks.service.changePassword("user_1", {
+        currentPassword: "CurrentPassword123!",
+        newPassword: "NewPassword123!",
+        confirmNewPassword: "NewPassword123!",
+      }),
+    ).resolves.toEqual({ passwordChanged: true });
+
+    expect(mocks.findUnique).toHaveBeenCalledWith({
+      where: { id: "user_1" },
+      select: { id: true, passwordHash: true },
+    });
+    expect(mocks.comparePassword).toHaveBeenCalledWith("CurrentPassword123!", "current-hash");
+    expect(mocks.hashPassword).toHaveBeenCalledWith("NewPassword123!");
+    expect(mocks.updateUser).toHaveBeenCalledWith({
+      where: { id: "user_1" },
+      data: { passwordHash: "new-hashed-password" },
+    });
+    expect(mocks.updateManyRefreshTokens).toHaveBeenCalledWith({
+      where: { userId: "user_1", revokedAt: null },
+      data: { revokedAt: expect.any(Date) },
+    });
+  });
+
+  it("rejects change password when the user no longer exists", async () => {
+    const mocks = createAuthServiceMocks();
+    mocks.findUnique.mockResolvedValue(null);
+
+    await expect(
+      mocks.service.changePassword("deleted_user", {
+        currentPassword: "CurrentPassword123!",
+        newPassword: "NewPassword123!",
+        confirmNewPassword: "NewPassword123!",
+      }),
+    ).rejects.toThrow(UnauthorizedException);
+    expect(mocks.comparePassword).not.toHaveBeenCalled();
+  });
+
+  it("rejects change password when the current password is incorrect", async () => {
+    const mocks = createAuthServiceMocks();
+    mocks.findUnique.mockResolvedValue({ id: "user_1", passwordHash: "current-hash" });
+    mocks.comparePassword.mockResolvedValue(false);
+
+    await expect(
+      mocks.service.changePassword("user_1", {
+        currentPassword: "WrongPassword123!",
+        newPassword: "NewPassword123!",
+        confirmNewPassword: "NewPassword123!",
+      }),
+    ).rejects.toThrow(UnauthorizedException);
+    expect(mocks.hashPassword).not.toHaveBeenCalled();
+    expect(mocks.updateManyRefreshTokens).not.toHaveBeenCalled();
+  });
+
+  it("rejects change password when the new password is weak", async () => {
+    const mocks = createAuthServiceMocks();
+
+    await expect(
+      mocks.service.changePassword("user_1", {
+        currentPassword: "CurrentPassword123!",
+        newPassword: "weak",
+        confirmNewPassword: "weak",
+      }),
+    ).rejects.toThrow(BadRequestException);
+    expect(mocks.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("rejects change password when confirmation does not match", async () => {
+    const mocks = createAuthServiceMocks();
+
+    await expect(
+      mocks.service.changePassword("user_1", {
+        currentPassword: "CurrentPassword123!",
+        newPassword: "NewPassword123!",
+        confirmNewPassword: "DifferentPassword123!",
+      }),
+    ).rejects.toThrow(BadRequestException);
+    expect(mocks.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("excludes sensitive fields from the change password response", async () => {
+    const mocks = createAuthServiceMocks();
+    mocks.findUnique.mockResolvedValue({ id: "user_1", passwordHash: "current-hash" });
+    mocks.comparePassword.mockResolvedValue(true);
+    mocks.hashPassword.mockResolvedValue("new-hashed-password");
+
+    const response = await mocks.service.changePassword("user_1", {
+      currentPassword: "CurrentPassword123!",
+      newPassword: "NewPassword123!",
+      confirmNewPassword: "NewPassword123!",
+    });
+
+    expect(JSON.stringify(response)).not.toContain("CurrentPassword123!");
+    expect(JSON.stringify(response)).not.toContain("NewPassword123!");
+    expect(JSON.stringify(response)).not.toContain("current-hash");
+    expect(JSON.stringify(response)).not.toContain("new-hashed-password");
+    expect(JSON.stringify(response)).not.toContain("token");
   });
 
   it("creates a hashed password reset token for an existing email", async () => {

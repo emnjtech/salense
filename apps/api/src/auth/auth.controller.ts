@@ -10,6 +10,8 @@ import {
   UseGuards,
 } from "@nestjs/common";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- Nest validation requires runtime DTO metadata.
+import { ChangePasswordRequestDto } from "./dto/change-password-request.dto.js";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- Nest validation requires runtime DTO metadata.
 import { EmailVerificationRequestDto } from "./dto/email-verification-request.dto.js";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- Nest validation requires runtime DTO metadata.
 import { LoginRequestDto } from "./dto/login-request.dto.js";
@@ -25,6 +27,7 @@ import { RefreshSessionRequestDto } from "./dto/refresh-session-request.dto.js";
 import { RegisterRequestDto } from "./dto/register-request.dto.js";
 import { JwtAccessTokenGuard, type AuthenticatedRequest } from "./guards/jwt-access-token.guard.js";
 import { AuthService } from "./auth.service.js";
+import type { ChangePasswordResponse } from "./types/change-password-response.type.js";
 import type { CurrentUserResponse } from "./types/current-user-response.type.js";
 import type { EmailVerificationResponse } from "./types/email-verification-response.type.js";
 import type { LoginSessionResponse } from "./types/login-session-response.type.js";
@@ -93,6 +96,22 @@ export class AuthController {
     }
 
     return this.authService.getCurrentUser(userId);
+  }
+
+  @Post("change-password")
+  @HttpCode(200)
+  @UseGuards(JwtAccessTokenGuard)
+  changePassword(
+    @Req() request: AuthenticatedRequest,
+    @Body() changePasswordRequest: ChangePasswordRequestDto,
+  ): Promise<ChangePasswordResponse> {
+    const userId = request.user?.sub;
+
+    if (!userId) {
+      throw new UnauthorizedException("Authenticated request context is not available.");
+    }
+
+    return this.authService.changePassword(userId, changePasswordRequest);
   }
 
   @Post("logout")

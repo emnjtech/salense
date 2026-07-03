@@ -9,6 +9,7 @@ import {
 } from "@nestjs/common";
 import { EmailService } from "../email/email.service.js";
 import { PrismaService } from "../database/prisma.service.js";
+import type { ChangePasswordRequestDto } from "./dto/change-password-request.dto.js";
 import type { EmailVerificationRequestDto } from "./dto/email-verification-request.dto.js";
 import type { LoginRequestDto } from "./dto/login-request.dto.js";
 import type { LogoutRequestDto } from "./dto/logout-request.dto.js";
@@ -23,6 +24,7 @@ import {
   PasswordResetTokenService,
 } from "./security/index.js";
 import { JwtSessionConfigService, JwtSessionTokenService } from "./session/index.js";
+import type { ChangePasswordResponse } from "./types/change-password-response.type.js";
 import type { CurrentUserResponse } from "./types/current-user-response.type.js";
 import type { EmailVerificationResponse } from "./types/email-verification-response.type.js";
 import type { LoginSessionResponse } from "./types/login-session-response.type.js";
@@ -175,6 +177,13 @@ interface RegistrationPrismaClient {
     } | null>;
     update(args: {
       readonly where: { readonly id: string };
+      readonly data: { readonly revokedAt: Date };
+    }): Promise<unknown>;
+    updateMany(args: {
+      readonly where: {
+        readonly userId: string;
+        readonly revokedAt: null;
+      };
       readonly data: { readonly revokedAt: Date };
     }): Promise<unknown>;
   };
@@ -496,6 +505,60 @@ export class AuthService {
       lastName: user.lastName,
       emailVerified: user.emailVerified,
     };
+  }
+
+  async changePassword(
+    userId: string,
+    changePasswordRequest: ChangePasswordRequestDto,
+  ): Promise<ChangePasswordResponse> {
+    if (changePasswordRequest.newPassword !== changePasswordRequest.confirmNewPassword) {
+      throw new BadRequestException("Password confirmation does not match.");
+    }
+
+    if (!isPasswordPolicyCompliant(changePasswordRequest.newPassword)) {
+      throw new BadRequestException("Password does not meet Chapter 6.1 requirements.");
+    }
+
+    const prisma = this.prismaService.client as unknown as RegistrationPrismaClient;
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        passwordHash: true,
+      },
+    });
+
+    if (!user?.passwordHash) {
+      throw new UnauthorizedException("Current user could not be found.");
+    }
+
+    const currentPasswordMatches = await this.passwordHasher.comparePassword(
+      changePasswordRequest.currentPassword,
+      user.passwordHash,
+    );
+
+    if (!currentPasswordMatches) {
+      throw new UnauthorizedException("Current password is incorrect.");
+    }
+
+    const passwordHash = await this.passwordHasher.hashPassword(changePasswordRequest.newPassword);
+    const revokedAt = new Date();
+
+    await prisma.$transaction(async (transaction) => {
+      await transaction.user.update({
+        where: { id: user.id },
+        data: { passwordHash },
+      });
+      await transaction.refreshToken.updateMany({
+        where: {
+          userId: user.id,
+          revokedAt: null,
+        },
+        data: { revokedAt },
+      });
+    });
+
+    return { passwordChanged: true };
   }
 
   async requestPasswordReset(

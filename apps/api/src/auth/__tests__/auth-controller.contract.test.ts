@@ -42,6 +42,7 @@ const prismaClient = {
     create: jest.fn(),
     findUnique: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
   },
   business: {
     upsert: jest.fn(),
@@ -900,6 +901,155 @@ describe("Phase 1 authentication and user management controller contracts", () =
         .set("Authorization", "Bearer access.jwt.token");
 
       expect(response.status).toBe(401);
+    });
+  });
+
+  it("post /auth/change-password updates the password and revokes refresh tokens", async () => {
+    jwtSessionTokens.verifyAccessToken.mockResolvedValue({
+      sub: "user_1",
+      email: "sarah@example.com",
+      emailVerified: true,
+    });
+    prismaClient.user.findUnique.mockResolvedValue({
+      id: "user_1",
+      passwordHash: "current-hash",
+    });
+    passwordHasher.comparePassword.mockResolvedValue(true);
+    passwordHasher.hashPassword.mockResolvedValue("new-hashed-password");
+
+    await withContractApp(async (server) => {
+      const response = await request(server)
+        .post("/auth/change-password")
+        .set("Authorization", "Bearer access.jwt.token")
+        .send({
+          currentPassword: "CurrentPassword123!",
+          newPassword: "NewPassword123!",
+          confirmNewPassword: "NewPassword123!",
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ passwordChanged: true });
+      expect(prismaClient.user.update).toHaveBeenCalledWith({
+        where: { id: "user_1" },
+        data: { passwordHash: "new-hashed-password" },
+      });
+      expect(prismaClient.refreshToken.updateMany).toHaveBeenCalledWith({
+        where: { userId: "user_1", revokedAt: null },
+        data: { revokedAt: expect.any(Date) },
+      });
+      expect(JSON.stringify(response.body)).not.toContain("CurrentPassword123!");
+      expect(JSON.stringify(response.body)).not.toContain("NewPassword123!");
+      expect(JSON.stringify(response.body)).not.toContain("new-hashed-password");
+      expect(JSON.stringify(response.body)).not.toContain("token");
+    });
+  });
+
+  it("post /auth/change-password rejects unauthenticated requests", async () => {
+    await withContractApp(async (server) => {
+      const response = await request(server).post("/auth/change-password").send({
+        currentPassword: "CurrentPassword123!",
+        newPassword: "NewPassword123!",
+        confirmNewPassword: "NewPassword123!",
+      });
+
+      expect(response.status).toBe(401);
+      expect(prismaClient.user.update).not.toHaveBeenCalled();
+    });
+  });
+
+  it("post /auth/change-password rejects missing users", async () => {
+    jwtSessionTokens.verifyAccessToken.mockResolvedValue({
+      sub: "deleted_user",
+      email: "deleted@example.com",
+      emailVerified: true,
+    });
+    prismaClient.user.findUnique.mockResolvedValue(null);
+
+    await withContractApp(async (server) => {
+      const response = await request(server)
+        .post("/auth/change-password")
+        .set("Authorization", "Bearer access.jwt.token")
+        .send({
+          currentPassword: "CurrentPassword123!",
+          newPassword: "NewPassword123!",
+          confirmNewPassword: "NewPassword123!",
+        });
+
+      expect(response.status).toBe(401);
+      expect(passwordHasher.hashPassword).not.toHaveBeenCalled();
+      expect(prismaClient.refreshToken.updateMany).not.toHaveBeenCalled();
+    });
+  });
+
+  it("post /auth/change-password rejects the wrong current password", async () => {
+    jwtSessionTokens.verifyAccessToken.mockResolvedValue({
+      sub: "user_1",
+      email: "sarah@example.com",
+      emailVerified: true,
+    });
+    prismaClient.user.findUnique.mockResolvedValue({
+      id: "user_1",
+      passwordHash: "current-hash",
+    });
+    passwordHasher.comparePassword.mockResolvedValue(false);
+
+    await withContractApp(async (server) => {
+      const response = await request(server)
+        .post("/auth/change-password")
+        .set("Authorization", "Bearer access.jwt.token")
+        .send({
+          currentPassword: "WrongPassword123!",
+          newPassword: "NewPassword123!",
+          confirmNewPassword: "NewPassword123!",
+        });
+
+      expect(response.status).toBe(401);
+      expect(passwordHasher.hashPassword).not.toHaveBeenCalled();
+      expect(prismaClient.refreshToken.updateMany).not.toHaveBeenCalled();
+    });
+  });
+
+  it("post /auth/change-password rejects confirmation mismatch", async () => {
+    jwtSessionTokens.verifyAccessToken.mockResolvedValue({
+      sub: "user_1",
+      email: "sarah@example.com",
+      emailVerified: true,
+    });
+
+    await withContractApp(async (server) => {
+      const response = await request(server)
+        .post("/auth/change-password")
+        .set("Authorization", "Bearer access.jwt.token")
+        .send({
+          currentPassword: "CurrentPassword123!",
+          newPassword: "NewPassword123!",
+          confirmNewPassword: "DifferentPassword123!",
+        });
+
+      expect(response.status).toBe(400);
+      expect(prismaClient.user.findUnique).not.toHaveBeenCalled();
+    });
+  });
+
+  it("post /auth/change-password rejects weak new passwords for authenticated users", async () => {
+    jwtSessionTokens.verifyAccessToken.mockResolvedValue({
+      sub: "user_1",
+      email: "sarah@example.com",
+      emailVerified: true,
+    });
+
+    await withContractApp(async (server) => {
+      const response = await request(server)
+        .post("/auth/change-password")
+        .set("Authorization", "Bearer access.jwt.token")
+        .send({
+          currentPassword: "CurrentPassword123!",
+          newPassword: "weak",
+          confirmNewPassword: "weak",
+        });
+
+      expect(response.status).toBe(400);
+      expect(prismaClient.user.findUnique).not.toHaveBeenCalled();
     });
   });
 
