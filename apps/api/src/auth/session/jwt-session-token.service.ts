@@ -4,6 +4,7 @@ import {
   Injectable,
   InternalServerErrorException,
   NotImplementedException,
+  UnauthorizedException,
 } from "@nestjs/common";
 import { JwtSessionConfigService } from "./jwt-session.config.js";
 
@@ -53,10 +54,20 @@ export class JwtSessionTokenService {
     throw new NotImplementedException("JWT refresh token issuing is not implemented yet.");
   }
 
-  verifyAccessToken(token: string): Promise<JwtSessionClaims> {
-    void token;
-    this.jwtSessionConfig.getRequiredConfig();
-    throw new NotImplementedException("JWT access token verification is not implemented yet.");
+  async verifyAccessToken(token: string): Promise<JwtSessionClaims> {
+    const config = this.jwtSessionConfig.getRequiredAccessTokenConfig();
+    const payload = verifyJwt(token, config.accessTokenSecret);
+    const now = Math.floor(Date.now() / 1000);
+
+    if (payload.exp <= now) {
+      throw new UnauthorizedException("JWT access token has expired.");
+    }
+
+    return {
+      sub: payload.sub,
+      email: payload.email,
+      emailVerified: true,
+    };
   }
 
   verifyRefreshToken(token: string): Promise<JwtSessionClaims> {
@@ -77,8 +88,62 @@ function signJwt(payload: JwtAccessTokenPayload, secret: string): string {
   return `${encodedHeader}.${encodedPayload}.${signature}`;
 }
 
+function verifyJwt(token: string, secret: string): JwtAccessTokenPayload {
+  const [encodedHeader, encodedPayload, encodedSignature] = token.split(".");
+
+  if (!encodedHeader || !encodedPayload || !encodedSignature) {
+    throw new UnauthorizedException("JWT access token is invalid.");
+  }
+
+  const expectedSignature = createHmac("sha256", secret)
+    .update(`${encodedHeader}.${encodedPayload}`)
+    .digest("base64url");
+
+  if (encodedSignature !== expectedSignature) {
+    throw new UnauthorizedException("JWT access token is invalid.");
+  }
+
+  const header = decodeBase64UrlJson(encodedHeader) as {
+    readonly alg?: unknown;
+    readonly typ?: unknown;
+  };
+  const payload = decodeBase64UrlJson(encodedPayload) as Partial<JwtAccessTokenPayload>;
+
+  if (header.alg !== "HS256" || header.typ !== "JWT") {
+    throw new UnauthorizedException("JWT access token is invalid.");
+  }
+
+  if (!isAccessTokenPayload(payload)) {
+    throw new UnauthorizedException("JWT access token is invalid.");
+  }
+
+  return payload;
+}
+
 function encodeBase64Url(value: string): string {
   return Buffer.from(value).toString("base64url");
+}
+
+function decodeBase64UrlJson(value: string): unknown {
+  try {
+    return JSON.parse(Buffer.from(value, "base64url").toString("utf8"));
+  } catch {
+    throw new UnauthorizedException("JWT access token is invalid.");
+  }
+}
+
+function isAccessTokenPayload(
+  payload: Partial<JwtAccessTokenPayload>,
+): payload is JwtAccessTokenPayload {
+  return (
+    typeof payload.sub === "string" &&
+    typeof payload.email === "string" &&
+    payload.emailVerified === true &&
+    payload.aud === "salense-api" &&
+    payload.iss === "salense-api" &&
+    typeof payload.iat === "number" &&
+    typeof payload.exp === "number"
+  );
 }
 
 function parseExpirySeconds(expiresIn: string): number {

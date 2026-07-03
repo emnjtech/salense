@@ -403,6 +403,45 @@ describe("AuthService", () => {
     expect(JSON.stringify(response)).not.toContain("session");
   });
 
+  it("returns the safe current user profile", async () => {
+    const mocks = createAuthServiceMocks();
+    mocks.findUnique.mockResolvedValue({
+      id: "user_1",
+      email: "sarah@example.com",
+      firstName: "Sarah",
+      lastName: "Owner",
+      emailVerified: true,
+      passwordHash: "hashed-password",
+    });
+
+    await expect(mocks.service.getCurrentUser("user_1")).resolves.toEqual({
+      id: "user_1",
+      email: "sarah@example.com",
+      firstName: "Sarah",
+      lastName: "Owner",
+      emailVerified: true,
+    });
+    expect(mocks.findUnique).toHaveBeenCalledWith({
+      where: { id: "user_1" },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        emailVerified: true,
+      },
+    });
+  });
+
+  it("rejects current user lookup when the token subject no longer exists", async () => {
+    const mocks = createAuthServiceMocks();
+    mocks.findUnique.mockResolvedValue(null);
+
+    await expect(mocks.service.getCurrentUser("deleted_user")).rejects.toThrow(
+      UnauthorizedException,
+    );
+  });
+
   it("keeps password reset unimplemented in the skeleton", () => {
     const { service } = createAuthServiceMocks();
 

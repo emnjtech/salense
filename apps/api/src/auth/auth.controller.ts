@@ -1,4 +1,15 @@
-import { Body, Controller, HttpCode, Inject, NotImplementedException, Post } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Inject,
+  NotImplementedException,
+  Post,
+  Req,
+  UnauthorizedException,
+  UseGuards,
+} from "@nestjs/common";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- Nest validation requires runtime DTO metadata.
 import { EmailVerificationRequestDto } from "./dto/email-verification-request.dto.js";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- Nest validation requires runtime DTO metadata.
@@ -7,7 +18,9 @@ import { LoginRequestDto } from "./dto/login-request.dto.js";
 import { PasswordResetRequestDto } from "./dto/password-reset-request.dto.js";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- Nest validation requires runtime DTO metadata.
 import { RegisterRequestDto } from "./dto/register-request.dto.js";
+import { JwtAccessTokenGuard, type AuthenticatedRequest } from "./guards/jwt-access-token.guard.js";
 import { AuthService } from "./auth.service.js";
+import type { CurrentUserResponse } from "./types/current-user-response.type.js";
 import type { EmailVerificationResponse } from "./types/email-verification-response.type.js";
 import type { LoginSessionResponse } from "./types/login-session-response.type.js";
 import type { RegistrationResponse } from "./types/registration-response.type.js";
@@ -38,6 +51,18 @@ export class AuthController {
   @Post("password-reset")
   requestPasswordReset(@Body() passwordResetRequest: PasswordResetRequestDto): never {
     return this.authService.requestPasswordReset(passwordResetRequest);
+  }
+
+  @Get("me")
+  @UseGuards(JwtAccessTokenGuard)
+  currentUser(@Req() request: AuthenticatedRequest): Promise<CurrentUserResponse> {
+    const userId = request.user?.sub;
+
+    if (!userId) {
+      throw new UnauthorizedException("Authenticated request context is not available.");
+    }
+
+    return this.authService.getCurrentUser(userId);
   }
 
   @Post("logout")

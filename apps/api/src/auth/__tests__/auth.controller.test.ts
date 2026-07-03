@@ -6,6 +6,7 @@ describe("AuthController", () => {
     register: jest.fn(),
     login: jest.fn(),
     verifyEmail: jest.fn(),
+    getCurrentUser: jest.fn(),
   } as unknown as AuthService;
   const controller = new AuthController(authService);
 
@@ -55,5 +56,23 @@ describe("AuthController", () => {
     jest.mocked(authService.verifyEmail).mockResolvedValueOnce(response);
 
     await expect(controller.verifyEmail({ token: "verification-token" })).resolves.toBe(response);
+  });
+
+  it("delegates current-user lookup to AuthService", async () => {
+    const response = {
+      id: "user_1",
+      email: "sarah@example.com",
+      firstName: "Sarah",
+      lastName: "Owner",
+      emailVerified: true,
+    };
+    jest.mocked(authService.getCurrentUser).mockResolvedValueOnce(response);
+
+    await expect(
+      controller.currentUser({
+        headers: {},
+        user: { sub: "user_1", email: "sarah@example.com", emailVerified: true },
+      }),
+    ).resolves.toBe(response);
   });
 });

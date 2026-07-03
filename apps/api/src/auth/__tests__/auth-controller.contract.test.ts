@@ -1,4 +1,4 @@
-import { ValidationPipe, type INestApplication } from "@nestjs/common";
+import { UnauthorizedException, ValidationPipe, type INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
 import type { Server } from "node:http";
@@ -44,6 +44,7 @@ const emailService = {
 };
 const jwtSessionTokens = {
   issueAccessToken: jest.fn(),
+  verifyAccessToken: jest.fn(),
 };
 const jwtSessionConfig = {
   getRequiredAccessTokenConfig: jest.fn(),
@@ -321,6 +322,105 @@ describe("Phase 1 authentication and user management controller contracts", () =
           data: expect.objectContaining({ usedAt: expect.any(Date) }),
         }),
       );
+    });
+  });
+
+  it("get /auth/me returns the current user for a valid access token", async () => {
+    jwtSessionTokens.verifyAccessToken.mockResolvedValue({
+      sub: "user_1",
+      email: "sarah@example.com",
+      emailVerified: true,
+    });
+    prismaClient.user.findUnique.mockResolvedValue({
+      id: "user_1",
+      email: "sarah@example.com",
+      firstName: "Sarah",
+      lastName: "Owner",
+      emailVerified: true,
+      passwordHash: "hashed-password",
+    });
+
+    await withContractApp(async (server) => {
+      const response = await request(server)
+        .get("/auth/me")
+        .set("Authorization", "Bearer access.jwt.token");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        id: "user_1",
+        email: "sarah@example.com",
+        firstName: "Sarah",
+        lastName: "Owner",
+        emailVerified: true,
+      });
+      expect(jwtSessionTokens.verifyAccessToken).toHaveBeenCalledWith("access.jwt.token");
+      expect(prismaClient.user.findUnique).toHaveBeenCalledWith({
+        where: { id: "user_1" },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          emailVerified: true,
+        },
+      });
+      expect(JSON.stringify(response.body)).not.toContain("password");
+      expect(JSON.stringify(response.body)).not.toContain("passwordHash");
+      expect(JSON.stringify(response.body)).not.toContain("access.jwt.token");
+    });
+  });
+
+  it("get /auth/me rejects a missing access token", async () => {
+    await withContractApp(async (server) => {
+      const response = await request(server).get("/auth/me");
+
+      expect(response.status).toBe(401);
+      expect(jwtSessionTokens.verifyAccessToken).not.toHaveBeenCalled();
+    });
+  });
+
+  it("get /auth/me rejects an invalid access token", async () => {
+    jwtSessionTokens.verifyAccessToken.mockRejectedValue(
+      new UnauthorizedException("JWT access token is invalid."),
+    );
+
+    await withContractApp(async (server) => {
+      const response = await request(server)
+        .get("/auth/me")
+        .set("Authorization", "Bearer invalid-token");
+
+      expect(response.status).toBe(401);
+    });
+  });
+
+  it("get /auth/me rejects an expired access token", async () => {
+    jwtSessionTokens.verifyAccessToken.mockRejectedValue(
+      new UnauthorizedException("JWT access token has expired."),
+    );
+
+    await withContractApp(async (server) => {
+      const response = await request(server)
+        .get("/auth/me")
+        .set("Authorization", "Bearer expired-token");
+
+      expect(response.status).toBe(401);
+    });
+  });
+
+  it("get /auth/me rejects a valid token for a missing user", async () => {
+    jwtSessionTokens.verifyAccessToken.mockResolvedValue({
+      sub: "deleted_user",
+      email: "deleted@example.com",
+      emailVerified: true,
+    });
+    prismaClient.user.findUnique.mockResolvedValue(null);
+
+    await withContractApp(async (server) => {
+      const response = await request(server)
+        .get("/auth/me")
+        .set("Authorization", "Bearer access.jwt.token");
+
+      expect(response.status).toBe(401);
     });
   });
 

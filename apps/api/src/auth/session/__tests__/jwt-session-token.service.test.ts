@@ -1,4 +1,8 @@
-import { InternalServerErrorException, NotImplementedException } from "@nestjs/common";
+import {
+  InternalServerErrorException,
+  NotImplementedException,
+  UnauthorizedException,
+} from "@nestjs/common";
 import { JwtSessionConfigService } from "../jwt-session.config.js";
 import { JwtSessionTokenService, type JwtSessionClaims } from "../jwt-session-token.service.js";
 
@@ -54,6 +58,45 @@ describe("JwtSessionTokenService", () => {
     expect(JSON.stringify(decodeJwtSegment(encodedPayload))).not.toContain("refreshToken");
   });
 
+  it("verifies a valid JWT access token", async () => {
+    jest.spyOn(Date, "now").mockReturnValue(new Date("2026-07-03T12:00:00.000Z").getTime());
+    const config = new JwtSessionConfigService({
+      JWT_ACCESS_TOKEN_SECRET: "access-secret",
+      JWT_ACCESS_TOKEN_EXPIRES_IN: "15m",
+    });
+    const service = new JwtSessionTokenService(config);
+    const token = await service.issueAccessToken(claims);
+
+    await expect(service.verifyAccessToken(token)).resolves.toEqual(claims);
+  });
+
+  it("rejects an invalid JWT access token", async () => {
+    const service = new JwtSessionTokenService(
+      new JwtSessionConfigService({
+        JWT_ACCESS_TOKEN_SECRET: "access-secret",
+        JWT_ACCESS_TOKEN_EXPIRES_IN: "15m",
+      }),
+    );
+
+    await expect(service.verifyAccessToken("not-a-jwt")).rejects.toThrow(UnauthorizedException);
+  });
+
+  it("rejects an expired JWT access token", async () => {
+    const now = new Date("2026-07-03T12:00:00.000Z").getTime();
+    const dateNowSpy = jest.spyOn(Date, "now").mockReturnValue(now);
+    const service = new JwtSessionTokenService(
+      new JwtSessionConfigService({
+        JWT_ACCESS_TOKEN_SECRET: "access-secret",
+        JWT_ACCESS_TOKEN_EXPIRES_IN: "1s",
+      }),
+    );
+    const token = await service.issueAccessToken(claims);
+
+    dateNowSpy.mockReturnValue(now + 2_000);
+
+    await expect(service.verifyAccessToken(token)).rejects.toThrow(UnauthorizedException);
+  });
+
   it("keeps refresh token issuing as explicit scaffolding", () => {
     const service = new JwtSessionTokenService(new JwtSessionConfigService({}));
 
@@ -70,7 +113,6 @@ describe("JwtSessionTokenService", () => {
     const service = new JwtSessionTokenService(config);
 
     expect(() => service.issueRefreshToken(claims)).toThrow(NotImplementedException);
-    expect(() => service.verifyAccessToken("access-token")).toThrow(NotImplementedException);
     expect(() => service.verifyRefreshToken("refresh-token")).toThrow(NotImplementedException);
   });
 });

@@ -20,6 +20,7 @@ import {
   isPasswordPolicyCompliant,
 } from "./security/index.js";
 import { JwtSessionConfigService, JwtSessionTokenService } from "./session/index.js";
+import type { CurrentUserResponse } from "./types/current-user-response.type.js";
 import type { EmailVerificationResponse } from "./types/email-verification-response.type.js";
 import type { LoginSessionResponse } from "./types/login-session-response.type.js";
 import type { RegistrationResponse } from "./types/registration-response.type.js";
@@ -27,15 +28,19 @@ import type { RegistrationResponse } from "./types/registration-response.type.js
 interface RegistrationPrismaClient {
   readonly user: {
     findUnique(args: {
-      readonly where: { readonly email: string };
+      readonly where: { readonly email: string } | { readonly id: string };
       readonly select?: {
         readonly id?: true;
+        readonly firstName?: true;
+        readonly lastName?: true;
         readonly email?: true;
         readonly passwordHash?: true;
         readonly emailVerified?: true;
       };
     }): Promise<{
       readonly id: string;
+      readonly firstName?: string;
+      readonly lastName?: string;
       readonly email?: string;
       readonly passwordHash?: string;
       readonly emailVerified?: boolean;
@@ -293,6 +298,32 @@ export class AuthService {
       },
       accessToken,
       accessTokenExpiresIn,
+    };
+  }
+
+  async getCurrentUser(userId: string): Promise<CurrentUserResponse> {
+    const prisma = this.prismaService.client as unknown as RegistrationPrismaClient;
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        emailVerified: true,
+      },
+    });
+
+    if (!user?.email || !user.firstName || !user.lastName || user.emailVerified === undefined) {
+      throw new UnauthorizedException("Current user could not be found.");
+    }
+
+    return {
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      emailVerified: user.emailVerified,
     };
   }
 
