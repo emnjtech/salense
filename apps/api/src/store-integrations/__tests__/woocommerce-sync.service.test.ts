@@ -2,6 +2,11 @@ import { ConflictException, NotFoundException } from "@nestjs/common";
 import { WooCommerceApiVersion } from "@salense/integrations";
 import type { PrismaService } from "../../database/prisma.service.js";
 import type { AesCredentialEncryptionService } from "../security/credential-encryption.service.js";
+import type { CommerceSyncCursorService } from "../sync-cursors/commerce-sync-cursor.service.js";
+import {
+  CommerceSyncCursorResource,
+  CommerceSyncCursorStatus,
+} from "../sync-cursors/commerce-sync-cursor.types.js";
 import { StoreConnectionStatus } from "../types/store-connection-status.enum.js";
 import { StorePlatform } from "../types/store-platform.enum.js";
 import type { WooCommerceCommercePersistenceService } from "../woocommerce-commerce-persistence.service.js";
@@ -54,7 +59,10 @@ function createServiceMocks(store: typeof connectedStore | null = connectedStore
   readonly findFirstConnectedStore: jest.Mock;
   readonly updateConnectedStore: jest.Mock;
   readonly decrypt: jest.Mock;
+  readonly getCursor: jest.Mock;
   readonly persistCommerceData: jest.Mock;
+  readonly recordCursorFailure: jest.Mock;
+  readonly recordCursorSuccess: jest.Mock;
   readonly readClient: WooCommerceReadClient & {
     readonly createOrder: jest.Mock;
     readonly deleteProduct: jest.Mock;
@@ -63,6 +71,9 @@ function createServiceMocks(store: typeof connectedStore | null = connectedStore
 } {
   const findFirstConnectedStore = jest.fn().mockResolvedValue(store);
   const updateConnectedStore = jest.fn();
+  const getCursor = jest.fn().mockResolvedValue(null);
+  const recordCursorSuccess = jest.fn().mockResolvedValue(undefined);
+  const recordCursorFailure = jest.fn().mockResolvedValue(undefined);
   const decrypt = jest.fn((credential: typeof encryptedConsumerKey) =>
     credential.ciphertext === "encrypted-key" ? "ck_live" : "cs_live",
   );
@@ -94,6 +105,11 @@ function createServiceMocks(store: typeof connectedStore | null = connectedStore
   const persistenceService = {
     persistCommerceData,
   } as unknown as WooCommerceCommercePersistenceService;
+  const syncCursorService = {
+    getCursor,
+    recordFailure: recordCursorFailure,
+    recordSuccess: recordCursorSuccess,
+  } as unknown as CommerceSyncCursorService;
 
   return {
     service: new WooCommerceSyncService(
@@ -101,11 +117,15 @@ function createServiceMocks(store: typeof connectedStore | null = connectedStore
       credentialEncryption,
       persistenceService,
       readClient,
+      syncCursorService,
     ),
     decrypt,
     findFirstConnectedStore,
+    getCursor,
     persistCommerceData,
     readClient,
+    recordCursorFailure,
+    recordCursorSuccess,
     updateConnectedStore,
   };
 }
@@ -127,11 +147,12 @@ describe("WooCommerceSyncService", () => {
   });
 
   it("decrypts credentials before calling the WooCommerce read client", async () => {
-    const { service, decrypt, readClient } = createServiceMocks();
+    const { service, decrypt, getCursor, readClient } = createServiceMocks();
     const since = new Date("2026-07-01T00:00:00.000Z");
 
     await service.syncOrders("store_1", { maxPages: 2, perPage: 50, since });
 
+    expect(getCursor).toHaveBeenCalledWith("store_1", CommerceSyncCursorResource.Orders);
     expect(decrypt).toHaveBeenCalledWith(encryptedConsumerKey);
     expect(decrypt).toHaveBeenCalledWith(encryptedConsumerSecret);
     expect(readClient.listOrders).toHaveBeenCalledWith({
@@ -146,7 +167,14 @@ describe("WooCommerceSyncService", () => {
   });
 
   it("syncs orders by reading, mapping, and persisting normalized order trees", async () => {
-    const { service, readClient, persistCommerceData, updateConnectedStore } = createServiceMocks();
+    const {
+      service,
+      readClient,
+      persistCommerceData,
+      updateConnectedStore,
+      getCursor,
+      recordCursorSuccess,
+    } = createServiceMocks();
     const triggeredAt = new Date("2026-07-03T12:00:00.000Z");
     jest.mocked(readClient.listOrders).mockResolvedValue([
       {
@@ -185,6 +213,38 @@ describe("WooCommerceSyncService", () => {
       where: { id: "store_1" },
       data: { lastSynchronisedAt: triggeredAt },
     });
+    expect(getCursor).toHaveBeenCalledWith("store_1", CommerceSyncCursorResource.Orders);
+    expect(readClient.listOrders).toHaveBeenCalledWith(
+      expect.not.objectContaining({ since: expect.any(Date) }),
+    );
+    expect(recordCursorSuccess).toHaveBeenCalledWith({
+      businessId: "business_1",
+      connectedStoreId: "store_1",
+      platform: StorePlatform.WooCommerce,
+      resource: CommerceSyncCursorResource.Orders,
+      syncedAt: triggeredAt,
+    });
+  });
+
+  it("uses the previous successful cursor for later incremental syncs", async () => {
+    const { service, getCursor, readClient } = createServiceMocks();
+    const lastSuccessfulSyncedAt = new Date("2026-07-02T09:00:00.000Z");
+    getCursor.mockResolvedValue({
+      businessId: "business_1",
+      connectedStoreId: "store_1",
+      errorMetadata: null,
+      lastAttemptedSyncedAt: lastSuccessfulSyncedAt,
+      lastSuccessfulSyncedAt,
+      platform: StorePlatform.WooCommerce,
+      resource: CommerceSyncCursorResource.Products,
+      status: CommerceSyncCursorStatus.Success,
+    });
+
+    await service.syncProducts("store_1");
+
+    expect(readClient.listProducts).toHaveBeenCalledWith(
+      expect.objectContaining({ since: lastSuccessfulSyncedAt }),
+    );
   });
 
   it("supports product, customer, inventory, category, and refund resource syncs", async () => {
@@ -222,17 +282,59 @@ describe("WooCommerceSyncService", () => {
   });
 
   it("returns structured error results when a resource sync fails", async () => {
-    const { service, readClient, persistCommerceData } = createServiceMocks();
-    jest.mocked(readClient.listProducts).mockRejectedValue(new Error("WooCommerce rate limit exceeded."));
+    const { service, readClient, persistCommerceData, recordCursorFailure } = createServiceMocks();
+    const triggeredAt = new Date("2026-07-03T12:45:00.000Z");
+    jest
+      .mocked(readClient.listProducts)
+      .mockRejectedValue(new Error("WooCommerce rate limit exceeded with ck_live secret."));
 
-    await expect(service.syncProducts("store_1")).resolves.toMatchObject({
-      errors: ["WooCommerce rate limit exceeded."],
+    await expect(service.syncProducts("store_1", { triggeredAt })).resolves.toMatchObject({
+      errors: ["WooCommerce rate limit exceeded with ck_live secret."],
       persistence: emptyPersistenceResult,
       readOnly: true,
       resource: "products",
       status: "ERROR",
     });
     expect(persistCommerceData).not.toHaveBeenCalled();
+    expect(recordCursorFailure).toHaveBeenCalledWith({
+      attemptedAt: triggeredAt,
+      businessId: "business_1",
+      connectedStoreId: "store_1",
+      error: expect.any(Error),
+      platform: StorePlatform.WooCommerce,
+      resource: CommerceSyncCursorResource.Products,
+    });
+    expect(JSON.stringify(recordCursorFailure.mock.calls)).not.toContain("encrypted-key");
+    expect(JSON.stringify(recordCursorFailure.mock.calls)).not.toContain("encrypted-secret");
+  });
+
+  it("does not pass cursor dates to category reads because WooCommerce category filtering is unsupported", async () => {
+    const { service, getCursor, readClient, recordCursorSuccess } = createServiceMocks();
+    const lastSuccessfulSyncedAt = new Date("2026-07-02T09:00:00.000Z");
+    const triggeredAt = new Date("2026-07-03T12:50:00.000Z");
+    getCursor.mockResolvedValue({
+      businessId: "business_1",
+      connectedStoreId: "store_1",
+      errorMetadata: null,
+      lastAttemptedSyncedAt: lastSuccessfulSyncedAt,
+      lastSuccessfulSyncedAt,
+      platform: StorePlatform.WooCommerce,
+      resource: CommerceSyncCursorResource.Categories,
+      status: CommerceSyncCursorStatus.Success,
+    });
+
+    await service.syncCategories("store_1", { triggeredAt });
+
+    expect(readClient.listProductCategories).toHaveBeenCalledWith(
+      expect.not.objectContaining({ since: expect.any(Date) }),
+    );
+    expect(recordCursorSuccess).toHaveBeenCalledWith({
+      businessId: "business_1",
+      connectedStoreId: "store_1",
+      platform: StorePlatform.WooCommerce,
+      resource: CommerceSyncCursorResource.Categories,
+      syncedAt: triggeredAt,
+    });
   });
 
   it("runs manual full sync sequentially and reports counts and errors", async () => {

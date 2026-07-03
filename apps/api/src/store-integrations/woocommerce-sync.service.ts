@@ -29,6 +29,8 @@ import {
   AesCredentialEncryptionService,
   type EncryptedCredentialPlaceholder,
 } from "./security/credential-encryption.service.js";
+import { CommerceSyncCursorService } from "./sync-cursors/commerce-sync-cursor.service.js";
+import { CommerceSyncCursorResource } from "./sync-cursors/commerce-sync-cursor.types.js";
 import { StoreConnectionStatus } from "./types/store-connection-status.enum.js";
 import { StorePlatform } from "./types/store-platform.enum.js";
 import {
@@ -152,6 +154,8 @@ export class WooCommerceSyncService {
     @Inject(WooCommerceCommercePersistenceService)
     private readonly persistenceService: WooCommerceCommercePersistenceService,
     @Inject(WOOCOMMERCE_REST_CLIENT) private readonly readClient: WooCommerceReadClient,
+    @Inject(CommerceSyncCursorService)
+    private readonly syncCursorService: CommerceSyncCursorService,
   ) {}
 
   async syncOrders(
@@ -287,11 +291,27 @@ export class WooCommerceSyncService {
   ): Promise<WooCommerceResourceSyncResult> {
     const syncedAt = options.triggeredAt ?? new Date();
     const store = await this.loadConnectedWooCommerceStore(connectedStoreId);
-    const request = this.createReadRequest(store, options);
+    const cursorResource = toCursorResource(resource);
+    const cursor = await this.syncCursorService.getCursor(connectedStoreId, cursorResource);
+    const cursorSince = supportsIncrementalCursor(resource)
+      ? options.since ?? cursor?.lastSuccessfulSyncedAt ?? undefined
+      : undefined;
+    const effectiveOptions: WooCommerceSyncOptions = {
+      ...options,
+      ...(cursorSince ? { since: cursorSince } : {}),
+    };
+    const request = this.createReadRequest(store, effectiveOptions);
 
     try {
       const persistence = await syncResource(store, request);
       await this.updateStoreLastSynchronisedAt(connectedStoreId, syncedAt);
+      await this.syncCursorService.recordSuccess({
+        businessId: store.businessId,
+        connectedStoreId,
+        platform: StorePlatform.WooCommerce,
+        resource: cursorResource,
+        syncedAt,
+      });
 
       return {
         connectedStoreId,
@@ -303,6 +323,15 @@ export class WooCommerceSyncService {
         syncedAt,
       };
     } catch (error) {
+      await this.syncCursorService.recordFailure({
+        attemptedAt: syncedAt,
+        businessId: store.businessId,
+        connectedStoreId,
+        error,
+        platform: StorePlatform.WooCommerce,
+        resource: cursorResource,
+      });
+
       return {
         connectedStoreId,
         errors: [error instanceof Error ? error.message : "WooCommerce sync failed."],
@@ -373,6 +402,27 @@ export class WooCommerceSyncService {
   private get prisma(): WooCommerceSyncPrismaClient {
     return this.prismaService.client as unknown as WooCommerceSyncPrismaClient;
   }
+}
+
+function toCursorResource(resource: WooCommerceSyncResource): CommerceSyncCursorResource {
+  switch (resource) {
+    case "orders":
+      return CommerceSyncCursorResource.Orders;
+    case "products":
+      return CommerceSyncCursorResource.Products;
+    case "customers":
+      return CommerceSyncCursorResource.Customers;
+    case "inventory":
+      return CommerceSyncCursorResource.Inventory;
+    case "categories":
+      return CommerceSyncCursorResource.Categories;
+    case "refunds":
+      return CommerceSyncCursorResource.Refunds;
+  }
+}
+
+function supportsIncrementalCursor(resource: WooCommerceSyncResource): boolean {
+  return resource !== "categories";
 }
 
 function createMappingContext(

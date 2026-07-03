@@ -111,13 +111,14 @@ Implemented or scaffolded:
 - Initial/full sync path for WooCommerce resources currently represented.
 - Manual sync via queued jobs.
 - Scheduled sync scaffolding through recurring BullMQ jobs.
+- Per-store, per-resource WooCommerce sync cursors for incremental orders, products, customers, inventory, and refunds; categories remain safely full-read because WooCommerce category date filtering is unsupported.
 - Duplicate import prevention through unique constraints and upserts.
 - Failed job retry attempts at the BullMQ job level.
 - Audit logging for WooCommerce connection creation, validation success/failure, manual sync queueing, scheduled sync creation/removal, and store disconnection.
 
 Remaining gaps:
 
-- Incremental sync orchestration based on previous `lastSynchronisedAt` is not wired into queued jobs yet.
+- Backfill strategy for cursor resets and long-running incremental windows is not implemented.
 - Retry failed synchronisation needs operational policy and user-visible status.
 - Conflict detection rules beyond idempotent upsert are not implemented.
 - Rate limiting strategy is limited to safe error mapping; no adaptive throttling yet.
@@ -132,6 +133,7 @@ Major behavior currently covered:
 - DTO validation rejects password fields and unsupported platform data.
 - Credential validation and safe connection responses.
 - Read-only WooCommerce HTTP behavior and pagination/incremental query parameters.
+- WooCommerce cursor reads, success updates, safe failure metadata, and unsupported category date filtering.
 - Raw-to-normalised mapper source metadata preservation.
 - Idempotent persistence and relationship handling.
 - Manual sync queueing and safe job status responses.

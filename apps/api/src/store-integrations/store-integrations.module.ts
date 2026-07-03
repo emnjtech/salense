@@ -5,6 +5,7 @@ import { IntegrationFrameworkModule } from "../integrations/integration-framewor
 import { AesCredentialEncryptionService } from "./security/credential-encryption.service.js";
 import { StoreIntegrationsController } from "./store-integrations.controller.js";
 import { StoreIntegrationsService } from "./store-integrations.service.js";
+import { CommerceSyncCursorService } from "./sync-cursors/commerce-sync-cursor.service.js";
 import { createBullMqSyncQueue } from "./sync-queue/bullmq-sync-queue.js";
 import { SYNC_QUEUE } from "./sync-queue/sync-queue.types.js";
 import { WooCommerceSyncSchedulingService } from "./sync-queue/woocommerce-sync-scheduling.service.js";
@@ -21,6 +22,7 @@ import {
   controllers: [StoreIntegrationsController],
   providers: [
     AesCredentialEncryptionService,
+    CommerceSyncCursorService,
     StoreIntegrationsService,
     WooCommerceCommercePersistenceService,
     WooCommerceSyncSchedulingService,
@@ -31,6 +33,7 @@ import {
   ],
   exports: [
     StoreIntegrationsService,
+    CommerceSyncCursorService,
     WooCommerceCommercePersistenceService,
     WooCommerceSyncSchedulingService,
     WooCommerceSyncService,

@@ -56,6 +56,7 @@ model Business {
   commerceInventorySnapshots  CommerceInventorySnapshot[]
   commerceCategories          CommerceCategory[]
   commerceRefunds             CommerceRefund[]
+  commerceSyncCursors         CommerceSyncCursor[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -78,6 +79,22 @@ enum StoreConnectionStatus {
   SYNCHRONISING
   DISCONNECTED
   AUTHENTICATION_EXPIRED
+  ERROR
+}
+
+/// Version 1 commerce resources synchronised from connected platforms.
+enum CommerceSyncResource {
+  ORDERS
+  PRODUCTS
+  CUSTOMERS
+  INVENTORY
+  CATEGORIES
+  REFUNDS
+}
+
+/// Last known outcome for a per-resource synchronisation cursor.
+enum CommerceSyncCursorStatus {
+  SUCCESS
   ERROR
 }
 
@@ -108,6 +125,7 @@ model ConnectedStore {
   commerceInventorySnapshots CommerceInventorySnapshot[]
   commerceCategories         CommerceCategory[]
   commerceRefunds            CommerceRefund[]
+  commerceSyncCursors        CommerceSyncCursor[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -355,6 +373,36 @@ model CommerceRefund {
   @@index([refundStatus])
   @@index([refundedAt])
   @@map("commerce_refunds")
+}
+
+/// Per-store, per-resource cursor for incremental read-only synchronisation.
+/// Error metadata must remain safe and must not include credentials, token material, or raw marketplace payloads.
+model CommerceSyncCursor {
+  id                     String                   @id @default(cuid())
+  businessId             String
+  connectedStoreId       String
+  platform               StorePlatform
+  resource               CommerceSyncResource
+  lastSuccessfulSyncedAt DateTime?
+  lastAttemptedSyncedAt  DateTime?
+  status                 CommerceSyncCursorStatus
+  errorMetadata          Json?
+
+  business       Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  connectedStore ConnectedStore @relation(fields: [connectedStoreId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([connectedStoreId, resource])
+  @@index([businessId])
+  @@index([connectedStoreId])
+  @@index([platform])
+  @@index([resource])
+  @@index([status])
+  @@index([lastSuccessfulSyncedAt])
+  @@index([lastAttemptedSyncedAt])
+  @@map("commerce_sync_cursors")
 }
 
 /// Permanent append-only audit history for important Salense activities.
