@@ -23,6 +23,11 @@ export interface WooCommerceOrderChildMappingContext extends WooCommerceCommerce
   readonly platformOrderId: string;
 }
 
+export interface WooCommerceRefundMappingContext extends WooCommerceCommerceMappingContext {
+  readonly currency?: string;
+  readonly platformOrderId?: string;
+}
+
 export interface NormalizedSourceMetadata<TRaw> {
   readonly source: "woocommerce";
   readonly raw: TRaw;
@@ -293,7 +298,7 @@ export function mapWooCommerceCategory(
 
 export function mapWooCommerceRefund(
   rawRefund: WooCommerceRawRefund,
-  context: WooCommerceOrderChildMappingContext,
+  context: WooCommerceRefundMappingContext,
 ): NormalizedCommerceRefund {
   return {
     ...baseCommerceFields(context),
