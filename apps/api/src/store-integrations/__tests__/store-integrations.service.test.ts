@@ -15,9 +15,9 @@ import {
 import type { PrismaService } from "../../database/prisma.service.js";
 import type { AesCredentialEncryptionService } from "../security/credential-encryption.service.js";
 import { StoreIntegrationsService } from "../store-integrations.service.js";
+import { WooCommerceSyncJobName, type SyncQueuePort } from "../sync-queue/sync-queue.types.js";
 import { StoreConnectionStatus } from "../types/store-connection-status.enum.js";
 import { StorePlatform } from "../types/store-platform.enum.js";
-import type { WooCommerceSyncService } from "../woocommerce-sync.service.js";
 
 function createStoreIntegrationsServiceMocks(): {
   readonly service: StoreIntegrationsService;
@@ -31,7 +31,8 @@ function createStoreIntegrationsServiceMocks(): {
   readonly validateConnection: jest.Mock;
   readonly disconnect: jest.Mock;
   readonly synchroniseOrders: jest.Mock;
-  readonly syncAll: jest.Mock;
+  readonly enqueueWooCommerceSyncJob: jest.Mock;
+  readonly getJobStatus: jest.Mock;
   readonly encrypt: jest.Mock;
 } {
   const findBusiness = jest.fn();
@@ -43,7 +44,8 @@ function createStoreIntegrationsServiceMocks(): {
   const validateConnection = jest.fn();
   const disconnect = jest.fn();
   const synchroniseOrders = jest.fn();
-  const syncAll = jest.fn();
+  const enqueueWooCommerceSyncJob = jest.fn();
+  const getJobStatus = jest.fn();
   const getProvider = jest.fn().mockReturnValue({
     connect,
     disconnect,
@@ -71,14 +73,14 @@ function createStoreIntegrationsServiceMocks(): {
   } as unknown as PrismaService;
   const integrationFactory = { getProvider } as unknown as IntegrationFactory;
   const credentialEncryption = { encrypt } as unknown as AesCredentialEncryptionService;
-  const wooCommerceSyncService = { syncAll } as unknown as WooCommerceSyncService;
+  const syncQueue = { enqueueWooCommerceSyncJob, getJobStatus } as unknown as SyncQueuePort;
 
   return {
     service: new StoreIntegrationsService(
       prismaService,
       integrationFactory,
       credentialEncryption,
-      wooCommerceSyncService,
+      syncQueue,
     ),
     findBusiness,
     findManyConnectedStores,
@@ -90,7 +92,8 @@ function createStoreIntegrationsServiceMocks(): {
     validateConnection,
     disconnect,
     encrypt,
-    syncAll,
+    enqueueWooCommerceSyncJob,
+    getJobStatus,
     synchroniseOrders,
   };
 }
@@ -470,10 +473,10 @@ describe("StoreIntegrationsService", () => {
     });
   });
 
-  it("allows the authenticated owner to manually sync a connected WooCommerce store", async () => {
-    const { service, findFirstConnectedStore, getProvider, syncAll } =
+  it("allows the authenticated owner to enqueue a manual WooCommerce sync job", async () => {
+    const { service, findFirstConnectedStore, getProvider, enqueueWooCommerceSyncJob } =
       createStoreIntegrationsServiceMocks();
-    const syncedAt = new Date("2026-07-03T14:00:00.000Z");
+    const queuedAt = new Date("2026-07-03T14:00:00.000Z");
     findFirstConnectedStore.mockResolvedValue({
       id: "store_1",
       businessId: "business_1",
@@ -481,64 +484,39 @@ describe("StoreIntegrationsService", () => {
       lastSynchronisedAt: null,
       platform: StorePlatform.WooCommerce,
     });
-    syncAll.mockResolvedValue({
-      connectedStoreId: "store_1",
-      errors: [],
-      readOnly: true,
-      resources: [
-        {
-          connectedStoreId: "store_1",
-          errors: [],
-          persistence: {
-            categories: 0,
-            customers: 0,
-            inventorySnapshots: 0,
-            orderItems: 2,
-            orders: 1,
-            products: 0,
-            refunds: 0,
-          },
-          readOnly: true,
-          resource: "orders",
-          status: "SUCCESS",
-          syncedAt,
-        },
-      ],
-      status: "SUCCESS",
-      syncedAt,
+    enqueueWooCommerceSyncJob.mockResolvedValue({
+      jobId: "job_1",
+      platform: StorePlatform.WooCommerce,
+      queuedAt,
+      status: "QUEUED",
+      storeId: "store_1",
     });
 
     await expect(
       service.requestManualSync("user_1", { storeId: "store_1" }),
     ).resolves.toEqual({
-      errors: [],
-      lastSynchronisedAt: syncedAt,
+      jobId: "job_1",
       platform: StorePlatform.WooCommerce,
-      resourcesSynced: [
-        {
-          errors: [],
-          records: {
-            categories: 0,
-            customers: 0,
-            inventorySnapshots: 0,
-            orderItems: 2,
-            orders: 1,
-            products: 0,
-            refunds: 0,
-          },
-          resource: "orders",
-          status: "SUCCESS",
-        },
-      ],
-      status: "SUCCESS",
+      queuedAt,
+      status: "QUEUED",
       storeId: "store_1",
     });
-    expect(syncAll).toHaveBeenCalledWith("store_1");
+    expect(enqueueWooCommerceSyncJob).toHaveBeenCalledWith(
+      WooCommerceSyncJobName.ManualFullSync,
+      expect.objectContaining({
+        platform: StorePlatform.WooCommerce,
+        requestedByUserId: "user_1",
+        resource: "all",
+        storeId: "store_1",
+      }),
+    );
+    expect(enqueueWooCommerceSyncJob.mock.calls[0]?.[1].queuedAt).toEqual(expect.any(String));
     expect(getProvider).not.toHaveBeenCalled();
   });
 
   it("rejects manual sync for non-WooCommerce stores", async () => {
-    const { service, findFirstConnectedStore, syncAll } = createStoreIntegrationsServiceMocks();
+    const { service, findFirstConnectedStore, enqueueWooCommerceSyncJob } =
+      createStoreIntegrationsServiceMocks();
     findFirstConnectedStore.mockResolvedValue({
       id: "store_1",
       businessId: "business_1",
@@ -550,13 +528,14 @@ describe("StoreIntegrationsService", () => {
     await expect(service.requestManualSync("user_1", { storeId: "store_1" })).rejects.toThrow(
       BadRequestException,
     );
-    expect(syncAll).not.toHaveBeenCalled();
+    expect(enqueueWooCommerceSyncJob).not.toHaveBeenCalled();
   });
 
   it.each([StoreConnectionStatus.Disconnected, StoreConnectionStatus.Error])(
     "rejects manual sync for %s stores",
     async (connectionStatus) => {
-      const { service, findFirstConnectedStore, syncAll } = createStoreIntegrationsServiceMocks();
+      const { service, findFirstConnectedStore, enqueueWooCommerceSyncJob } =
+        createStoreIntegrationsServiceMocks();
       findFirstConnectedStore.mockResolvedValue({
         id: "store_1",
         businessId: "business_1",
@@ -568,13 +547,14 @@ describe("StoreIntegrationsService", () => {
       await expect(service.requestManualSync("user_1", { storeId: "store_1" })).rejects.toThrow(
         ConflictException,
       );
-      expect(syncAll).not.toHaveBeenCalled();
+      expect(enqueueWooCommerceSyncJob).not.toHaveBeenCalled();
     },
   );
 
-  it("returns a safe manual sync response without credential material", async () => {
-    const { service, findFirstConnectedStore, syncAll } = createStoreIntegrationsServiceMocks();
-    const syncedAt = new Date("2026-07-03T14:00:00.000Z");
+  it("returns a safe manual sync job response without credential material", async () => {
+    const { service, findFirstConnectedStore, enqueueWooCommerceSyncJob } =
+      createStoreIntegrationsServiceMocks();
+    const queuedAt = new Date("2026-07-03T14:00:00.000Z");
     findFirstConnectedStore.mockResolvedValue({
       id: "store_1",
       businessId: "business_1",
@@ -582,31 +562,12 @@ describe("StoreIntegrationsService", () => {
       lastSynchronisedAt: null,
       platform: StorePlatform.WooCommerce,
     });
-    syncAll.mockResolvedValue({
-      connectedStoreId: "store_1",
-      errors: ["products failed"],
-      readOnly: true,
-      resources: [
-        {
-          connectedStoreId: "store_1",
-          errors: ["products failed"],
-          persistence: {
-            categories: 0,
-            customers: 0,
-            inventorySnapshots: 0,
-            orderItems: 0,
-            orders: 0,
-            products: 0,
-            refunds: 0,
-          },
-          readOnly: true,
-          resource: "products",
-          status: "ERROR",
-          syncedAt,
-        },
-      ],
-      status: "ERROR",
-      syncedAt,
+    enqueueWooCommerceSyncJob.mockResolvedValue({
+      jobId: "job_1",
+      platform: StorePlatform.WooCommerce,
+      queuedAt,
+      status: "QUEUED",
+      storeId: "store_1",
       accessTokenHash: "should-not-leak",
       encryptedCredential: "should-not-leak",
       raw: { id: 1 },
@@ -619,22 +580,17 @@ describe("StoreIntegrationsService", () => {
     expect(JSON.stringify(response)).not.toContain("accessTokenHash");
     expect(JSON.stringify(response)).not.toContain('"raw"');
     expect(response).toMatchObject({
-      errors: ["products failed"],
+      jobId: "job_1",
       platform: StorePlatform.WooCommerce,
-      resourcesSynced: [
-        expect.objectContaining({
-          errors: ["products failed"],
-          resource: "products",
-          status: "ERROR",
-        }),
-      ],
-      status: "ERROR",
+      queuedAt,
+      status: "QUEUED",
       storeId: "store_1",
     });
   });
 
   it("queries connected stores by authenticated owner when manually syncing", async () => {
-    const { service, findFirstConnectedStore, syncAll } = createStoreIntegrationsServiceMocks();
+    const { service, findFirstConnectedStore, enqueueWooCommerceSyncJob } =
+      createStoreIntegrationsServiceMocks();
     findFirstConnectedStore.mockResolvedValue({
       id: "store_1",
       businessId: "business_1",
@@ -642,13 +598,12 @@ describe("StoreIntegrationsService", () => {
       lastSynchronisedAt: null,
       platform: StorePlatform.WooCommerce,
     });
-    syncAll.mockResolvedValue({
-      connectedStoreId: "store_1",
-      errors: [],
-      readOnly: true,
-      resources: [],
-      status: "SUCCESS",
-      syncedAt: new Date("2026-07-03T14:00:00.000Z"),
+    enqueueWooCommerceSyncJob.mockResolvedValue({
+      jobId: "job_1",
+      platform: StorePlatform.WooCommerce,
+      queuedAt: new Date("2026-07-03T14:00:00.000Z"),
+      status: "QUEUED",
+      storeId: "store_1",
     });
 
     await service.requestManualSync("user_1", { storeId: "store_1" });
@@ -665,7 +620,8 @@ describe("StoreIntegrationsService", () => {
   });
 
   it("rejects disconnect and sync for stores outside the authenticated user's business", async () => {
-    const { service, findFirstConnectedStore, getProvider } = createStoreIntegrationsServiceMocks();
+    const { service, findFirstConnectedStore, getProvider, enqueueWooCommerceSyncJob } =
+      createStoreIntegrationsServiceMocks();
     findFirstConnectedStore.mockResolvedValue(null);
 
     await expect(service.disconnectStore("user_1", { storeId: "missing_store" })).rejects.toThrow(
@@ -675,5 +631,73 @@ describe("StoreIntegrationsService", () => {
       NotFoundException,
     );
     expect(getProvider).not.toHaveBeenCalled();
+    expect(enqueueWooCommerceSyncJob).not.toHaveBeenCalled();
+  });
+
+  it("returns a safe failed sync job status for an owned store", async () => {
+    const { service, findFirstConnectedStore, getJobStatus } = createStoreIntegrationsServiceMocks();
+    const queuedAt = new Date("2026-07-03T14:00:00.000Z");
+    const finishedAt = new Date("2026-07-03T14:01:00.000Z");
+    getJobStatus.mockResolvedValue({
+      failedReason: "WooCommerce timeout",
+      finishedAt,
+      jobId: "job_1",
+      platform: StorePlatform.WooCommerce,
+      queuedAt,
+      status: "FAILED",
+      storeId: "store_1",
+      accessTokenHash: "should-not-leak",
+      encryptedCredential: "should-not-leak",
+    });
+    findFirstConnectedStore.mockResolvedValue({
+      id: "store_1",
+      businessId: "business_1",
+      connectionStatus: StoreConnectionStatus.Connected,
+      lastSynchronisedAt: null,
+      platform: StorePlatform.WooCommerce,
+    });
+
+    const response = await service.getManualSyncJobStatus("user_1", "job_1");
+
+    expect(response).toEqual({
+      failedReason: "WooCommerce timeout",
+      finishedAt,
+      jobId: "job_1",
+      platform: StorePlatform.WooCommerce,
+      queuedAt,
+      status: "FAILED",
+      storeId: "store_1",
+    });
+    expect(JSON.stringify(response)).not.toContain("should-not-leak");
+    expect(findFirstConnectedStore).toHaveBeenCalledWith({
+      where: { id: "store_1", business: { ownerId: "user_1" } },
+      select: expect.objectContaining({ id: true }),
+    });
+  });
+
+  it("rejects sync job status lookup for jobs outside the authenticated user's business", async () => {
+    const { service, findFirstConnectedStore, getJobStatus } = createStoreIntegrationsServiceMocks();
+    getJobStatus.mockResolvedValue({
+      jobId: "job_1",
+      platform: StorePlatform.WooCommerce,
+      queuedAt: new Date("2026-07-03T14:00:00.000Z"),
+      status: "QUEUED",
+      storeId: "store_2",
+    });
+    findFirstConnectedStore.mockResolvedValue(null);
+
+    await expect(service.getManualSyncJobStatus("user_1", "job_1")).rejects.toThrow(
+      NotFoundException,
+    );
+  });
+
+  it("returns not found when a sync job cannot be found", async () => {
+    const { service, findFirstConnectedStore, getJobStatus } = createStoreIntegrationsServiceMocks();
+    getJobStatus.mockResolvedValue(null);
+
+    await expect(service.getManualSyncJobStatus("user_1", "missing_job")).rejects.toThrow(
+      NotFoundException,
+    );
+    expect(findFirstConnectedStore).not.toHaveBeenCalled();
   });
 });

@@ -20,16 +20,25 @@ import { PrismaService } from "../database/prisma.service.js";
 import type { PrepareStoreConnectionRequestDto } from "./dto/prepare-store-connection-request.dto.js";
 import type { StoreActionRequestDto } from "./dto/store-action-request.dto.js";
 import { AesCredentialEncryptionService } from "./security/credential-encryption.service.js";
+import {
+  SYNC_QUEUE,
+  WooCommerceSyncJobName,
+  type SyncJobEnqueueResult,
+  type SyncJobStatusResult,
+  type SyncQueuePort,
+} from "./sync-queue/sync-queue.types.js";
 import type { ConnectedStoreResponse } from "./types/connected-store-response.type.js";
 import { StoreConnectionStatus } from "./types/store-connection-status.enum.js";
-import type { ManualSyncResponse } from "./types/manual-sync-response.type.js";
+import type {
+  ManualSyncJobStatusResponse,
+  ManualSyncResponse,
+} from "./types/manual-sync-response.type.js";
 import {
   isSupportedStorePlatform,
   StorePlatform,
   SUPPORTED_STORE_PLATFORMS,
   type SupportedStorePlatform,
 } from "./types/store-platform.enum.js";
-import { WooCommerceSyncService, type WooCommerceFullSyncResult } from "./woocommerce-sync.service.js";
 
 interface StoreIntegrationsPrismaClient {
   readonly business: {
@@ -158,8 +167,8 @@ export class StoreIntegrationsService {
     @Inject(INTEGRATION_FACTORY) private readonly integrationFactory: IntegrationFactory,
     @Inject(AesCredentialEncryptionService)
     private readonly credentialEncryption: AesCredentialEncryptionService,
-    @Inject(WooCommerceSyncService)
-    private readonly wooCommerceSyncService: WooCommerceSyncService,
+    @Inject(SYNC_QUEUE)
+    private readonly syncQueue: SyncQueuePort,
   ) {}
 
   listSupportedPlatforms(): readonly SupportedStorePlatform[] {
@@ -360,7 +369,34 @@ export class StoreIntegrationsService {
       throw new ConflictException("Store must be connected before manual synchronisation.");
     }
 
-    return toManualSyncResponse(store, await this.wooCommerceSyncService.syncAll(store.id));
+    const queuedAt = new Date();
+    const queuedJob = await this.syncQueue.enqueueWooCommerceSyncJob(
+      WooCommerceSyncJobName.ManualFullSync,
+      {
+        platform: StorePlatform.WooCommerce,
+        queuedAt: queuedAt.toISOString(),
+        requestedByUserId: userId,
+        resource: "all",
+        storeId: store.id,
+      },
+    );
+
+    return toManualSyncResponse(queuedJob);
+  }
+
+  async getManualSyncJobStatus(
+    userId: string,
+    jobId: string,
+  ): Promise<ManualSyncJobStatusResponse> {
+    const jobStatus = await this.syncQueue.getJobStatus(jobId);
+
+    if (!jobStatus) {
+      throw new NotFoundException("Sync job could not be found.");
+    }
+
+    await this.assertStoreBelongsToUser(userId, jobStatus.storeId);
+
+    return toManualSyncJobStatusResponse(jobStatus);
   }
 
   private assertSupportedPlatform(platform: string): asserts platform is StorePlatform {
@@ -478,21 +514,26 @@ function createIntegrationConfiguration(input: {
   };
 }
 
-function toManualSyncResponse(
-  store: ConnectedStoreActionRecord,
-  syncResult: WooCommerceFullSyncResult,
-): ManualSyncResponse {
+function toManualSyncResponse(queuedJob: SyncJobEnqueueResult): ManualSyncResponse {
   return {
-    errors: syncResult.errors,
-    lastSynchronisedAt: syncResult.syncedAt,
-    platform: store.platform,
-    resourcesSynced: syncResult.resources.map((resource) => ({
-      errors: resource.errors,
-      records: resource.persistence,
-      resource: resource.resource,
-      status: resource.status,
-    })),
-    status: syncResult.status,
-    storeId: store.id,
+    jobId: queuedJob.jobId,
+    platform: queuedJob.platform,
+    queuedAt: queuedJob.queuedAt,
+    status: "QUEUED",
+    storeId: queuedJob.storeId,
+  };
+}
+
+function toManualSyncJobStatusResponse(
+  jobStatus: SyncJobStatusResult,
+): ManualSyncJobStatusResponse {
+  return {
+    ...(jobStatus.failedReason ? { failedReason: jobStatus.failedReason } : {}),
+    ...(jobStatus.finishedAt ? { finishedAt: jobStatus.finishedAt } : {}),
+    jobId: jobStatus.jobId,
+    platform: jobStatus.platform,
+    queuedAt: jobStatus.queuedAt,
+    status: jobStatus.status,
+    storeId: jobStatus.storeId,
   };
 }

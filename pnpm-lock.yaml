@@ -67,12 +67,18 @@ importers:
       bcryptjs:
         specifier: 2.4.3
         version: 2.4.3
+      bullmq:
+        specifier: 5.34.2
+        version: 5.34.2
       class-transformer:
         specifier: 0.5.1
         version: 0.5.1
       class-validator:
         specifier: 0.14.1
         version: 0.14.1
+      ioredis:
+        specifier: 5.4.2
+        version: 5.4.2
       reflect-metadata:
         specifier: 0.2.2
         version: 0.2.2

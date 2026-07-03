@@ -1,26 +1,19 @@
-import type { WooCommerceSyncResource } from "../woocommerce-sync.service.js";
 import type { StorePlatform } from "./store-platform.enum.js";
 
-export interface ManualSyncResourceSummary {
-  readonly errors: readonly string[];
-  readonly records: {
-    readonly categories: number;
-    readonly customers: number;
-    readonly inventorySnapshots: number;
-    readonly orderItems: number;
-    readonly orders: number;
-    readonly products: number;
-    readonly refunds: number;
-  };
-  readonly resource: WooCommerceSyncResource;
-  readonly status: "SUCCESS" | "ERROR";
+export interface ManualSyncResponse {
+  readonly jobId: string;
+  readonly platform: StorePlatform;
+  readonly queuedAt: Date;
+  readonly status: "QUEUED";
+  readonly storeId: string;
 }
 
-export interface ManualSyncResponse {
-  readonly errors: readonly string[];
-  readonly lastSynchronisedAt: Date;
+export interface ManualSyncJobStatusResponse {
+  readonly failedReason?: string;
+  readonly finishedAt?: Date;
+  readonly jobId: string;
   readonly platform: StorePlatform;
-  readonly resourcesSynced: readonly ManualSyncResourceSummary[];
-  readonly status: "SUCCESS" | "PARTIAL_FAILURE" | "ERROR";
+  readonly queuedAt: Date;
+  readonly status: "QUEUED" | "ACTIVE" | "COMPLETED" | "FAILED" | "UNKNOWN";
   readonly storeId: string;
 }

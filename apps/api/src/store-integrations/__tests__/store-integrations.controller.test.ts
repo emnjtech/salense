@@ -12,6 +12,7 @@ describe("StoreIntegrationsController", () => {
     listConnectedStores: jest.fn(),
     prepareStoreConnection: jest.fn(),
     disconnectStore: jest.fn(),
+    getManualSyncJobStatus: jest.fn(),
     requestManualSync: jest.fn(),
   } as unknown as StoreIntegrationsService;
   const controller = new StoreIntegrationsController(storeIntegrationsService);
@@ -95,16 +96,15 @@ describe("StoreIntegrationsController", () => {
   });
 
   it("delegates disconnect and sync actions for authenticated users", async () => {
-    const syncedAt = new Date("2026-07-03T14:00:00.000Z");
+    const queuedAt = new Date("2026-07-03T14:00:00.000Z");
     jest.mocked(storeIntegrationsService.disconnectStore).mockRejectedValueOnce(
       new Error("disconnect placeholder"),
     );
     jest.mocked(storeIntegrationsService.requestManualSync).mockResolvedValueOnce({
-      errors: [],
-      lastSynchronisedAt: syncedAt,
+      jobId: "job_1",
       platform: StorePlatform.WooCommerce,
-      resourcesSynced: [],
-      status: "SUCCESS",
+      queuedAt,
+      status: "QUEUED",
       storeId: "store_1",
     });
 
@@ -126,13 +126,36 @@ describe("StoreIntegrationsController", () => {
         { storeId: "store_1" },
       ),
     ).resolves.toEqual({
-      errors: [],
-      lastSynchronisedAt: syncedAt,
+      jobId: "job_1",
       platform: StorePlatform.WooCommerce,
-      resourcesSynced: [],
-      status: "SUCCESS",
+      queuedAt,
+      status: "QUEUED",
       storeId: "store_1",
     });
+  });
+
+  it("delegates sync job status lookup for authenticated users", async () => {
+    const queuedAt = new Date("2026-07-03T14:00:00.000Z");
+    const response = {
+      failedReason: "WooCommerce timeout",
+      jobId: "job_1",
+      platform: StorePlatform.WooCommerce,
+      queuedAt,
+      status: "FAILED" as const,
+      storeId: "store_1",
+    };
+    jest.mocked(storeIntegrationsService.getManualSyncJobStatus).mockResolvedValueOnce(response);
+
+    await expect(
+      controller.getManualSyncJobStatus(
+        {
+          headers: {},
+          user: { sub: "user_1", email: "owner@example.com", emailVerified: true },
+        },
+        "job_1",
+      ),
+    ).resolves.toBe(response);
+    expect(storeIntegrationsService.getManualSyncJobStatus).toHaveBeenCalledWith("user_1", "job_1");
   });
 
   it("rejects protected actions when authenticated context is missing", async () => {
@@ -144,6 +167,9 @@ describe("StoreIntegrationsController", () => {
       ),
     ).toThrow(UnauthorizedException);
     expect(() => controller.requestManualSync({ headers: {} }, { storeId: "store_1" })).toThrow(
+      UnauthorizedException,
+    );
+    expect(() => controller.getManualSyncJobStatus({ headers: {} }, "job_1")).toThrow(
       UnauthorizedException,
     );
   });

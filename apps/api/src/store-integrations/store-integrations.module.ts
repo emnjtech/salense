@@ -4,6 +4,9 @@ import { IntegrationFrameworkModule } from "../integrations/integration-framewor
 import { AesCredentialEncryptionService } from "./security/credential-encryption.service.js";
 import { StoreIntegrationsController } from "./store-integrations.controller.js";
 import { StoreIntegrationsService } from "./store-integrations.service.js";
+import { createBullMqSyncQueue } from "./sync-queue/bullmq-sync-queue.js";
+import { SYNC_QUEUE } from "./sync-queue/sync-queue.types.js";
+import { WooCommerceSyncWorkerHandler } from "./sync-queue/woocommerce-sync-worker.handler.js";
 import { WooCommerceCommercePersistenceService } from "./woocommerce-commerce-persistence.service.js";
 import {
   createWooCommerceRestClient,
@@ -19,8 +22,15 @@ import {
     StoreIntegrationsService,
     WooCommerceCommercePersistenceService,
     WooCommerceSyncService,
+    WooCommerceSyncWorkerHandler,
+    { provide: SYNC_QUEUE, useFactory: createBullMqSyncQueue },
     { provide: WOOCOMMERCE_REST_CLIENT, useFactory: createWooCommerceRestClient },
   ],
-  exports: [StoreIntegrationsService, WooCommerceCommercePersistenceService, WooCommerceSyncService],
+  exports: [
+    StoreIntegrationsService,
+    WooCommerceCommercePersistenceService,
+    WooCommerceSyncService,
+    WooCommerceSyncWorkerHandler,
+  ],
 })
 export class StoreIntegrationsModule {}
