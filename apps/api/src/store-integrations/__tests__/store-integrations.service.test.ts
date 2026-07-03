@@ -12,6 +12,8 @@ import {
   WooCommerceApiVersion,
   type IntegrationFactory,
 } from "@salense/integrations";
+import type { AuditLogService } from "../../audit/audit-log.service.js";
+import { AuditAction, AuditLogModule, AuditLogResult } from "../../audit/types/audit-log.type.js";
 import type { PrismaService } from "../../database/prisma.service.js";
 import type { AesCredentialEncryptionService } from "../security/credential-encryption.service.js";
 import { StoreIntegrationsService } from "../store-integrations.service.js";
@@ -36,6 +38,7 @@ function createStoreIntegrationsServiceMocks(): {
   readonly getJobStatus: jest.Mock;
   readonly scheduleAutomaticSync: jest.Mock;
   readonly removeAutomaticSync: jest.Mock;
+  readonly recordAuditLog: jest.Mock;
   readonly deleteCommerceOrders: jest.Mock;
   readonly deleteCommerceProducts: jest.Mock;
   readonly deleteCommerceCustomers: jest.Mock;
@@ -57,6 +60,7 @@ function createStoreIntegrationsServiceMocks(): {
   const getJobStatus = jest.fn();
   const scheduleAutomaticSync = jest.fn();
   const removeAutomaticSync = jest.fn();
+  const recordAuditLog = jest.fn().mockResolvedValue(undefined);
   const deleteCommerceOrders = jest.fn();
   const deleteCommerceProducts = jest.fn();
   const deleteCommerceCustomers = jest.fn();
@@ -101,6 +105,7 @@ function createStoreIntegrationsServiceMocks(): {
     removeAutomaticSync,
     scheduleAutomaticSync,
   } as unknown as WooCommerceSyncSchedulingService;
+  const auditLogService = { record: recordAuditLog } as unknown as AuditLogService;
 
   return {
     service: new StoreIntegrationsService(
@@ -109,6 +114,7 @@ function createStoreIntegrationsServiceMocks(): {
       credentialEncryption,
       syncQueue,
       syncSchedulingService,
+      auditLogService,
     ),
     findBusiness,
     findManyConnectedStores,
@@ -124,6 +130,7 @@ function createStoreIntegrationsServiceMocks(): {
     getJobStatus,
     scheduleAutomaticSync,
     removeAutomaticSync,
+    recordAuditLog,
     deleteCommerceOrders,
     deleteCommerceProducts,
     deleteCommerceCustomers,
@@ -294,6 +301,7 @@ describe("StoreIntegrationsService", () => {
       getProvider,
       validateConnection,
       encrypt,
+      recordAuditLog,
     } =
       createStoreIntegrationsServiceMocks();
     const createdAt = new Date("2026-07-03T11:00:00.000Z");
@@ -400,6 +408,37 @@ describe("StoreIntegrationsService", () => {
     expect(JSON.stringify(createConnectedStore.mock.calls)).not.toContain("ck_live_placeholder");
     expect(JSON.stringify(createConnectedStore.mock.calls)).not.toContain("cs_live_placeholder");
     expect(JSON.stringify(response)).not.toContain("encrypted");
+    expect(recordAuditLog).toHaveBeenCalledWith({
+      action: AuditAction.WooCommerceConnectionCreated,
+      affectedModule: AuditLogModule.StoreIntegrations,
+      affectedPlatform: StorePlatform.WooCommerce,
+      affectedStoreId: "store_1",
+      businessId: "business_1",
+      metadata: {
+        apiVersion: WooCommerceApiVersion.WcV3,
+        connectionStatus: StoreConnectionStatus.PendingValidation,
+        storeUrl: "https://shop.example.com",
+      },
+      result: AuditLogResult.Success,
+      userId: "user_1",
+    });
+    expect(recordAuditLog).toHaveBeenCalledWith({
+      action: AuditAction.WooCommerceConnectionValidationSucceeded,
+      affectedModule: AuditLogModule.StoreIntegrations,
+      affectedPlatform: StorePlatform.WooCommerce,
+      affectedStoreId: "store_1",
+      businessId: "business_1",
+      metadata: {
+        connectionStatus: StoreConnectionStatus.Connected,
+        storeUrl: "https://shop.example.com",
+      },
+      result: AuditLogResult.Success,
+      userId: "user_1",
+    });
+    expect(JSON.stringify(recordAuditLog.mock.calls)).not.toContain("ck_live_placeholder");
+    expect(JSON.stringify(recordAuditLog.mock.calls)).not.toContain("cs_live_placeholder");
+    expect(JSON.stringify(recordAuditLog.mock.calls)).not.toContain("stored-key-hash");
+    expect(JSON.stringify(recordAuditLog.mock.calls)).not.toContain("encryptedCredential");
   });
 
   it("marks WooCommerce connection error when credential validation fails", async () => {
@@ -410,6 +449,7 @@ describe("StoreIntegrationsService", () => {
       createConnectedStore,
       updateConnectedStore,
       validateConnection,
+      recordAuditLog,
     } = createStoreIntegrationsServiceMocks();
     const createdAt = new Date("2026-07-03T11:00:00.000Z");
     const updatedAt = new Date("2026-07-03T11:00:01.000Z");
@@ -464,6 +504,23 @@ describe("StoreIntegrationsService", () => {
     expect(response.connectionStatus).toBe(StoreConnectionStatus.Error);
     expect(JSON.stringify(response)).not.toContain("ck_live_placeholder");
     expect(JSON.stringify(response)).not.toContain("cs_live_placeholder");
+    expect(recordAuditLog).toHaveBeenCalledWith({
+      action: AuditAction.WooCommerceConnectionValidationFailed,
+      affectedModule: AuditLogModule.StoreIntegrations,
+      affectedPlatform: StorePlatform.WooCommerce,
+      affectedStoreId: "store_1",
+      businessId: "business_1",
+      metadata: {
+        connectionStatus: StoreConnectionStatus.Error,
+        errorName: "IntegrationAuthenticationError",
+        storeUrl: "https://shop.example.com",
+      },
+      result: AuditLogResult.Failure,
+      userId: "user_1",
+    });
+    expect(JSON.stringify(recordAuditLog.mock.calls)).not.toContain("ck_live_placeholder");
+    expect(JSON.stringify(recordAuditLog.mock.calls)).not.toContain("cs_live_placeholder");
+    expect(JSON.stringify(recordAuditLog.mock.calls)).not.toContain("encryptedCredential");
   });
 
   it("requires WooCommerce credentials before placeholder connection", async () => {
@@ -496,6 +553,7 @@ describe("StoreIntegrationsService", () => {
       deleteCommerceInventorySnapshots,
       deleteCommerceCategories,
       deleteCommerceRefunds,
+      recordAuditLog,
     } = createStoreIntegrationsServiceMocks();
     const disconnectedAt = new Date("2026-07-03T17:00:00.000Z");
     findFirstConnectedStore.mockResolvedValue({
@@ -562,6 +620,19 @@ describe("StoreIntegrationsService", () => {
     expect(deleteCommerceInventorySnapshots).not.toHaveBeenCalled();
     expect(deleteCommerceCategories).not.toHaveBeenCalled();
     expect(deleteCommerceRefunds).not.toHaveBeenCalled();
+    expect(recordAuditLog).toHaveBeenCalledWith({
+      action: AuditAction.StoreDisconnected,
+      affectedModule: AuditLogModule.StoreIntegrations,
+      affectedPlatform: StorePlatform.WooCommerce,
+      affectedStoreId: "store_1",
+      businessId: "business_1",
+      metadata: {
+        connectionStatus: StoreConnectionStatus.Disconnected,
+        disconnectedAt,
+      },
+      result: AuditLogResult.Success,
+      userId: "user_1",
+    });
   });
 
   it("does not expose credential material in disconnect responses", async () => {
@@ -645,7 +716,7 @@ describe("StoreIntegrationsService", () => {
   );
 
   it("allows the authenticated owner to enqueue a manual WooCommerce sync job", async () => {
-    const { service, findFirstConnectedStore, getProvider, enqueueWooCommerceSyncJob } =
+    const { service, findFirstConnectedStore, getProvider, enqueueWooCommerceSyncJob, recordAuditLog } =
       createStoreIntegrationsServiceMocks();
     const queuedAt = new Date("2026-07-03T14:00:00.000Z");
     findFirstConnectedStore.mockResolvedValue({
@@ -683,6 +754,20 @@ describe("StoreIntegrationsService", () => {
     );
     expect(enqueueWooCommerceSyncJob.mock.calls[0]?.[1].queuedAt).toEqual(expect.any(String));
     expect(getProvider).not.toHaveBeenCalled();
+    expect(recordAuditLog).toHaveBeenCalledWith({
+      action: AuditAction.ManualSyncJobQueued,
+      affectedModule: AuditLogModule.StoreIntegrations,
+      affectedPlatform: StorePlatform.WooCommerce,
+      affectedStoreId: "store_1",
+      businessId: "business_1",
+      metadata: {
+        jobId: "job_1",
+        queuedAt,
+        resource: "all",
+      },
+      result: AuditLogResult.Success,
+      userId: "user_1",
+    });
   });
 
   it("rejects manual sync for non-WooCommerce stores", async () => {
@@ -873,7 +958,7 @@ describe("StoreIntegrationsService", () => {
   });
 
   it("schedules automatic sync for stores owned by the authenticated user", async () => {
-    const { service, findFirstConnectedStore, scheduleAutomaticSync } =
+    const { service, findFirstConnectedStore, scheduleAutomaticSync, recordAuditLog } =
       createStoreIntegrationsServiceMocks();
     const scheduledAt = new Date("2026-07-03T15:00:00.000Z");
     const store = {
@@ -902,10 +987,24 @@ describe("StoreIntegrationsService", () => {
       storeId: "store_1",
     });
     expect(scheduleAutomaticSync).toHaveBeenCalledWith(store, "user_1");
+    expect(recordAuditLog).toHaveBeenCalledWith({
+      action: AuditAction.ScheduledSyncCreated,
+      affectedModule: AuditLogModule.StoreIntegrations,
+      affectedPlatform: StorePlatform.WooCommerce,
+      affectedStoreId: "store_1",
+      businessId: "business_1",
+      metadata: {
+        everyMs: 3_600_000,
+        jobId: "woocommerce:auto:full-sync:store_1",
+        scheduledAt,
+      },
+      result: AuditLogResult.Success,
+      userId: "user_1",
+    });
   });
 
   it("removes automatic sync schedules for stores owned by the authenticated user", async () => {
-    const { service, findFirstConnectedStore, removeAutomaticSync } =
+    const { service, findFirstConnectedStore, removeAutomaticSync, recordAuditLog } =
       createStoreIntegrationsServiceMocks();
     const removedAt = new Date("2026-07-03T15:00:00.000Z");
     const store = {
@@ -934,5 +1033,19 @@ describe("StoreIntegrationsService", () => {
       storeId: "store_1",
     });
     expect(removeAutomaticSync).toHaveBeenCalledWith(store);
+    expect(recordAuditLog).toHaveBeenCalledWith({
+      action: AuditAction.ScheduledSyncRemoved,
+      affectedModule: AuditLogModule.StoreIntegrations,
+      affectedPlatform: StorePlatform.WooCommerce,
+      affectedStoreId: "store_1",
+      businessId: "business_1",
+      metadata: {
+        jobId: "woocommerce:auto:full-sync:store_1",
+        removedAt,
+        status: "REMOVED",
+      },
+      result: AuditLogResult.Success,
+      userId: "user_1",
+    });
   });
 });

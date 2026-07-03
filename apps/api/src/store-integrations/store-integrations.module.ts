@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { AuditModule } from "../audit/audit.module.js";
 import { DatabaseModule } from "../database/database.module.js";
 import { IntegrationFrameworkModule } from "../integrations/integration-framework.module.js";
 import { AesCredentialEncryptionService } from "./security/credential-encryption.service.js";
@@ -16,7 +17,7 @@ import {
 } from "./woocommerce-sync.service.js";
 
 @Module({
-  imports: [DatabaseModule, IntegrationFrameworkModule],
+  imports: [AuditModule, DatabaseModule, IntegrationFrameworkModule],
   controllers: [StoreIntegrationsController],
   providers: [
     AesCredentialEncryptionService,

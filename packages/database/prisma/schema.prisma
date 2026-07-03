@@ -357,6 +357,31 @@ model CommerceRefund {
   @@map("commerce_refunds")
 }
 
+/// Permanent append-only audit history for important Salense activities.
+/// Stores identifiers and safe metadata only; credential material and raw marketplace payloads are excluded by application services.
+model AuditLog {
+  id               String         @id @default(cuid())
+  userId           String
+  businessId       String
+  action           String
+  affectedModule   String
+  affectedStoreId  String?
+  affectedPlatform StorePlatform?
+  result           String
+  metadata         Json?
+  createdAt        DateTime       @default(now())
+
+  @@index([userId])
+  @@index([businessId])
+  @@index([action])
+  @@index([affectedModule])
+  @@index([affectedStoreId])
+  @@index([affectedPlatform])
+  @@index([result])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
 /// Hashed email verification token generated after registration.
 /// Stores lookup and expiry state only; email delivery is intentionally not implemented yet.
 model EmailVerificationToken {

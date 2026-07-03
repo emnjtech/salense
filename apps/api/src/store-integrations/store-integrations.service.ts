@@ -16,6 +16,12 @@ import {
   NotImplementedException,
   UnauthorizedException,
 } from "@nestjs/common";
+import {
+  AuditAction,
+  AuditLogModule,
+  AuditLogResult,
+  AuditLogService,
+} from "../audit/index.js";
 import { PrismaService } from "../database/prisma.service.js";
 import type { PrepareStoreConnectionRequestDto } from "./dto/prepare-store-connection-request.dto.js";
 import type { StoreActionRequestDto } from "./dto/store-action-request.dto.js";
@@ -181,6 +187,8 @@ export class StoreIntegrationsService {
     private readonly syncQueue: SyncQueuePort,
     @Inject(WooCommerceSyncSchedulingService)
     private readonly syncSchedulingService: WooCommerceSyncSchedulingService,
+    @Inject(AuditLogService)
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   listSupportedPlatforms(): readonly SupportedStorePlatform[] {
@@ -261,6 +269,19 @@ export class StoreIntegrationsService {
       select: connectedStoreSelect,
     });
 
+    await this.recordStoreIntegrationAuditEvent({
+      action: AuditAction.WooCommerceConnectionCreated,
+      businessId: business.id,
+      metadata: {
+        apiVersion: credentialConfiguration.apiVersion,
+        connectionStatus: connectedStore.connectionStatus,
+        storeUrl,
+      },
+      result: AuditLogResult.Success,
+      storeId: connectedStore.id,
+      userId,
+    });
+
     const provider = this.integrationFactory.getProvider(IntegrationPlatform.WooCommerce);
 
     try {
@@ -281,12 +302,37 @@ export class StoreIntegrationsService {
         select: connectedStoreSelect,
       });
 
+      await this.recordStoreIntegrationAuditEvent({
+        action: AuditAction.WooCommerceConnectionValidationSucceeded,
+        businessId: business.id,
+        metadata: {
+          connectionStatus: validatedStore.connectionStatus,
+          storeUrl,
+        },
+        result: AuditLogResult.Success,
+        storeId: connectedStore.id,
+        userId,
+      });
+
       return toConnectedStoreResponse(validatedStore as ConnectedStoreRecord);
-    } catch {
+    } catch (error) {
       const failedStore = await prisma.connectedStore.update({
         where: { id: connectedStore.id },
         data: { connectionStatus: StoreConnectionStatus.Error },
         select: connectedStoreSelect,
+      });
+
+      await this.recordStoreIntegrationAuditEvent({
+        action: AuditAction.WooCommerceConnectionValidationFailed,
+        businessId: business.id,
+        metadata: {
+          connectionStatus: failedStore.connectionStatus,
+          errorName: error instanceof Error ? error.name : "UnknownError",
+          storeUrl,
+        },
+        result: AuditLogResult.Failure,
+        storeId: connectedStore.id,
+        userId,
       });
 
       return toConnectedStoreResponse(failedStore as ConnectedStoreRecord);
@@ -385,6 +431,18 @@ export class StoreIntegrationsService {
       select: connectedStoreActionSelect,
     });
 
+    await this.recordStoreIntegrationAuditEvent({
+      action: AuditAction.StoreDisconnected,
+      businessId: store.businessId,
+      metadata: {
+        connectionStatus: StoreConnectionStatus.Disconnected,
+        disconnectedAt: (disconnectedStore as ConnectedStoreActionRecord).disconnectedAt,
+      },
+      result: AuditLogResult.Success,
+      storeId: store.id,
+      userId,
+    });
+
     return toDisconnectStoreResponse(disconnectedStore as ConnectedStoreActionRecord);
   }
 
@@ -411,6 +469,19 @@ export class StoreIntegrationsService {
       },
     );
 
+    await this.recordStoreIntegrationAuditEvent({
+      action: AuditAction.ManualSyncJobQueued,
+      businessId: store.businessId,
+      metadata: {
+        jobId: queuedJob.jobId,
+        queuedAt: queuedJob.queuedAt,
+        resource: "all",
+      },
+      result: AuditLogResult.Success,
+      storeId: store.id,
+      userId,
+    });
+
     return toManualSyncResponse(queuedJob);
   }
 
@@ -435,7 +506,22 @@ export class StoreIntegrationsService {
   ): Promise<SyncScheduleResponse> {
     const store = await this.assertStoreBelongsToUser(userId, request.storeId);
 
-    return this.syncSchedulingService.scheduleAutomaticSync(store, userId);
+    const schedule = await this.syncSchedulingService.scheduleAutomaticSync(store, userId);
+
+    await this.recordStoreIntegrationAuditEvent({
+      action: AuditAction.ScheduledSyncCreated,
+      businessId: store.businessId,
+      metadata: {
+        everyMs: schedule.everyMs,
+        jobId: schedule.jobId,
+        scheduledAt: schedule.scheduledAt,
+      },
+      result: AuditLogResult.Success,
+      storeId: store.id,
+      userId,
+    });
+
+    return schedule;
   }
 
   async removeAutomaticSyncSchedule(
@@ -444,7 +530,42 @@ export class StoreIntegrationsService {
   ): Promise<SyncScheduleRemovalResponse> {
     const store = await this.assertStoreBelongsToUser(userId, request.storeId);
 
-    return this.syncSchedulingService.removeAutomaticSync(store);
+    const removal = await this.syncSchedulingService.removeAutomaticSync(store);
+
+    await this.recordStoreIntegrationAuditEvent({
+      action: AuditAction.ScheduledSyncRemoved,
+      businessId: store.businessId,
+      metadata: {
+        jobId: removal.jobId,
+        removedAt: removal.removedAt,
+        status: removal.status,
+      },
+      result: AuditLogResult.Success,
+      storeId: store.id,
+      userId,
+    });
+
+    return removal;
+  }
+
+  private async recordStoreIntegrationAuditEvent(input: {
+    readonly action: AuditAction;
+    readonly businessId: string;
+    readonly metadata?: Readonly<Record<string, unknown>>;
+    readonly result: AuditLogResult;
+    readonly storeId: string;
+    readonly userId: string;
+  }): Promise<void> {
+    await this.auditLogService.record({
+      action: input.action,
+      affectedModule: AuditLogModule.StoreIntegrations,
+      affectedPlatform: StorePlatform.WooCommerce,
+      affectedStoreId: input.storeId,
+      businessId: input.businessId,
+      ...(input.metadata ? { metadata: input.metadata } : {}),
+      result: input.result,
+      userId: input.userId,
+    });
   }
 
   private assertSupportedPlatform(platform: string): asserts platform is StorePlatform {

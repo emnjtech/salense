@@ -113,6 +113,7 @@ Implemented or scaffolded:
 - Scheduled sync scaffolding through recurring BullMQ jobs.
 - Duplicate import prevention through unique constraints and upserts.
 - Failed job retry attempts at the BullMQ job level.
+- Audit logging for WooCommerce connection creation, validation success/failure, manual sync queueing, scheduled sync creation/removal, and store disconnection.
 
 Remaining gaps:
 
@@ -122,7 +123,7 @@ Remaining gaps:
 - Rate limiting strategy is limited to safe error mapping; no adaptive throttling yet.
 - Token refresh is not implemented for WooCommerce and will differ by platform.
 - Settlements, returns, and shipping status are not modelled or synchronised yet.
-- Audit logging for manual/scheduled synchronisation is not implemented.
+- Audit UI, audit export, and wider audit coverage outside the WooCommerce lifecycle are not implemented.
 
 ## Test Coverage
 
@@ -135,5 +136,6 @@ Major behavior currently covered:
 - Idempotent persistence and relationship handling.
 - Manual sync queueing and safe job status responses.
 - WooCommerce disconnect ownership enforcement, schedule removal, safe response, and historical-data preservation.
+- Store integration audit entries and sensitive metadata redaction.
 - Worker handler dispatch and safe result sanitisation.
 - Scheduled sync creation, duplicate prevention, invalid store rejection, removal, and safe responses.
