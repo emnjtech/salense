@@ -2,8 +2,10 @@ import { plainToInstance } from "class-transformer";
 import { validate } from "class-validator";
 import { EmailVerificationRequestDto } from "../dto/email-verification-request.dto.js";
 import { LoginRequestDto } from "../dto/login-request.dto.js";
+import { LogoutRequestDto } from "../dto/logout-request.dto.js";
 import { PasswordResetConfirmationRequestDto } from "../dto/password-reset-confirmation-request.dto.js";
 import { PasswordResetRequestDto } from "../dto/password-reset-request.dto.js";
+import { RefreshSessionRequestDto } from "../dto/refresh-session-request.dto.js";
 import { RegisterRequestDto } from "../dto/register-request.dto.js";
 
 async function validateDto<T extends object>(Dto: new () => T, payload: Record<string, unknown>) {
@@ -86,5 +88,17 @@ describe("authentication DTO validation", () => {
     const errors = await validateDto(EmailVerificationRequestDto, { token: "" });
 
     expect(errors.some((error) => error.property === "token")).toBe(true);
+  });
+
+  it("requires a refresh token for session refresh", async () => {
+    const errors = await validateDto(RefreshSessionRequestDto, { refreshToken: "" });
+
+    expect(errors.some((error) => error.property === "refreshToken")).toBe(true);
+  });
+
+  it("requires a refresh token for logout", async () => {
+    const errors = await validateDto(LogoutRequestDto, { refreshToken: "" });
+
+    expect(errors.some((error) => error.property === "refreshToken")).toBe(true);
   });
 });

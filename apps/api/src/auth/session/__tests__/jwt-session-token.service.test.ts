@@ -1,8 +1,4 @@
-import {
-  InternalServerErrorException,
-  NotImplementedException,
-  UnauthorizedException,
-} from "@nestjs/common";
+import { InternalServerErrorException, UnauthorizedException } from "@nestjs/common";
 import { JwtSessionConfigService } from "../jwt-session.config.js";
 import { JwtSessionTokenService, type JwtSessionClaims } from "../jwt-session-token.service.js";
 
@@ -52,6 +48,7 @@ describe("JwtSessionTokenService", () => {
       iss: "salense-api",
       iat: 1783080000,
       exp: 1783080900,
+      typ: "access",
     });
     expect(JSON.stringify(decodeJwtSegment(encodedPayload))).not.toContain("password");
     expect(JSON.stringify(decodeJwtSegment(encodedPayload))).not.toContain("passwordHash");
@@ -97,13 +94,14 @@ describe("JwtSessionTokenService", () => {
     await expect(service.verifyAccessToken(token)).rejects.toThrow(UnauthorizedException);
   });
 
-  it("keeps refresh token issuing as explicit scaffolding", () => {
+  it("fails safely when refresh token issuing is attempted without secrets", async () => {
     const service = new JwtSessionTokenService(new JwtSessionConfigService({}));
 
-    expect(() => service.issueRefreshToken(claims)).toThrow(InternalServerErrorException);
+    await expect(service.issueRefreshToken(claims)).rejects.toThrow(InternalServerErrorException);
   });
 
-  it("keeps refresh token issuing and verification as explicit scaffolding", () => {
+  it("issues, hashes, and verifies a signed JWT refresh token", async () => {
+    jest.spyOn(Date, "now").mockReturnValue(new Date("2026-07-03T12:00:00.000Z").getTime());
     const config = new JwtSessionConfigService({
       JWT_ACCESS_TOKEN_SECRET: "access-secret",
       JWT_REFRESH_TOKEN_SECRET: "refresh-secret",
@@ -112,8 +110,57 @@ describe("JwtSessionTokenService", () => {
     });
     const service = new JwtSessionTokenService(config);
 
-    expect(() => service.issueRefreshToken(claims)).toThrow(NotImplementedException);
-    expect(() => service.verifyRefreshToken("refresh-token")).toThrow(NotImplementedException);
+    const token = await service.issueRefreshToken(claims);
+    const [, encodedPayload] = token.split(".");
+    const tokenHash = service.hashRefreshToken(token);
+
+    expect(decodeJwtSegment(encodedPayload)).toEqual({
+      sub: "user_1",
+      email: "sarah@example.com",
+      emailVerified: true,
+      aud: "salense-api",
+      iss: "salense-api",
+      iat: 1783080000,
+      exp: 1785672000,
+      typ: "refresh",
+    });
+    expect(tokenHash).not.toBe(token);
+    expect(tokenHash).toHaveLength(64);
+    await expect(service.verifyRefreshToken(token)).resolves.toEqual(claims);
+  });
+
+  it("rejects expired JWT refresh tokens", async () => {
+    const now = new Date("2026-07-03T12:00:00.000Z").getTime();
+    const dateNowSpy = jest.spyOn(Date, "now").mockReturnValue(now);
+    const service = new JwtSessionTokenService(
+      new JwtSessionConfigService({
+        JWT_ACCESS_TOKEN_SECRET: "access-secret",
+        JWT_REFRESH_TOKEN_SECRET: "refresh-secret",
+        JWT_ACCESS_TOKEN_EXPIRES_IN: "15m",
+        JWT_REFRESH_TOKEN_EXPIRES_IN: "1s",
+      }),
+    );
+    const token = await service.issueRefreshToken(claims);
+
+    dateNowSpy.mockReturnValue(now + 2_000);
+
+    await expect(service.verifyRefreshToken(token)).rejects.toThrow(UnauthorizedException);
+  });
+
+  it("creates refresh token expiry dates from configuration", () => {
+    jest.spyOn(Date, "now").mockReturnValue(new Date("2026-07-03T12:00:00.000Z").getTime());
+    const service = new JwtSessionTokenService(
+      new JwtSessionConfigService({
+        JWT_ACCESS_TOKEN_SECRET: "access-secret",
+        JWT_REFRESH_TOKEN_SECRET: "refresh-secret",
+        JWT_ACCESS_TOKEN_EXPIRES_IN: "15m",
+        JWT_REFRESH_TOKEN_EXPIRES_IN: "30d",
+      }),
+    );
+
+    expect(service.getRefreshTokenExpiryDate(new Date("2026-07-03T12:00:00.000Z"))).toEqual(
+      new Date("2026-08-02T12:00:00.000Z"),
+    );
   });
 });
 

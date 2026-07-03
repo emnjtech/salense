@@ -1,4 +1,4 @@
-export interface LoginSessionResponse {
+export interface RefreshSessionResponse {
   readonly user: {
     readonly id: string;
     readonly email: string;
@@ -6,6 +6,4 @@ export interface LoginSessionResponse {
   };
   readonly accessToken: string;
   readonly accessTokenExpiresIn: string;
-  readonly refreshToken: string;
-  readonly refreshTokenExpiresIn: string;
 }

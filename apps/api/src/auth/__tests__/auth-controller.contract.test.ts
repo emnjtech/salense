@@ -37,6 +37,11 @@ const prismaClient = {
     findUnique: jest.fn(),
     update: jest.fn(),
   },
+  refreshToken: {
+    create: jest.fn(),
+    findUnique: jest.fn(),
+    update: jest.fn(),
+  },
   $transaction: jest.fn(),
 };
 const passwordHasher = {
@@ -59,10 +64,15 @@ const emailService = {
 };
 const jwtSessionTokens = {
   issueAccessToken: jest.fn(),
+  issueRefreshToken: jest.fn(),
   verifyAccessToken: jest.fn(),
+  verifyRefreshToken: jest.fn(),
+  hashRefreshToken: jest.fn(),
+  getRefreshTokenExpiryDate: jest.fn(),
 };
 const jwtSessionConfig = {
   getRequiredAccessTokenConfig: jest.fn(),
+  getRequiredConfig: jest.fn(),
 };
 
 async function createContractApp(): Promise<INestApplication> {
@@ -171,6 +181,13 @@ const invalidContracts = [
   },
   {
     method: "post",
+    path: "/auth/refresh",
+    body: {
+      refreshToken: "",
+    },
+  },
+  {
+    method: "post",
     path: "/auth/email-verification",
     body: {
       token: "",
@@ -190,6 +207,13 @@ const invalidContracts = [
       token: "",
       password: "weak",
       confirmPassword: "",
+    },
+  },
+  {
+    method: "post",
+    path: "/auth/logout",
+    body: {
+      refreshToken: "",
     },
   },
   {
@@ -214,7 +238,7 @@ describe("Phase 1 authentication and user management controller contracts", () =
     );
   });
 
-  it("post /auth/login returns an access token for a verified user", async () => {
+  it("post /auth/login returns access and refresh tokens for a verified user", async () => {
     prismaClient.user.findUnique.mockResolvedValue({
       id: "user_1",
       email: "sarah@example.com",
@@ -223,9 +247,16 @@ describe("Phase 1 authentication and user management controller contracts", () =
     });
     passwordHasher.comparePassword.mockResolvedValue(true);
     jwtSessionTokens.issueAccessToken.mockResolvedValue("access.jwt.token");
-    jwtSessionConfig.getRequiredAccessTokenConfig.mockReturnValue({
+    jwtSessionTokens.issueRefreshToken.mockResolvedValue("refresh.jwt.token");
+    jwtSessionTokens.hashRefreshToken.mockReturnValue("hashed-refresh-token");
+    jwtSessionTokens.getRefreshTokenExpiryDate.mockReturnValue(
+      new Date("2026-08-02T12:00:00.000Z"),
+    );
+    jwtSessionConfig.getRequiredConfig.mockReturnValue({
       accessTokenSecret: "access-secret",
+      refreshTokenSecret: "refresh-secret",
       accessTokenExpiresIn: "15m",
+      refreshTokenExpiresIn: "30d",
     });
 
     await withContractApp(async (server) => {
@@ -244,11 +275,12 @@ describe("Phase 1 authentication and user management controller contracts", () =
         },
         accessToken: "access.jwt.token",
         accessTokenExpiresIn: "15m",
+        refreshToken: "refresh.jwt.token",
+        refreshTokenExpiresIn: "30d",
       });
       expect(response.body.session).toBeUndefined();
-      expect(response.body.refreshToken).toBeUndefined();
       expect(JSON.stringify(response.body)).not.toContain("password");
-      expect(JSON.stringify(response.body)).not.toContain("refreshToken");
+      expect(JSON.stringify(response.body)).not.toContain("hashed-refresh-token");
       expect(JSON.stringify(response.body)).not.toContain("session");
       expect(prismaClient.user.findUnique).toHaveBeenCalledWith(
         expect.objectContaining({ where: { email: "sarah@example.com" } }),
@@ -262,6 +294,168 @@ describe("Phase 1 authentication and user management controller contracts", () =
         email: "sarah@example.com",
         emailVerified: true,
       });
+      expect(jwtSessionTokens.issueRefreshToken).toHaveBeenCalledWith({
+        sub: "user_1",
+        email: "sarah@example.com",
+        emailVerified: true,
+      });
+      expect(prismaClient.refreshToken.create).toHaveBeenCalledWith({
+        data: {
+          userId: "user_1",
+          tokenHash: "hashed-refresh-token",
+          expiresAt: new Date("2026-08-02T12:00:00.000Z"),
+        },
+      });
+    });
+  });
+
+  it("post /auth/refresh returns a new access token for a valid stored refresh token", async () => {
+    jwtSessionTokens.verifyRefreshToken.mockResolvedValue({
+      sub: "user_1",
+      email: "sarah@example.com",
+      emailVerified: true,
+    });
+    jwtSessionTokens.hashRefreshToken.mockReturnValue("hashed-refresh-token");
+    prismaClient.refreshToken.findUnique.mockResolvedValue({
+      id: "refresh_token_1",
+      userId: "user_1",
+      expiresAt: new Date(Date.now() + 60_000),
+      revokedAt: null,
+    });
+    prismaClient.user.findUnique.mockResolvedValue({
+      id: "user_1",
+      email: "sarah@example.com",
+      emailVerified: true,
+    });
+    jwtSessionTokens.issueAccessToken.mockResolvedValue("new.access.jwt.token");
+    jwtSessionConfig.getRequiredAccessTokenConfig.mockReturnValue({
+      accessTokenSecret: "access-secret",
+      accessTokenExpiresIn: "15m",
+    });
+
+    await withContractApp(async (server) => {
+      const response = await sendRequest(server, {
+        method: "post",
+        path: "/auth/refresh",
+        body: { refreshToken: "refresh.jwt.token" },
+      });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        user: {
+          id: "user_1",
+          email: "sarah@example.com",
+          emailVerified: true,
+        },
+        accessToken: "new.access.jwt.token",
+        accessTokenExpiresIn: "15m",
+      });
+      expect(JSON.stringify(response.body)).not.toContain("hashed-refresh-token");
+      expect(JSON.stringify(response.body)).not.toContain("password");
+    });
+  });
+
+  it("post /auth/refresh rejects invalid refresh tokens", async () => {
+    jwtSessionTokens.verifyRefreshToken.mockResolvedValue({
+      sub: "user_1",
+      email: "sarah@example.com",
+      emailVerified: true,
+    });
+    jwtSessionTokens.hashRefreshToken.mockReturnValue("hashed-refresh-token");
+    prismaClient.refreshToken.findUnique.mockResolvedValue(null);
+
+    await withContractApp(async (server) => {
+      const response = await sendRequest(server, {
+        method: "post",
+        path: "/auth/refresh",
+        body: { refreshToken: "refresh.jwt.token" },
+      });
+
+      expect(response.status).toBe(401);
+      expect(jwtSessionTokens.issueAccessToken).not.toHaveBeenCalled();
+    });
+  });
+
+  it("post /auth/refresh rejects expired refresh tokens", async () => {
+    jwtSessionTokens.verifyRefreshToken.mockResolvedValue({
+      sub: "user_1",
+      email: "sarah@example.com",
+      emailVerified: true,
+    });
+    jwtSessionTokens.hashRefreshToken.mockReturnValue("hashed-refresh-token");
+    prismaClient.refreshToken.findUnique.mockResolvedValue({
+      id: "refresh_token_1",
+      userId: "user_1",
+      expiresAt: new Date(Date.now() - 60_000),
+      revokedAt: null,
+    });
+
+    await withContractApp(async (server) => {
+      const response = await sendRequest(server, {
+        method: "post",
+        path: "/auth/refresh",
+        body: { refreshToken: "refresh.jwt.token" },
+      });
+
+      expect(response.status).toBe(401);
+      expect(jwtSessionTokens.issueAccessToken).not.toHaveBeenCalled();
+    });
+  });
+
+  it("post /auth/refresh rejects revoked refresh tokens", async () => {
+    jwtSessionTokens.verifyRefreshToken.mockResolvedValue({
+      sub: "user_1",
+      email: "sarah@example.com",
+      emailVerified: true,
+    });
+    jwtSessionTokens.hashRefreshToken.mockReturnValue("hashed-refresh-token");
+    prismaClient.refreshToken.findUnique.mockResolvedValue({
+      id: "refresh_token_1",
+      userId: "user_1",
+      expiresAt: new Date(Date.now() + 60_000),
+      revokedAt: new Date(),
+    });
+
+    await withContractApp(async (server) => {
+      const response = await sendRequest(server, {
+        method: "post",
+        path: "/auth/refresh",
+        body: { refreshToken: "refresh.jwt.token" },
+      });
+
+      expect(response.status).toBe(401);
+      expect(jwtSessionTokens.issueAccessToken).not.toHaveBeenCalled();
+    });
+  });
+
+  it("post /auth/logout revokes a valid refresh token", async () => {
+    jwtSessionTokens.verifyRefreshToken.mockResolvedValue({
+      sub: "user_1",
+      email: "sarah@example.com",
+      emailVerified: true,
+    });
+    jwtSessionTokens.hashRefreshToken.mockReturnValue("hashed-refresh-token");
+    prismaClient.refreshToken.findUnique.mockResolvedValue({
+      id: "refresh_token_1",
+      userId: "user_1",
+      expiresAt: new Date(Date.now() + 60_000),
+      revokedAt: null,
+    });
+
+    await withContractApp(async (server) => {
+      const response = await sendRequest(server, {
+        method: "post",
+        path: "/auth/logout",
+        body: { refreshToken: "refresh.jwt.token" },
+      });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ loggedOut: true });
+      expect(prismaClient.refreshToken.update).toHaveBeenCalledWith({
+        where: { id: "refresh_token_1" },
+        data: { revokedAt: expect.any(Date) },
+      });
+      expect(JSON.stringify(response.body)).not.toContain("hashed-refresh-token");
     });
   });
 

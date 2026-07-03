@@ -11,8 +11,10 @@ import { EmailService } from "../email/email.service.js";
 import { PrismaService } from "../database/prisma.service.js";
 import type { EmailVerificationRequestDto } from "./dto/email-verification-request.dto.js";
 import type { LoginRequestDto } from "./dto/login-request.dto.js";
+import type { LogoutRequestDto } from "./dto/logout-request.dto.js";
 import type { PasswordResetConfirmationRequestDto } from "./dto/password-reset-confirmation-request.dto.js";
 import type { PasswordResetRequestDto } from "./dto/password-reset-request.dto.js";
+import type { RefreshSessionRequestDto } from "./dto/refresh-session-request.dto.js";
 import type { RegisterRequestDto } from "./dto/register-request.dto.js";
 import {
   BcryptPasswordHasherService,
@@ -24,10 +26,12 @@ import { JwtSessionConfigService, JwtSessionTokenService } from "./session/index
 import type { CurrentUserResponse } from "./types/current-user-response.type.js";
 import type { EmailVerificationResponse } from "./types/email-verification-response.type.js";
 import type { LoginSessionResponse } from "./types/login-session-response.type.js";
+import type { LogoutResponse } from "./types/logout-response.type.js";
 import type {
   PasswordResetConfirmationResponse,
   PasswordResetRequestResponse,
 } from "./types/password-reset-response.type.js";
+import type { RefreshSessionResponse } from "./types/refresh-session-response.type.js";
 import type { RegistrationResponse } from "./types/registration-response.type.js";
 
 interface RegistrationPrismaClient {
@@ -145,6 +149,33 @@ interface RegistrationPrismaClient {
     update(args: {
       readonly where: { readonly id: string };
       readonly data: { readonly usedAt: Date };
+    }): Promise<unknown>;
+  };
+  readonly refreshToken: {
+    create(args: {
+      readonly data: {
+        readonly userId: string;
+        readonly tokenHash: string;
+        readonly expiresAt: Date;
+      };
+    }): Promise<unknown>;
+    findUnique(args: {
+      readonly where: { readonly tokenHash: string };
+      readonly select: {
+        readonly id: true;
+        readonly userId: true;
+        readonly expiresAt: true;
+        readonly revokedAt: true;
+      };
+    }): Promise<{
+      readonly id: string;
+      readonly userId: string;
+      readonly expiresAt: Date;
+      readonly revokedAt: Date | null;
+    } | null>;
+    update(args: {
+      readonly where: { readonly id: string };
+      readonly data: { readonly revokedAt: Date };
     }): Promise<unknown>;
   };
   $transaction<T>(callback: (transaction: RegistrationPrismaClient) => Promise<T>): Promise<T>;
@@ -321,6 +352,78 @@ export class AuthService {
       throw new ForbiddenException("Email verification is required before login.");
     }
 
+    const claims = {
+      sub: user.id,
+      email: user.email,
+      emailVerified: true,
+    } as const;
+    const accessToken = await this.jwtSessionTokens.issueAccessToken(claims);
+    const refreshToken = await this.jwtSessionTokens.issueRefreshToken(claims);
+    const tokenHash = this.jwtSessionTokens.hashRefreshToken(refreshToken);
+    const refreshTokenExpiresAt = this.jwtSessionTokens.getRefreshTokenExpiryDate();
+    const { accessTokenExpiresIn, refreshTokenExpiresIn } =
+      this.jwtSessionConfig.getRequiredConfig();
+
+    await prisma.refreshToken.create({
+      data: {
+        userId: user.id,
+        tokenHash,
+        expiresAt: refreshTokenExpiresAt,
+      },
+    });
+
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        emailVerified: true,
+      },
+      accessToken,
+      accessTokenExpiresIn,
+      refreshToken,
+      refreshTokenExpiresIn,
+    };
+  }
+
+  async refreshSession(
+    refreshSessionRequest: RefreshSessionRequestDto,
+  ): Promise<RefreshSessionResponse> {
+    const claims = await this.jwtSessionTokens.verifyRefreshToken(
+      refreshSessionRequest.refreshToken,
+    );
+    const prisma = this.prismaService.client as unknown as RegistrationPrismaClient;
+    const tokenHash = this.jwtSessionTokens.hashRefreshToken(refreshSessionRequest.refreshToken);
+    const storedRefreshToken = await prisma.refreshToken.findUnique({
+      where: { tokenHash },
+      select: {
+        id: true,
+        userId: true,
+        expiresAt: true,
+        revokedAt: true,
+      },
+    });
+
+    if (!storedRefreshToken || storedRefreshToken.revokedAt) {
+      throw new UnauthorizedException("Refresh token is invalid.");
+    }
+
+    if (storedRefreshToken.expiresAt <= new Date()) {
+      throw new UnauthorizedException("Refresh token has expired.");
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: storedRefreshToken.userId },
+      select: {
+        id: true,
+        email: true,
+        emailVerified: true,
+      },
+    });
+
+    if (!user?.email || !user.emailVerified || user.id !== claims.sub) {
+      throw new UnauthorizedException("Refresh token is invalid.");
+    }
+
     const accessToken = await this.jwtSessionTokens.issueAccessToken({
       sub: user.id,
       email: user.email,
@@ -337,6 +440,36 @@ export class AuthService {
       accessToken,
       accessTokenExpiresIn,
     };
+  }
+
+  async logout(logoutRequest: LogoutRequestDto): Promise<LogoutResponse> {
+    await this.jwtSessionTokens.verifyRefreshToken(logoutRequest.refreshToken);
+    const prisma = this.prismaService.client as unknown as RegistrationPrismaClient;
+    const tokenHash = this.jwtSessionTokens.hashRefreshToken(logoutRequest.refreshToken);
+    const storedRefreshToken = await prisma.refreshToken.findUnique({
+      where: { tokenHash },
+      select: {
+        id: true,
+        userId: true,
+        expiresAt: true,
+        revokedAt: true,
+      },
+    });
+
+    if (!storedRefreshToken || storedRefreshToken.revokedAt) {
+      throw new UnauthorizedException("Refresh token is invalid.");
+    }
+
+    if (storedRefreshToken.expiresAt <= new Date()) {
+      throw new UnauthorizedException("Refresh token has expired.");
+    }
+
+    await prisma.refreshToken.update({
+      where: { id: storedRefreshToken.id },
+      data: { revokedAt: new Date() },
+    });
+
+    return { loggedOut: true };
   }
 
   async getCurrentUser(userId: string): Promise<CurrentUserResponse> {

@@ -1,9 +1,8 @@
-import { createHmac } from "crypto";
+import { createHash, createHmac } from "crypto";
 import {
   Inject,
   Injectable,
   InternalServerErrorException,
-  NotImplementedException,
   UnauthorizedException,
 } from "@nestjs/common";
 import { JwtSessionConfigService } from "./jwt-session.config.js";
@@ -19,6 +18,15 @@ export interface JwtAccessTokenPayload extends JwtSessionClaims {
   readonly iss: "salense-api";
   readonly iat: number;
   readonly exp: number;
+  readonly typ: "access";
+}
+
+export interface JwtRefreshTokenPayload extends JwtSessionClaims {
+  readonly aud: "salense-api";
+  readonly iss: "salense-api";
+  readonly iat: number;
+  readonly exp: number;
+  readonly typ: "refresh";
 }
 
 const SECONDS_PER_MINUTE = 60;
@@ -43,20 +51,32 @@ export class JwtSessionTokenService {
       iss: "salense-api",
       iat: issuedAt,
       exp: issuedAt + parseExpirySeconds(config.accessTokenExpiresIn),
+      typ: "access",
     };
 
     return signJwt(payload, config.accessTokenSecret);
   }
 
-  issueRefreshToken(claims: JwtSessionClaims): Promise<string> {
-    void claims;
-    this.jwtSessionConfig.getRequiredConfig();
-    throw new NotImplementedException("JWT refresh token issuing is not implemented yet.");
+  async issueRefreshToken(claims: JwtSessionClaims): Promise<string> {
+    const config = this.jwtSessionConfig.getRequiredConfig();
+    const issuedAt = Math.floor(Date.now() / 1000);
+    const payload: JwtRefreshTokenPayload = {
+      sub: claims.sub,
+      email: claims.email,
+      emailVerified: true,
+      aud: "salense-api",
+      iss: "salense-api",
+      iat: issuedAt,
+      exp: issuedAt + parseExpirySeconds(config.refreshTokenExpiresIn),
+      typ: "refresh",
+    };
+
+    return signJwt(payload, config.refreshTokenSecret);
   }
 
   async verifyAccessToken(token: string): Promise<JwtSessionClaims> {
     const config = this.jwtSessionConfig.getRequiredAccessTokenConfig();
-    const payload = verifyJwt(token, config.accessTokenSecret);
+    const payload = verifyJwt(token, config.accessTokenSecret, "access");
     const now = Math.floor(Date.now() / 1000);
 
     if (payload.exp <= now) {
@@ -70,14 +90,34 @@ export class JwtSessionTokenService {
     };
   }
 
-  verifyRefreshToken(token: string): Promise<JwtSessionClaims> {
-    void token;
-    this.jwtSessionConfig.getRequiredConfig();
-    throw new NotImplementedException("JWT refresh token verification is not implemented yet.");
+  async verifyRefreshToken(token: string): Promise<JwtSessionClaims> {
+    const config = this.jwtSessionConfig.getRequiredConfig();
+    const payload = verifyJwt(token, config.refreshTokenSecret, "refresh");
+    const now = Math.floor(Date.now() / 1000);
+
+    if (payload.exp <= now) {
+      throw new UnauthorizedException("JWT refresh token has expired.");
+    }
+
+    return {
+      sub: payload.sub,
+      email: payload.email,
+      emailVerified: true,
+    };
+  }
+
+  hashRefreshToken(token: string): string {
+    return createHash("sha256").update(token).digest("hex");
+  }
+
+  getRefreshTokenExpiryDate(now: Date = new Date()): Date {
+    const config = this.jwtSessionConfig.getRequiredConfig();
+
+    return new Date(now.getTime() + parseExpirySeconds(config.refreshTokenExpiresIn) * 1000);
   }
 }
 
-function signJwt(payload: JwtAccessTokenPayload, secret: string): string {
+function signJwt(payload: JwtAccessTokenPayload | JwtRefreshTokenPayload, secret: string): string {
   const header = { alg: "HS256", typ: "JWT" };
   const encodedHeader = encodeBase64Url(JSON.stringify(header));
   const encodedPayload = encodeBase64Url(JSON.stringify(payload));
@@ -88,11 +128,15 @@ function signJwt(payload: JwtAccessTokenPayload, secret: string): string {
   return `${encodedHeader}.${encodedPayload}.${signature}`;
 }
 
-function verifyJwt(token: string, secret: string): JwtAccessTokenPayload {
+function verifyJwt(
+  token: string,
+  secret: string,
+  tokenType: JwtAccessTokenPayload["typ"] | JwtRefreshTokenPayload["typ"],
+): JwtAccessTokenPayload | JwtRefreshTokenPayload {
   const [encodedHeader, encodedPayload, encodedSignature] = token.split(".");
 
   if (!encodedHeader || !encodedPayload || !encodedSignature) {
-    throw new UnauthorizedException("JWT access token is invalid.");
+    throw new UnauthorizedException(`JWT ${tokenType} token is invalid.`);
   }
 
   const expectedSignature = createHmac("sha256", secret)
@@ -100,21 +144,23 @@ function verifyJwt(token: string, secret: string): JwtAccessTokenPayload {
     .digest("base64url");
 
   if (encodedSignature !== expectedSignature) {
-    throw new UnauthorizedException("JWT access token is invalid.");
+    throw new UnauthorizedException(`JWT ${tokenType} token is invalid.`);
   }
 
   const header = decodeBase64UrlJson(encodedHeader) as {
     readonly alg?: unknown;
     readonly typ?: unknown;
   };
-  const payload = decodeBase64UrlJson(encodedPayload) as Partial<JwtAccessTokenPayload>;
+  const payload = decodeBase64UrlJson(encodedPayload) as Partial<
+    JwtAccessTokenPayload | JwtRefreshTokenPayload
+  >;
 
   if (header.alg !== "HS256" || header.typ !== "JWT") {
-    throw new UnauthorizedException("JWT access token is invalid.");
+    throw new UnauthorizedException(`JWT ${tokenType} token is invalid.`);
   }
 
-  if (!isAccessTokenPayload(payload)) {
-    throw new UnauthorizedException("JWT access token is invalid.");
+  if (!isSessionTokenPayload(payload, tokenType)) {
+    throw new UnauthorizedException(`JWT ${tokenType} token is invalid.`);
   }
 
   return payload;
@@ -132,15 +178,17 @@ function decodeBase64UrlJson(value: string): unknown {
   }
 }
 
-function isAccessTokenPayload(
-  payload: Partial<JwtAccessTokenPayload>,
-): payload is JwtAccessTokenPayload {
+function isSessionTokenPayload(
+  payload: Partial<JwtAccessTokenPayload | JwtRefreshTokenPayload>,
+  tokenType: JwtAccessTokenPayload["typ"] | JwtRefreshTokenPayload["typ"],
+): payload is JwtAccessTokenPayload | JwtRefreshTokenPayload {
   return (
     typeof payload.sub === "string" &&
     typeof payload.email === "string" &&
     payload.emailVerified === true &&
     payload.aud === "salense-api" &&
     payload.iss === "salense-api" &&
+    payload.typ === tokenType &&
     typeof payload.iat === "number" &&
     typeof payload.exp === "number"
   );

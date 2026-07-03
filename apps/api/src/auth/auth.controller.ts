@@ -4,7 +4,6 @@ import {
   Get,
   HttpCode,
   Inject,
-  NotImplementedException,
   Post,
   Req,
   UnauthorizedException,
@@ -15,9 +14,13 @@ import { EmailVerificationRequestDto } from "./dto/email-verification-request.dt
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- Nest validation requires runtime DTO metadata.
 import { LoginRequestDto } from "./dto/login-request.dto.js";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- Nest validation requires runtime DTO metadata.
+import { LogoutRequestDto } from "./dto/logout-request.dto.js";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- Nest validation requires runtime DTO metadata.
 import { PasswordResetConfirmationRequestDto } from "./dto/password-reset-confirmation-request.dto.js";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- Nest validation requires runtime DTO metadata.
 import { PasswordResetRequestDto } from "./dto/password-reset-request.dto.js";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- Nest validation requires runtime DTO metadata.
+import { RefreshSessionRequestDto } from "./dto/refresh-session-request.dto.js";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- Nest validation requires runtime DTO metadata.
 import { RegisterRequestDto } from "./dto/register-request.dto.js";
 import { JwtAccessTokenGuard, type AuthenticatedRequest } from "./guards/jwt-access-token.guard.js";
@@ -25,10 +28,12 @@ import { AuthService } from "./auth.service.js";
 import type { CurrentUserResponse } from "./types/current-user-response.type.js";
 import type { EmailVerificationResponse } from "./types/email-verification-response.type.js";
 import type { LoginSessionResponse } from "./types/login-session-response.type.js";
+import type { LogoutResponse } from "./types/logout-response.type.js";
 import type {
   PasswordResetConfirmationResponse,
   PasswordResetRequestResponse,
 } from "./types/password-reset-response.type.js";
+import type { RefreshSessionResponse } from "./types/refresh-session-response.type.js";
 import type { RegistrationResponse } from "./types/registration-response.type.js";
 
 @Controller("auth")
@@ -44,6 +49,14 @@ export class AuthController {
   @HttpCode(200)
   login(@Body() loginRequest: LoginRequestDto): Promise<LoginSessionResponse> {
     return this.authService.login(loginRequest);
+  }
+
+  @Post("refresh")
+  @HttpCode(200)
+  refreshSession(
+    @Body() refreshSessionRequest: RefreshSessionRequestDto,
+  ): Promise<RefreshSessionResponse> {
+    return this.authService.refreshSession(refreshSessionRequest);
   }
 
   @Post("email-verification")
@@ -83,7 +96,8 @@ export class AuthController {
   }
 
   @Post("logout")
-  logout(): never {
-    throw new NotImplementedException("Logout is not implemented in the Phase 1 skeleton.");
+  @HttpCode(200)
+  logout(@Body() logoutRequest: LogoutRequestDto): Promise<LogoutResponse> {
+    return this.authService.logout(logoutRequest);
   }
 }

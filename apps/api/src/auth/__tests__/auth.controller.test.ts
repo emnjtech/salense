@@ -5,10 +5,12 @@ describe("AuthController", () => {
   const authService = {
     register: jest.fn(),
     login: jest.fn(),
+    refreshSession: jest.fn(),
     verifyEmail: jest.fn(),
     requestPasswordReset: jest.fn(),
     confirmPasswordReset: jest.fn(),
     getCurrentUser: jest.fn(),
+    logout: jest.fn(),
   } as unknown as AuthService;
   const controller = new AuthController(authService);
 
@@ -42,6 +44,8 @@ describe("AuthController", () => {
       user: { id: "user_1", email: "sarah@example.com", emailVerified: true as const },
       accessToken: "access.jwt.token",
       accessTokenExpiresIn: "15m",
+      refreshToken: "refresh.jwt.token",
+      refreshTokenExpiresIn: "30d",
     };
     jest.mocked(authService.login).mockResolvedValueOnce(response);
 
@@ -51,6 +55,19 @@ describe("AuthController", () => {
         password: "Password123!",
       }),
     ).resolves.toBe(response);
+  });
+
+  it("delegates session refresh to AuthService", async () => {
+    const response = {
+      user: { id: "user_1", email: "sarah@example.com", emailVerified: true as const },
+      accessToken: "new.access.jwt.token",
+      accessTokenExpiresIn: "15m",
+    };
+    jest.mocked(authService.refreshSession).mockResolvedValueOnce(response);
+
+    await expect(controller.refreshSession({ refreshToken: "refresh.jwt.token" })).resolves.toBe(
+      response,
+    );
   });
 
   it("delegates email verification to AuthService", async () => {
@@ -98,5 +115,12 @@ describe("AuthController", () => {
         user: { sub: "user_1", email: "sarah@example.com", emailVerified: true },
       }),
     ).resolves.toBe(response);
+  });
+
+  it("delegates logout to AuthService", async () => {
+    const response = { loggedOut: true as const };
+    jest.mocked(authService.logout).mockResolvedValueOnce(response);
+
+    await expect(controller.logout({ refreshToken: "refresh.jwt.token" })).resolves.toBe(response);
   });
 });

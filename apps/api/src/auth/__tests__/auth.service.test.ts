@@ -44,9 +44,17 @@ function createAuthServiceMocks(): {
   readonly updateUser: jest.Mock;
   readonly updateVerificationToken: jest.Mock;
   readonly updatePasswordResetToken: jest.Mock;
+  readonly createRefreshToken: jest.Mock;
+  readonly findRefreshToken: jest.Mock;
+  readonly updateRefreshToken: jest.Mock;
   readonly transaction: jest.Mock;
   readonly issueAccessToken: jest.Mock;
+  readonly issueRefreshToken: jest.Mock;
+  readonly verifyRefreshToken: jest.Mock;
+  readonly hashRefreshToken: jest.Mock;
+  readonly getRefreshTokenExpiryDate: jest.Mock;
   readonly getRequiredAccessTokenConfig: jest.Mock;
+  readonly getRequiredConfig: jest.Mock;
 } {
   const findUnique = jest.fn();
   const create = jest.fn();
@@ -66,13 +74,22 @@ function createAuthServiceMocks(): {
   const updateUser = jest.fn();
   const updateVerificationToken = jest.fn();
   const updatePasswordResetToken = jest.fn();
+  const createRefreshToken = jest.fn();
+  const findRefreshToken = jest.fn();
+  const updateRefreshToken = jest.fn();
   const issueAccessToken = jest.fn();
+  const issueRefreshToken = jest.fn();
+  const verifyRefreshToken = jest.fn();
+  const hashRefreshToken = jest.fn();
+  const getRefreshTokenExpiryDate = jest.fn();
   const getRequiredAccessTokenConfig = jest.fn();
+  const getRequiredConfig = jest.fn();
   const transaction = jest.fn(async (callback: (client: unknown) => Promise<unknown>) =>
     callback({
       user: { update: updateUser },
       emailVerificationToken: { update: updateVerificationToken },
       passwordResetToken: { update: updatePasswordResetToken },
+      refreshToken: { update: updateRefreshToken },
     }),
   );
   const prismaService = {
@@ -90,6 +107,11 @@ function createAuthServiceMocks(): {
         create: createPasswordResetToken,
         findUnique: findPasswordResetToken,
         update: updatePasswordResetToken,
+      },
+      refreshToken: {
+        create: createRefreshToken,
+        findUnique: findRefreshToken,
+        update: updateRefreshToken,
       },
       $transaction: transaction,
     },
@@ -109,9 +131,16 @@ function createAuthServiceMocks(): {
     getExpiryDate: getPasswordResetExpiryDate,
   } as unknown as PasswordResetTokenService;
   const emailService = { sendVerificationEmail, sendPasswordResetEmail } as unknown as EmailService;
-  const jwtSessionTokens = { issueAccessToken } as unknown as JwtSessionTokenService;
+  const jwtSessionTokens = {
+    issueAccessToken,
+    issueRefreshToken,
+    verifyRefreshToken,
+    hashRefreshToken,
+    getRefreshTokenExpiryDate,
+  } as unknown as JwtSessionTokenService;
   const jwtSessionConfig = {
     getRequiredAccessTokenConfig,
+    getRequiredConfig,
   } as unknown as JwtSessionConfigService;
 
   return {
@@ -142,9 +171,17 @@ function createAuthServiceMocks(): {
     updateUser,
     updateVerificationToken,
     updatePasswordResetToken,
+    createRefreshToken,
+    findRefreshToken,
+    updateRefreshToken,
     transaction,
     issueAccessToken,
+    issueRefreshToken,
+    verifyRefreshToken,
+    hashRefreshToken,
+    getRefreshTokenExpiryDate,
     getRequiredAccessTokenConfig,
+    getRequiredConfig,
   };
 }
 
@@ -308,7 +345,7 @@ describe("AuthService", () => {
     expect(mocks.transaction).not.toHaveBeenCalled();
   });
 
-  it("issues an access token for a verified user with a matching password", async () => {
+  it("issues access and refresh tokens for a verified user with a matching password", async () => {
     const mocks = createAuthServiceMocks();
     mocks.findUnique.mockResolvedValue({
       id: "user_1",
@@ -318,9 +355,14 @@ describe("AuthService", () => {
     });
     mocks.comparePassword.mockResolvedValue(true);
     mocks.issueAccessToken.mockResolvedValue("access.jwt.token");
-    mocks.getRequiredAccessTokenConfig.mockReturnValue({
+    mocks.issueRefreshToken.mockResolvedValue("refresh.jwt.token");
+    mocks.hashRefreshToken.mockReturnValue("hashed-refresh-token");
+    mocks.getRefreshTokenExpiryDate.mockReturnValue(new Date("2026-08-02T12:00:00.000Z"));
+    mocks.getRequiredConfig.mockReturnValue({
       accessTokenSecret: "access-secret",
+      refreshTokenSecret: "refresh-secret",
       accessTokenExpiresIn: "15m",
+      refreshTokenExpiresIn: "30d",
     });
 
     await expect(
@@ -333,6 +375,8 @@ describe("AuthService", () => {
       },
       accessToken: "access.jwt.token",
       accessTokenExpiresIn: "15m",
+      refreshToken: "refresh.jwt.token",
+      refreshTokenExpiresIn: "30d",
     });
 
     expect(mocks.findUnique).toHaveBeenCalledWith({
@@ -349,6 +393,18 @@ describe("AuthService", () => {
       sub: "user_1",
       email: "sarah@example.com",
       emailVerified: true,
+    });
+    expect(mocks.issueRefreshToken).toHaveBeenCalledWith({
+      sub: "user_1",
+      email: "sarah@example.com",
+      emailVerified: true,
+    });
+    expect(mocks.createRefreshToken).toHaveBeenCalledWith({
+      data: {
+        userId: "user_1",
+        tokenHash: "hashed-refresh-token",
+        expiresAt: new Date("2026-08-02T12:00:00.000Z"),
+      },
     });
   });
 
@@ -420,9 +476,14 @@ describe("AuthService", () => {
     });
     mocks.comparePassword.mockResolvedValue(true);
     mocks.issueAccessToken.mockResolvedValue("access.jwt.token");
-    mocks.getRequiredAccessTokenConfig.mockReturnValue({
+    mocks.issueRefreshToken.mockResolvedValue("refresh.jwt.token");
+    mocks.hashRefreshToken.mockReturnValue("hashed-refresh-token");
+    mocks.getRefreshTokenExpiryDate.mockReturnValue(new Date("2026-08-02T12:00:00.000Z"));
+    mocks.getRequiredConfig.mockReturnValue({
       accessTokenSecret: "access-secret",
+      refreshTokenSecret: "refresh-secret",
       accessTokenExpiresIn: "15m",
+      refreshTokenExpiresIn: "30d",
     });
 
     const response = await mocks.service.login({
@@ -431,9 +492,133 @@ describe("AuthService", () => {
     });
 
     expect(JSON.stringify(response)).not.toContain("hashed-password");
+    expect(JSON.stringify(response)).not.toContain("hashed-refresh-token");
     expect(JSON.stringify(response)).not.toContain("Password123!");
-    expect(JSON.stringify(response)).not.toContain("refreshToken");
     expect(JSON.stringify(response)).not.toContain("session");
+  });
+
+  it("refreshes a valid stored refresh token with a new access token", async () => {
+    const mocks = createAuthServiceMocks();
+    mocks.verifyRefreshToken.mockResolvedValue({
+      sub: "user_1",
+      email: "sarah@example.com",
+      emailVerified: true,
+    });
+    mocks.hashRefreshToken.mockReturnValue("hashed-refresh-token");
+    mocks.findRefreshToken.mockResolvedValue({
+      id: "refresh_token_1",
+      userId: "user_1",
+      expiresAt: new Date(Date.now() + 60_000),
+      revokedAt: null,
+    });
+    mocks.findUnique.mockResolvedValue({
+      id: "user_1",
+      email: "sarah@example.com",
+      emailVerified: true,
+    });
+    mocks.issueAccessToken.mockResolvedValue("new.access.jwt.token");
+    mocks.getRequiredAccessTokenConfig.mockReturnValue({
+      accessTokenSecret: "access-secret",
+      accessTokenExpiresIn: "15m",
+    });
+
+    await expect(
+      mocks.service.refreshSession({ refreshToken: "refresh.jwt.token" }),
+    ).resolves.toEqual({
+      user: {
+        id: "user_1",
+        email: "sarah@example.com",
+        emailVerified: true,
+      },
+      accessToken: "new.access.jwt.token",
+      accessTokenExpiresIn: "15m",
+    });
+    expect(mocks.findRefreshToken).toHaveBeenCalledWith({
+      where: { tokenHash: "hashed-refresh-token" },
+      select: { id: true, userId: true, expiresAt: true, revokedAt: true },
+    });
+  });
+
+  it("rejects an invalid refresh token", async () => {
+    const mocks = createAuthServiceMocks();
+    mocks.verifyRefreshToken.mockResolvedValue({
+      sub: "user_1",
+      email: "sarah@example.com",
+      emailVerified: true,
+    });
+    mocks.hashRefreshToken.mockReturnValue("hashed-refresh-token");
+    mocks.findRefreshToken.mockResolvedValue(null);
+
+    await expect(
+      mocks.service.refreshSession({ refreshToken: "refresh.jwt.token" }),
+    ).rejects.toThrow(UnauthorizedException);
+    expect(mocks.issueAccessToken).not.toHaveBeenCalled();
+  });
+
+  it("rejects an expired stored refresh token", async () => {
+    const mocks = createAuthServiceMocks();
+    mocks.verifyRefreshToken.mockResolvedValue({
+      sub: "user_1",
+      email: "sarah@example.com",
+      emailVerified: true,
+    });
+    mocks.hashRefreshToken.mockReturnValue("hashed-refresh-token");
+    mocks.findRefreshToken.mockResolvedValue({
+      id: "refresh_token_1",
+      userId: "user_1",
+      expiresAt: new Date(Date.now() - 60_000),
+      revokedAt: null,
+    });
+
+    await expect(
+      mocks.service.refreshSession({ refreshToken: "refresh.jwt.token" }),
+    ).rejects.toThrow(UnauthorizedException);
+    expect(mocks.issueAccessToken).not.toHaveBeenCalled();
+  });
+
+  it("rejects a revoked refresh token", async () => {
+    const mocks = createAuthServiceMocks();
+    mocks.verifyRefreshToken.mockResolvedValue({
+      sub: "user_1",
+      email: "sarah@example.com",
+      emailVerified: true,
+    });
+    mocks.hashRefreshToken.mockReturnValue("hashed-refresh-token");
+    mocks.findRefreshToken.mockResolvedValue({
+      id: "refresh_token_1",
+      userId: "user_1",
+      expiresAt: new Date(Date.now() + 60_000),
+      revokedAt: new Date(),
+    });
+
+    await expect(
+      mocks.service.refreshSession({ refreshToken: "refresh.jwt.token" }),
+    ).rejects.toThrow(UnauthorizedException);
+    expect(mocks.issueAccessToken).not.toHaveBeenCalled();
+  });
+
+  it("revokes a valid refresh token during logout", async () => {
+    const mocks = createAuthServiceMocks();
+    mocks.verifyRefreshToken.mockResolvedValue({
+      sub: "user_1",
+      email: "sarah@example.com",
+      emailVerified: true,
+    });
+    mocks.hashRefreshToken.mockReturnValue("hashed-refresh-token");
+    mocks.findRefreshToken.mockResolvedValue({
+      id: "refresh_token_1",
+      userId: "user_1",
+      expiresAt: new Date(Date.now() + 60_000),
+      revokedAt: null,
+    });
+
+    await expect(mocks.service.logout({ refreshToken: "refresh.jwt.token" })).resolves.toEqual({
+      loggedOut: true,
+    });
+    expect(mocks.updateRefreshToken).toHaveBeenCalledWith({
+      where: { id: "refresh_token_1" },
+      data: { revokedAt: expect.any(Date) },
+    });
   });
 
   it("returns the safe current user profile", async () => {
