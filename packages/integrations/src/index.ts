@@ -1,1 +1,13 @@
-export const integrationsPackageName = "@salense/integrations";
+export * from "./errors/integration-error.js";
+export * from "./factory/integration-factory.js";
+export * from "./providers/integration-provider.js";
+export * from "./providers/placeholder-integration-provider.js";
+export * from "./registry/integration-registry.js";
+export * from "./testing/create-placeholder-registry.js";
+export * from "./types/connection-health.js";
+export * from "./types/integration-capabilities.js";
+export * from "./types/integration-configuration.js";
+export * from "./types/integration-di.tokens.js";
+export * from "./types/integration-platform.js";
+export * from "./types/synchronisation-context.js";
+export * from "./types/synchronisation-result.js";
