@@ -10,3 +10,5 @@ Required runtime variables:
 Scheduling is explicit. Connecting a store does not silently create a recurring job yet.
 
 Version 1 remains read-only: scheduled jobs call the existing WooCommerce sync worker and must not write to WooCommerce.
+
+See [WooCommerce integration checkpoint](./woocommerce-integration-checkpoint.md) for the wider Phase 2 status and remaining synchronisation gaps.
