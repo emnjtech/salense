@@ -2,6 +2,7 @@ export * from "./errors/integration-error.js";
 export * from "./factory/integration-factory.js";
 export * from "./providers/integration-provider.js";
 export * from "./providers/placeholder-integration-provider.js";
+export * from "./providers/woocommerce/index.js";
 export * from "./registry/integration-registry.js";
 export * from "./testing/create-placeholder-registry.js";
 export * from "./types/connection-health.js";

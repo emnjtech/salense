@@ -6,6 +6,7 @@ import {
   IntegrationPlatform,
   IntegrationRegistry,
   PlaceholderIntegrationProvider,
+  WooCommerceIntegrationProvider,
 } from "@salense/integrations";
 
 @Module({
@@ -14,7 +15,7 @@ import {
       provide: INTEGRATION_REGISTRY,
       useFactory: (): IntegrationRegistry =>
         new IntegrationRegistry([
-          new PlaceholderIntegrationProvider(IntegrationPlatform.WooCommerce),
+          new WooCommerceIntegrationProvider(),
           new PlaceholderIntegrationProvider(IntegrationPlatform.AmazonSeller),
           new PlaceholderIntegrationProvider(IntegrationPlatform.TikTokShop),
         ]),
