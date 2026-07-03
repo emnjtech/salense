@@ -1,0 +1,253 @@
+export enum StorePlatform {
+  WooCommerce = "WOOCOMMERCE",
+  AmazonSeller = "AMAZON_SELLER",
+  TikTokShop = "TIKTOK_SHOP",
+}
+
+export enum StoreConnectionStatus {
+  PendingValidation = "PENDING_VALIDATION",
+  Connected = "CONNECTED",
+  Synchronising = "SYNCHRONISING",
+  Disconnected = "DISCONNECTED",
+  AuthenticationExpired = "AUTHENTICATION_EXPIRED",
+  Error = "ERROR",
+}
+
+export enum WooCommerceApiVersion {
+  WcV3 = "wc/v3",
+}
+
+export interface SupportedStorePlatform {
+  readonly platform: StorePlatform;
+  readonly label: string;
+  readonly requiresStoreUrl: boolean;
+  readonly requiresRegion: boolean;
+}
+
+export interface ConnectedStore {
+  readonly id: string;
+  readonly businessId: string;
+  readonly platform: StorePlatform;
+  readonly storeName: string;
+  readonly storeUrl: string | null;
+  readonly region: string | null;
+  readonly connectionStatus: StoreConnectionStatus;
+  readonly lastSynchronisedAt: string | null;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface StoreSyncCursorStatus {
+  readonly errorSummary: Readonly<Record<string, unknown>> | null;
+  readonly lastAttemptedSyncedAt: string | null;
+  readonly lastSuccessfulSyncedAt: string | null;
+  readonly resource: string;
+  readonly status: string;
+}
+
+export interface StoreSyncJobStatus {
+  readonly failedReason?: string;
+  readonly finishedAt?: string;
+  readonly jobId: string;
+  readonly platform: StorePlatform.WooCommerce;
+  readonly queuedAt: string;
+  readonly status: "QUEUED" | "ACTIVE" | "COMPLETED" | "FAILED" | "UNKNOWN";
+  readonly storeId: string;
+}
+
+export interface StoreSyncStatus {
+  readonly connectionStatus: StoreConnectionStatus;
+  readonly cursors: readonly StoreSyncCursorStatus[];
+  readonly jobs: readonly StoreSyncJobStatus[];
+  readonly lastSynchronisedAt: string | null;
+  readonly platform: StorePlatform;
+  readonly storeId: string;
+}
+
+export interface WooCommerceConnectionInput {
+  readonly apiVersion: WooCommerceApiVersion;
+  readonly consumerKey: string;
+  readonly consumerSecret: string;
+  readonly storeName: string;
+  readonly storeUrl: string;
+}
+
+export interface ManualSyncJobResponse {
+  readonly jobId: string;
+  readonly platform: StorePlatform;
+  readonly queuedAt: string;
+  readonly status: "QUEUED";
+  readonly storeId: string;
+}
+
+export interface SyncScheduleResponse {
+  readonly everyMs: number;
+  readonly jobId: string;
+  readonly platform: StorePlatform;
+  readonly scheduledAt: string;
+  readonly status: "SCHEDULED";
+  readonly storeId: string;
+}
+
+export interface SyncScheduleRemovalResponse {
+  readonly jobId: string;
+  readonly platform: StorePlatform;
+  readonly removedAt: string;
+  readonly status: "REMOVED" | "NOT_FOUND";
+  readonly storeId: string;
+}
+
+export interface DisconnectStoreResponse {
+  readonly disconnectedAt: string | null;
+  readonly platform: StorePlatform;
+  readonly status: StoreConnectionStatus.Disconnected;
+  readonly storeId: string;
+}
+
+export interface StoreIntegrationsApiClient {
+  listSupportedPlatforms(): Promise<readonly SupportedStorePlatform[]>;
+  listConnectedStores(): Promise<readonly ConnectedStore[]>;
+  connectWooCommerce(input: WooCommerceConnectionInput): Promise<ConnectedStore>;
+  requestManualSync(storeId: string): Promise<ManualSyncJobResponse>;
+  scheduleSync(storeId: string): Promise<SyncScheduleResponse>;
+  removeSchedule(storeId: string): Promise<SyncScheduleRemovalResponse>;
+  disconnectStore(storeId: string): Promise<DisconnectStoreResponse>;
+  getStoreSyncStatus(storeId: string): Promise<StoreSyncStatus>;
+}
+
+export class ApiClientError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiClientError";
+    this.status = status;
+  }
+}
+
+interface StoreIntegrationsApiClientOptions {
+  readonly accessTokenProvider: () => string | null;
+  readonly baseUrl?: string;
+  readonly fetchImpl?: typeof fetch;
+}
+
+export function createStoreIntegrationsApiClient(
+  options: StoreIntegrationsApiClientOptions,
+): StoreIntegrationsApiClient {
+  const baseUrl = trimTrailingSlash(options.baseUrl ?? getDefaultApiBaseUrl());
+  const fetchImpl = options.fetchImpl ?? fetch;
+
+  async function request<TResponse>(path: string, init: RequestInit = {}): Promise<TResponse> {
+    const token = options.accessTokenProvider();
+    const headers = new Headers(init.headers);
+
+    if (init.body && !headers.has("content-type")) {
+      headers.set("content-type", "application/json");
+    }
+
+    if (token) {
+      headers.set("authorization", `Bearer ${token}`);
+    }
+
+    const response = await fetchImpl(`${baseUrl}${path}`, {
+      ...init,
+      headers,
+    });
+
+    if (!response.ok) {
+      throw new ApiClientError(await getErrorMessage(response), response.status);
+    }
+
+    return (await response.json()) as TResponse;
+  }
+
+  return {
+    connectWooCommerce(input) {
+      return request<ConnectedStore>("/store-integrations/connect", {
+        body: JSON.stringify(toWooCommerceConnectionPayload(input)),
+        method: "POST",
+      });
+    },
+    disconnectStore(storeId) {
+      return request<DisconnectStoreResponse>("/store-integrations/disconnect", {
+        body: JSON.stringify({ storeId }),
+        method: "POST",
+      });
+    },
+    getStoreSyncStatus(storeId) {
+      return request<StoreSyncStatus>(`/store-integrations/stores/${storeId}/sync-status`);
+    },
+    listConnectedStores() {
+      return request<readonly ConnectedStore[]>("/store-integrations/stores");
+    },
+    listSupportedPlatforms() {
+      return request<readonly SupportedStorePlatform[]>("/store-integrations/supported-platforms");
+    },
+    removeSchedule(storeId) {
+      return request<SyncScheduleRemovalResponse>("/store-integrations/sync-schedules/remove", {
+        body: JSON.stringify({ storeId }),
+        method: "POST",
+      });
+    },
+    requestManualSync(storeId) {
+      return request<ManualSyncJobResponse>("/store-integrations/sync", {
+        body: JSON.stringify({ storeId }),
+        method: "POST",
+      });
+    },
+    scheduleSync(storeId) {
+      return request<SyncScheduleResponse>("/store-integrations/sync-schedules", {
+        body: JSON.stringify({ storeId }),
+        method: "POST",
+      });
+    },
+  };
+}
+
+export function getDefaultApiBaseUrl(): string {
+  return process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
+}
+
+export function toWooCommerceConnectionPayload(input: WooCommerceConnectionInput): {
+  readonly platform: StorePlatform.WooCommerce;
+  readonly storeName: string;
+  readonly storeUrl: string;
+  readonly wooCommerceCredentials: {
+    readonly apiVersion: WooCommerceApiVersion;
+    readonly consumerKey: string;
+    readonly consumerSecret: string;
+  };
+} {
+  return {
+    platform: StorePlatform.WooCommerce,
+    storeName: input.storeName.trim(),
+    storeUrl: input.storeUrl.trim(),
+    wooCommerceCredentials: {
+      apiVersion: input.apiVersion,
+      consumerKey: input.consumerKey.trim(),
+      consumerSecret: input.consumerSecret.trim(),
+    },
+  };
+}
+
+async function getErrorMessage(response: Response): Promise<string> {
+  try {
+    const body = (await response.json()) as { readonly message?: unknown };
+
+    if (typeof body.message === "string") {
+      return body.message;
+    }
+
+    if (Array.isArray(body.message)) {
+      return body.message.filter((message) => typeof message === "string").join(" ");
+    }
+  } catch {
+    return `Request failed with status ${response.status}.`;
+  }
+
+  return `Request failed with status ${response.status}.`;
+}
+
+function trimTrailingSlash(value: string): string {
+  return value.replace(/\/+$/u, "");
+}
