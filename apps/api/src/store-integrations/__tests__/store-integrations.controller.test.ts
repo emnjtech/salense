@@ -2,6 +2,7 @@ import { UnauthorizedException } from "@nestjs/common";
 import { StoreIntegrationsController } from "../store-integrations.controller.js";
 import type { StoreIntegrationsService } from "../store-integrations.service.js";
 import type { ConnectedStoreResponse } from "../types/connected-store-response.type.js";
+import { StoreConnectionStatus } from "../types/store-connection-status.enum.js";
 import { StorePlatform } from "../types/store-platform.enum.js";
 import { WooCommerceApiVersion } from "@salense/integrations";
 
@@ -49,9 +50,19 @@ describe("StoreIntegrationsController", () => {
   });
 
   it("delegates connection preparation for authenticated users", async () => {
-    jest.mocked(storeIntegrationsService.prepareStoreConnection).mockRejectedValueOnce(
-      new Error("placeholder"),
-    );
+    const response = {
+      id: "store_1",
+      businessId: "business_1",
+      platform: StorePlatform.WooCommerce,
+      storeName: "Main Store",
+      storeUrl: "https://shop.example.com",
+      region: null,
+      connectionStatus: StoreConnectionStatus.PendingValidation,
+      lastSynchronisedAt: null,
+      createdAt: new Date("2026-07-03T11:00:00.000Z"),
+      updatedAt: new Date("2026-07-03T11:00:01.000Z"),
+    } as const;
+    jest.mocked(storeIntegrationsService.prepareStoreConnection).mockResolvedValueOnce(response);
 
     await expect(
       controller.prepareStoreConnection(
@@ -70,7 +81,7 @@ describe("StoreIntegrationsController", () => {
           },
         },
       ),
-    ).rejects.toThrow("placeholder");
+    ).resolves.toBe(response);
     expect(storeIntegrationsService.prepareStoreConnection).toHaveBeenCalledWith("user_1", {
       platform: StorePlatform.WooCommerce,
       storeName: "Main Store",

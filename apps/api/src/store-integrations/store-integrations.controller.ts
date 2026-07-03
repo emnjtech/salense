@@ -43,7 +43,7 @@ export class StoreIntegrationsController {
   prepareStoreConnection(
     @Req() request: AuthenticatedRequest,
     @Body() prepareStoreConnectionRequest: PrepareStoreConnectionRequestDto,
-  ): Promise<never> {
+  ): Promise<ConnectedStoreResponse> {
     return this.storeIntegrationsService.prepareStoreConnection(
       getAuthenticatedUserId(request),
       prepareStoreConnectionRequest,

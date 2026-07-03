@@ -22,7 +22,7 @@ import type { PrepareStoreConnectionRequestDto } from "./dto/prepare-store-conne
 import type { StoreActionRequestDto } from "./dto/store-action-request.dto.js";
 import { AesCredentialEncryptionService } from "./security/credential-encryption.service.js";
 import type { ConnectedStoreResponse } from "./types/connected-store-response.type.js";
-import type { StoreConnectionStatus } from "./types/store-connection-status.enum.js";
+import { StoreConnectionStatus } from "./types/store-connection-status.enum.js";
 import {
   isSupportedStorePlatform,
   StorePlatform,
@@ -58,7 +58,24 @@ interface StoreIntegrationsPrismaClient {
         | { readonly id: true }
         | { readonly id: true; readonly businessId: true; readonly platform: true };
     }): Promise<ConnectedStoreRecord | ConnectedStoreActionRecord | { readonly id: string } | null>;
+    create(args: {
+      readonly data: ConnectedStoreCreateData;
+      readonly select: ConnectedStoreSelect;
+    }): Promise<ConnectedStoreRecord>;
   };
+}
+
+interface ConnectedStoreCreateData {
+  readonly businessId: string;
+  readonly platform: StorePlatform;
+  readonly storeName: string;
+  readonly storeUrl?: string | null;
+  readonly region?: string | null;
+  readonly connectionStatus: StoreConnectionStatus;
+  readonly accessTokenHash?: string;
+  readonly accessTokenMetadata?: Readonly<Record<string, unknown>>;
+  readonly refreshTokenHash?: string;
+  readonly refreshTokenMetadata?: Readonly<Record<string, unknown>>;
 }
 
 interface ConnectedStoreSelect {
@@ -133,7 +150,7 @@ export class StoreIntegrationsService {
   async prepareStoreConnection(
     userId: string,
     request: PrepareStoreConnectionRequestDto,
-  ): Promise<never> {
+  ): Promise<ConnectedStoreResponse> {
     this.assertSupportedPlatform(request.platform);
     const prisma = this.prismaService.client as unknown as StoreIntegrationsPrismaClient;
     const business = await prisma.business.findUnique({
@@ -162,20 +179,38 @@ export class StoreIntegrationsService {
       throw new ConflictException("Duplicate store connections are prohibited.");
     }
 
-    const credentialConfiguration = this.createCredentialConfiguration(request);
+    if (request.platform !== StorePlatform.WooCommerce) {
+      return this.runPlaceholderIntegrationOperation(
+        this.integrationFactory.getProvider(toIntegrationPlatform(request.platform)).connect(
+          createIntegrationConfiguration({
+            businessId: business.id,
+            platform: request.platform,
+            region,
+            storeName: request.storeName.trim(),
+            storeUrl,
+          }),
+        ),
+      );
+    }
 
-    return this.runPlaceholderIntegrationOperation(
-      this.integrationFactory.getProvider(toIntegrationPlatform(request.platform)).connect(
-        createIntegrationConfiguration({
-          businessId: business.id,
-          platform: request.platform,
-          region,
-          storeName: request.storeName.trim(),
-          storeUrl,
-          ...credentialConfiguration,
-        }),
-      ),
-    );
+    const credentialConfiguration = this.createCredentialConfiguration(request);
+    const connectedStore = await prisma.connectedStore.create({
+      data: {
+        businessId: business.id,
+        platform: request.platform,
+        storeName: request.storeName.trim(),
+        storeUrl,
+        region,
+        connectionStatus: StoreConnectionStatus.PendingValidation,
+        accessTokenHash: credentialConfiguration.accessTokenHash ?? "",
+        accessTokenMetadata: credentialConfiguration.accessTokenMetadata ?? {},
+        refreshTokenHash: credentialConfiguration.refreshTokenHash ?? "",
+        refreshTokenMetadata: credentialConfiguration.refreshTokenMetadata ?? {},
+      },
+      select: connectedStoreSelect,
+    });
+
+    return toConnectedStoreResponse(connectedStore);
   }
 
   private createCredentialConfiguration(
@@ -216,6 +251,7 @@ export class StoreIntegrationsService {
     return {
       accessTokenHash: hashCredentialPlaceholder(credentials.consumerKey),
       accessTokenMetadata: {
+        apiVersion: credentials.apiVersion,
         credentialKind: "woocommerce_consumer_key",
         encryptedCredential: encryptedConsumerKey,
       },
@@ -230,6 +266,7 @@ export class StoreIntegrationsService {
       },
       refreshTokenHash: hashCredentialPlaceholder(credentials.consumerSecret),
       refreshTokenMetadata: {
+        apiVersion: credentials.apiVersion,
         credentialKind: "woocommerce_consumer_secret",
         encryptedCredential: encryptedConsumerSecret,
       },

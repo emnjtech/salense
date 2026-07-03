@@ -66,6 +66,7 @@ enum StorePlatform {
 
 /// Store connection lifecycle shown to users in the Store Integration Module.
 enum StoreConnectionStatus {
+  PENDING_VALIDATION
   CONNECTED
   SYNCHRONISING
   DISCONNECTED
