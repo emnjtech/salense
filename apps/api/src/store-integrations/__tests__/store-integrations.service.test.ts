@@ -17,6 +17,7 @@ import type { AesCredentialEncryptionService } from "../security/credential-encr
 import { StoreIntegrationsService } from "../store-integrations.service.js";
 import { StoreConnectionStatus } from "../types/store-connection-status.enum.js";
 import { StorePlatform } from "../types/store-platform.enum.js";
+import type { WooCommerceSyncService } from "../woocommerce-sync.service.js";
 
 function createStoreIntegrationsServiceMocks(): {
   readonly service: StoreIntegrationsService;
@@ -30,6 +31,7 @@ function createStoreIntegrationsServiceMocks(): {
   readonly validateConnection: jest.Mock;
   readonly disconnect: jest.Mock;
   readonly synchroniseOrders: jest.Mock;
+  readonly syncAll: jest.Mock;
   readonly encrypt: jest.Mock;
 } {
   const findBusiness = jest.fn();
@@ -41,6 +43,7 @@ function createStoreIntegrationsServiceMocks(): {
   const validateConnection = jest.fn();
   const disconnect = jest.fn();
   const synchroniseOrders = jest.fn();
+  const syncAll = jest.fn();
   const getProvider = jest.fn().mockReturnValue({
     connect,
     disconnect,
@@ -68,9 +71,15 @@ function createStoreIntegrationsServiceMocks(): {
   } as unknown as PrismaService;
   const integrationFactory = { getProvider } as unknown as IntegrationFactory;
   const credentialEncryption = { encrypt } as unknown as AesCredentialEncryptionService;
+  const wooCommerceSyncService = { syncAll } as unknown as WooCommerceSyncService;
 
   return {
-    service: new StoreIntegrationsService(prismaService, integrationFactory, credentialEncryption),
+    service: new StoreIntegrationsService(
+      prismaService,
+      integrationFactory,
+      credentialEncryption,
+      wooCommerceSyncService,
+    ),
     findBusiness,
     findManyConnectedStores,
     findFirstConnectedStore,
@@ -81,6 +90,7 @@ function createStoreIntegrationsServiceMocks(): {
     validateConnection,
     disconnect,
     encrypt,
+    syncAll,
     synchroniseOrders,
   };
 }
@@ -439,6 +449,8 @@ describe("StoreIntegrationsService", () => {
     findFirstConnectedStore.mockResolvedValue({
       id: "store_1",
       businessId: "business_1",
+      connectionStatus: StoreConnectionStatus.Connected,
+      lastSynchronisedAt: null,
       platform: StorePlatform.WooCommerce,
     });
     disconnect.mockRejectedValue(
@@ -458,31 +470,198 @@ describe("StoreIntegrationsService", () => {
     });
   });
 
-  it("uses the shared integration framework for manual synchronisation", async () => {
-    const { service, findFirstConnectedStore, getProvider, synchroniseOrders } =
+  it("allows the authenticated owner to manually sync a connected WooCommerce store", async () => {
+    const { service, findFirstConnectedStore, getProvider, syncAll } =
       createStoreIntegrationsServiceMocks();
+    const syncedAt = new Date("2026-07-03T14:00:00.000Z");
     findFirstConnectedStore.mockResolvedValue({
       id: "store_1",
       businessId: "business_1",
-      platform: StorePlatform.TikTokShop,
+      connectionStatus: StoreConnectionStatus.Connected,
+      lastSynchronisedAt: null,
+      platform: StorePlatform.WooCommerce,
     });
-    synchroniseOrders.mockRejectedValue(
-      new IntegrationNotImplementedError("TikTok Shop sync is not implemented.", {
-        platform: IntegrationPlatform.TikTokShop,
-      }),
-    );
+    syncAll.mockResolvedValue({
+      connectedStoreId: "store_1",
+      errors: [],
+      readOnly: true,
+      resources: [
+        {
+          connectedStoreId: "store_1",
+          errors: [],
+          persistence: {
+            categories: 0,
+            customers: 0,
+            inventorySnapshots: 0,
+            orderItems: 2,
+            orders: 1,
+            products: 0,
+            refunds: 0,
+          },
+          readOnly: true,
+          resource: "orders",
+          status: "SUCCESS",
+          syncedAt,
+        },
+      ],
+      status: "SUCCESS",
+      syncedAt,
+    });
 
     await expect(
       service.requestManualSync("user_1", { storeId: "store_1" }),
-    ).rejects.toThrow(NotImplementedException);
-    expect(getProvider).toHaveBeenCalledWith(IntegrationPlatform.TikTokShop);
-    expect(synchroniseOrders).toHaveBeenCalledWith(
-      expect.objectContaining({
-        businessId: "business_1",
-        platform: IntegrationPlatform.TikTokShop,
-        storeId: "store_1",
-      }),
+    ).resolves.toEqual({
+      errors: [],
+      lastSynchronisedAt: syncedAt,
+      platform: StorePlatform.WooCommerce,
+      resourcesSynced: [
+        {
+          errors: [],
+          records: {
+            categories: 0,
+            customers: 0,
+            inventorySnapshots: 0,
+            orderItems: 2,
+            orders: 1,
+            products: 0,
+            refunds: 0,
+          },
+          resource: "orders",
+          status: "SUCCESS",
+        },
+      ],
+      status: "SUCCESS",
+      storeId: "store_1",
+    });
+    expect(syncAll).toHaveBeenCalledWith("store_1");
+    expect(getProvider).not.toHaveBeenCalled();
+  });
+
+  it("rejects manual sync for non-WooCommerce stores", async () => {
+    const { service, findFirstConnectedStore, syncAll } = createStoreIntegrationsServiceMocks();
+    findFirstConnectedStore.mockResolvedValue({
+      id: "store_1",
+      businessId: "business_1",
+      connectionStatus: StoreConnectionStatus.Connected,
+      lastSynchronisedAt: null,
+      platform: StorePlatform.TikTokShop,
+    });
+
+    await expect(service.requestManualSync("user_1", { storeId: "store_1" })).rejects.toThrow(
+      BadRequestException,
     );
+    expect(syncAll).not.toHaveBeenCalled();
+  });
+
+  it.each([StoreConnectionStatus.Disconnected, StoreConnectionStatus.Error])(
+    "rejects manual sync for %s stores",
+    async (connectionStatus) => {
+      const { service, findFirstConnectedStore, syncAll } = createStoreIntegrationsServiceMocks();
+      findFirstConnectedStore.mockResolvedValue({
+        id: "store_1",
+        businessId: "business_1",
+        connectionStatus,
+        lastSynchronisedAt: null,
+        platform: StorePlatform.WooCommerce,
+      });
+
+      await expect(service.requestManualSync("user_1", { storeId: "store_1" })).rejects.toThrow(
+        ConflictException,
+      );
+      expect(syncAll).not.toHaveBeenCalled();
+    },
+  );
+
+  it("returns a safe manual sync response without credential material", async () => {
+    const { service, findFirstConnectedStore, syncAll } = createStoreIntegrationsServiceMocks();
+    const syncedAt = new Date("2026-07-03T14:00:00.000Z");
+    findFirstConnectedStore.mockResolvedValue({
+      id: "store_1",
+      businessId: "business_1",
+      connectionStatus: StoreConnectionStatus.Connected,
+      lastSynchronisedAt: null,
+      platform: StorePlatform.WooCommerce,
+    });
+    syncAll.mockResolvedValue({
+      connectedStoreId: "store_1",
+      errors: ["products failed"],
+      readOnly: true,
+      resources: [
+        {
+          connectedStoreId: "store_1",
+          errors: ["products failed"],
+          persistence: {
+            categories: 0,
+            customers: 0,
+            inventorySnapshots: 0,
+            orderItems: 0,
+            orders: 0,
+            products: 0,
+            refunds: 0,
+          },
+          readOnly: true,
+          resource: "products",
+          status: "ERROR",
+          syncedAt,
+        },
+      ],
+      status: "ERROR",
+      syncedAt,
+      accessTokenHash: "should-not-leak",
+      encryptedCredential: "should-not-leak",
+      raw: { id: 1 },
+    });
+
+    const response = await service.requestManualSync("user_1", { storeId: "store_1" });
+
+    expect(JSON.stringify(response)).not.toContain("should-not-leak");
+    expect(JSON.stringify(response)).not.toContain("encryptedCredential");
+    expect(JSON.stringify(response)).not.toContain("accessTokenHash");
+    expect(JSON.stringify(response)).not.toContain('"raw"');
+    expect(response).toMatchObject({
+      errors: ["products failed"],
+      platform: StorePlatform.WooCommerce,
+      resourcesSynced: [
+        expect.objectContaining({
+          errors: ["products failed"],
+          resource: "products",
+          status: "ERROR",
+        }),
+      ],
+      status: "ERROR",
+      storeId: "store_1",
+    });
+  });
+
+  it("queries connected stores by authenticated owner when manually syncing", async () => {
+    const { service, findFirstConnectedStore, syncAll } = createStoreIntegrationsServiceMocks();
+    findFirstConnectedStore.mockResolvedValue({
+      id: "store_1",
+      businessId: "business_1",
+      connectionStatus: StoreConnectionStatus.Connected,
+      lastSynchronisedAt: null,
+      platform: StorePlatform.WooCommerce,
+    });
+    syncAll.mockResolvedValue({
+      connectedStoreId: "store_1",
+      errors: [],
+      readOnly: true,
+      resources: [],
+      status: "SUCCESS",
+      syncedAt: new Date("2026-07-03T14:00:00.000Z"),
+    });
+
+    await service.requestManualSync("user_1", { storeId: "store_1" });
+
+    expect(findFirstConnectedStore).toHaveBeenCalledWith({
+      where: { id: "store_1", business: { ownerId: "user_1" } },
+      select: expect.objectContaining({
+        businessId: true,
+        connectionStatus: true,
+        id: true,
+        platform: true,
+      }),
+    });
   });
 
   it("rejects disconnect and sync for stores outside the authenticated user's business", async () => {

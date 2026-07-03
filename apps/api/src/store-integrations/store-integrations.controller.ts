@@ -18,6 +18,7 @@ import { PrepareStoreConnectionRequestDto } from "./dto/prepare-store-connection
 import { StoreActionRequestDto } from "./dto/store-action-request.dto.js";
 import { StoreIntegrationsService } from "./store-integrations.service.js";
 import type { ConnectedStoreResponse } from "./types/connected-store-response.type.js";
+import type { ManualSyncResponse } from "./types/manual-sync-response.type.js";
 import type { SupportedStorePlatform } from "./types/store-platform.enum.js";
 
 @Controller("store-integrations")
@@ -67,7 +68,7 @@ export class StoreIntegrationsController {
   requestManualSync(
     @Req() request: AuthenticatedRequest,
     @Body() storeActionRequest: StoreActionRequestDto,
-  ): Promise<never> {
+  ): Promise<ManualSyncResponse> {
     return this.storeIntegrationsService.requestManualSync(
       getAuthenticatedUserId(request),
       storeActionRequest,

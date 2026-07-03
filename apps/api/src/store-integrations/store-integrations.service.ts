@@ -5,7 +5,6 @@ import {
   WooCommerceApiVersion,
   type IntegrationConfiguration,
   type IntegrationFactory,
-  type SynchronisationContext,
 } from "@salense/integrations";
 import { createHash } from "node:crypto";
 import {
@@ -23,12 +22,14 @@ import type { StoreActionRequestDto } from "./dto/store-action-request.dto.js";
 import { AesCredentialEncryptionService } from "./security/credential-encryption.service.js";
 import type { ConnectedStoreResponse } from "./types/connected-store-response.type.js";
 import { StoreConnectionStatus } from "./types/store-connection-status.enum.js";
+import type { ManualSyncResponse } from "./types/manual-sync-response.type.js";
 import {
   isSupportedStorePlatform,
   StorePlatform,
   SUPPORTED_STORE_PLATFORMS,
   type SupportedStorePlatform,
 } from "./types/store-platform.enum.js";
+import { WooCommerceSyncService, type WooCommerceFullSyncResult } from "./woocommerce-sync.service.js";
 
 interface StoreIntegrationsPrismaClient {
   readonly business: {
@@ -56,7 +57,7 @@ interface StoreIntegrationsPrismaClient {
       readonly select:
         | ConnectedStoreSelect
         | { readonly id: true }
-        | { readonly id: true; readonly businessId: true; readonly platform: true };
+        | ConnectedStoreActionSelect;
     }): Promise<ConnectedStoreRecord | ConnectedStoreActionRecord | { readonly id: string } | null>;
     create(args: {
       readonly data: ConnectedStoreCreateData;
@@ -116,7 +117,17 @@ interface ConnectedStoreRecord {
 interface ConnectedStoreActionRecord {
   readonly id: string;
   readonly businessId: string;
+  readonly connectionStatus: StoreConnectionStatus;
+  readonly lastSynchronisedAt: Date | null;
   readonly platform: StorePlatform;
+}
+
+interface ConnectedStoreActionSelect {
+  readonly id: true;
+  readonly businessId: true;
+  readonly connectionStatus: true;
+  readonly lastSynchronisedAt: true;
+  readonly platform: true;
 }
 
 const connectedStoreSelect = {
@@ -132,6 +143,14 @@ const connectedStoreSelect = {
   updatedAt: true,
 } satisfies ConnectedStoreSelect;
 
+const connectedStoreActionSelect = {
+  id: true,
+  businessId: true,
+  connectionStatus: true,
+  lastSynchronisedAt: true,
+  platform: true,
+} satisfies ConnectedStoreActionSelect;
+
 @Injectable()
 export class StoreIntegrationsService {
   constructor(
@@ -139,6 +158,8 @@ export class StoreIntegrationsService {
     @Inject(INTEGRATION_FACTORY) private readonly integrationFactory: IntegrationFactory,
     @Inject(AesCredentialEncryptionService)
     private readonly credentialEncryption: AesCredentialEncryptionService,
+    @Inject(WooCommerceSyncService)
+    private readonly wooCommerceSyncService: WooCommerceSyncService,
   ) {}
 
   listSupportedPlatforms(): readonly SupportedStorePlatform[] {
@@ -328,13 +349,18 @@ export class StoreIntegrationsService {
     );
   }
 
-  async requestManualSync(userId: string, request: StoreActionRequestDto): Promise<never> {
+  async requestManualSync(userId: string, request: StoreActionRequestDto): Promise<ManualSyncResponse> {
     const store = await this.assertStoreBelongsToUser(userId, request.storeId);
-    return this.runPlaceholderIntegrationOperation(
-      this.integrationFactory
-        .getProvider(toIntegrationPlatform(store.platform))
-        .synchroniseOrders(createSynchronisationContext(store)),
-    );
+
+    if (store.platform !== StorePlatform.WooCommerce) {
+      throw new BadRequestException("Manual sync is currently available for WooCommerce stores only.");
+    }
+
+    if (store.connectionStatus !== StoreConnectionStatus.Connected) {
+      throw new ConflictException("Store must be connected before manual synchronisation.");
+    }
+
+    return toManualSyncResponse(store, await this.wooCommerceSyncService.syncAll(store.id));
   }
 
   private assertSupportedPlatform(platform: string): asserts platform is StorePlatform {
@@ -350,7 +376,7 @@ export class StoreIntegrationsService {
     const prisma = this.prismaService.client as unknown as StoreIntegrationsPrismaClient;
     const store = await prisma.connectedStore.findFirst({
       where: { id: storeId, business: { ownerId: userId } },
-      select: { id: true, businessId: true, platform: true },
+      select: connectedStoreActionSelect,
     });
 
     if (!store) {
@@ -452,11 +478,21 @@ function createIntegrationConfiguration(input: {
   };
 }
 
-function createSynchronisationContext(store: ConnectedStoreActionRecord): SynchronisationContext {
+function toManualSyncResponse(
+  store: ConnectedStoreActionRecord,
+  syncResult: WooCommerceFullSyncResult,
+): ManualSyncResponse {
   return {
-    businessId: store.businessId,
-    platform: toIntegrationPlatform(store.platform),
+    errors: syncResult.errors,
+    lastSynchronisedAt: syncResult.syncedAt,
+    platform: store.platform,
+    resourcesSynced: syncResult.resources.map((resource) => ({
+      errors: resource.errors,
+      records: resource.persistence,
+      resource: resource.resource,
+      status: resource.status,
+    })),
+    status: syncResult.status,
     storeId: store.id,
-    triggeredAt: new Date(),
   };
 }

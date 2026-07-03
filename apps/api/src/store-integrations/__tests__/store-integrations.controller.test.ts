@@ -95,12 +95,18 @@ describe("StoreIntegrationsController", () => {
   });
 
   it("delegates disconnect and sync actions for authenticated users", async () => {
+    const syncedAt = new Date("2026-07-03T14:00:00.000Z");
     jest.mocked(storeIntegrationsService.disconnectStore).mockRejectedValueOnce(
       new Error("disconnect placeholder"),
     );
-    jest.mocked(storeIntegrationsService.requestManualSync).mockRejectedValueOnce(
-      new Error("sync placeholder"),
-    );
+    jest.mocked(storeIntegrationsService.requestManualSync).mockResolvedValueOnce({
+      errors: [],
+      lastSynchronisedAt: syncedAt,
+      platform: StorePlatform.WooCommerce,
+      resourcesSynced: [],
+      status: "SUCCESS",
+      storeId: "store_1",
+    });
 
     await expect(
       controller.disconnectStore(
@@ -119,7 +125,14 @@ describe("StoreIntegrationsController", () => {
         },
         { storeId: "store_1" },
       ),
-    ).rejects.toThrow("sync placeholder");
+    ).resolves.toEqual({
+      errors: [],
+      lastSynchronisedAt: syncedAt,
+      platform: StorePlatform.WooCommerce,
+      resourcesSynced: [],
+      status: "SUCCESS",
+      storeId: "store_1",
+    });
   });
 
   it("rejects protected actions when authenticated context is missing", async () => {
@@ -130,5 +143,8 @@ describe("StoreIntegrationsController", () => {
         { platform: StorePlatform.WooCommerce, storeName: "Main Store" },
       ),
     ).toThrow(UnauthorizedException);
+    expect(() => controller.requestManualSync({ headers: {} }, { storeId: "store_1" })).toThrow(
+      UnauthorizedException,
+    );
   });
 });
