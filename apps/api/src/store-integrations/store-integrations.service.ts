@@ -1,4 +1,12 @@
 import {
+  INTEGRATION_FACTORY,
+  IntegrationNotImplementedError,
+  IntegrationPlatform,
+  type IntegrationConfiguration,
+  type IntegrationFactory,
+  type SynchronisationContext,
+} from "@salense/integrations";
+import {
   BadRequestException,
   ConflictException,
   Inject,
@@ -14,9 +22,9 @@ import type { ConnectedStoreResponse } from "./types/connected-store-response.ty
 import type { StoreConnectionStatus } from "./types/store-connection-status.enum.js";
 import {
   isSupportedStorePlatform,
+  StorePlatform,
   SUPPORTED_STORE_PLATFORMS,
   type SupportedStorePlatform,
-  type StorePlatform,
 } from "./types/store-platform.enum.js";
 
 interface StoreIntegrationsPrismaClient {
@@ -42,8 +50,11 @@ interface StoreIntegrationsPrismaClient {
         readonly disconnectedAt?: null;
         readonly business?: { readonly ownerId: string };
       };
-      readonly select: ConnectedStoreSelect | { readonly id: true };
-    }): Promise<ConnectedStoreRecord | { readonly id: string } | null>;
+      readonly select:
+        | ConnectedStoreSelect
+        | { readonly id: true }
+        | { readonly id: true; readonly businessId: true; readonly platform: true };
+    }): Promise<ConnectedStoreRecord | ConnectedStoreActionRecord | { readonly id: string } | null>;
   };
 }
 
@@ -73,6 +84,12 @@ interface ConnectedStoreRecord {
   readonly updatedAt: Date;
 }
 
+interface ConnectedStoreActionRecord {
+  readonly id: string;
+  readonly businessId: string;
+  readonly platform: StorePlatform;
+}
+
 const connectedStoreSelect = {
   id: true,
   businessId: true,
@@ -88,7 +105,10 @@ const connectedStoreSelect = {
 
 @Injectable()
 export class StoreIntegrationsService {
-  constructor(@Inject(PrismaService) private readonly prismaService: PrismaService) {}
+  constructor(
+    @Inject(PrismaService) private readonly prismaService: PrismaService,
+    @Inject(INTEGRATION_FACTORY) private readonly integrationFactory: IntegrationFactory,
+  ) {}
 
   listSupportedPlatforms(): readonly SupportedStorePlatform[] {
     return SUPPORTED_STORE_PLATFORMS;
@@ -137,22 +157,38 @@ export class StoreIntegrationsService {
       throw new ConflictException("Duplicate store connections are prohibited.");
     }
 
-    throw new NotImplementedException(
-      "Store connection preparation requires official platform authentication and is not implemented yet.",
+    return this.runPlaceholderIntegrationOperation(
+      this.integrationFactory.getProvider(toIntegrationPlatform(request.platform)).connect(
+        createIntegrationConfiguration({
+          businessId: business.id,
+          platform: request.platform,
+          region,
+          storeName: request.storeName.trim(),
+          storeUrl,
+        }),
+      ),
     );
   }
 
   async disconnectStore(userId: string, request: StoreActionRequestDto): Promise<never> {
-    await this.assertStoreBelongsToUser(userId, request.storeId);
-    throw new NotImplementedException(
-      "Store disconnection requires platform token revocation and is not implemented yet. Historical analytics must be preserved when this is implemented.",
+    const store = await this.assertStoreBelongsToUser(userId, request.storeId);
+    return this.runPlaceholderIntegrationOperation(
+      this.integrationFactory.getProvider(toIntegrationPlatform(store.platform)).disconnect(
+        createIntegrationConfiguration({
+          businessId: store.businessId,
+          platform: store.platform,
+          storeId: store.id,
+        }),
+      ),
     );
   }
 
   async requestManualSync(userId: string, request: StoreActionRequestDto): Promise<never> {
-    await this.assertStoreBelongsToUser(userId, request.storeId);
-    throw new NotImplementedException(
-      "Manual store synchronisation requires the sync engine and is not implemented yet.",
+    const store = await this.assertStoreBelongsToUser(userId, request.storeId);
+    return this.runPlaceholderIntegrationOperation(
+      this.integrationFactory
+        .getProvider(toIntegrationPlatform(store.platform))
+        .synchroniseOrders(createSynchronisationContext(store)),
     );
   }
 
@@ -162,16 +198,37 @@ export class StoreIntegrationsService {
     }
   }
 
-  private async assertStoreBelongsToUser(userId: string, storeId: string): Promise<void> {
+  private async assertStoreBelongsToUser(
+    userId: string,
+    storeId: string,
+  ): Promise<ConnectedStoreActionRecord> {
     const prisma = this.prismaService.client as unknown as StoreIntegrationsPrismaClient;
     const store = await prisma.connectedStore.findFirst({
       where: { id: storeId, business: { ownerId: userId } },
-      select: { id: true },
+      select: { id: true, businessId: true, platform: true },
     });
 
     if (!store) {
       throw new NotFoundException("Connected store could not be found.");
     }
+
+    return store as ConnectedStoreActionRecord;
+  }
+
+  private async runPlaceholderIntegrationOperation(operation: Promise<unknown>): Promise<never> {
+    try {
+      await operation;
+    } catch (error) {
+      if (error instanceof IntegrationNotImplementedError) {
+        throw new NotImplementedException(error.message);
+      }
+
+      throw error;
+    }
+
+    throw new NotImplementedException(
+      "Store integration provider returned success before real marketplace integration was implemented.",
+    );
   }
 }
 
@@ -192,5 +249,45 @@ function toConnectedStoreResponse(store: ConnectedStoreRecord): ConnectedStoreRe
     lastSynchronisedAt: store.lastSynchronisedAt,
     createdAt: store.createdAt,
     updatedAt: store.updatedAt,
+  };
+}
+
+function toIntegrationPlatform(platform: StorePlatform): IntegrationPlatform {
+  switch (platform) {
+    case StorePlatform.WooCommerce:
+      return IntegrationPlatform.WooCommerce;
+    case StorePlatform.AmazonSeller:
+      return IntegrationPlatform.AmazonSeller;
+    case StorePlatform.TikTokShop:
+      return IntegrationPlatform.TikTokShop;
+  }
+
+  throw new BadRequestException("Unsupported store platform.");
+}
+
+function createIntegrationConfiguration(input: {
+  readonly businessId: string;
+  readonly platform: StorePlatform;
+  readonly region?: string | null;
+  readonly storeId?: string;
+  readonly storeName?: string;
+  readonly storeUrl?: string | null;
+}): IntegrationConfiguration {
+  return {
+    businessId: input.businessId,
+    platform: toIntegrationPlatform(input.platform),
+    ...(input.region ? { region: input.region } : {}),
+    ...(input.storeId ? { storeId: input.storeId } : {}),
+    ...(input.storeName ? { storeName: input.storeName } : {}),
+    ...(input.storeUrl ? { storeUrl: input.storeUrl } : {}),
+  };
+}
+
+function createSynchronisationContext(store: ConnectedStoreActionRecord): SynchronisationContext {
+  return {
+    businessId: store.businessId,
+    platform: toIntegrationPlatform(store.platform),
+    storeId: store.id,
+    triggeredAt: new Date(),
   };
 }

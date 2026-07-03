@@ -61,6 +61,9 @@ importers:
       "@salense/database":
         specifier: workspace:*
         version: link:../../packages/database
+      "@salense/integrations":
+        specifier: workspace:*
+        version: link:../../packages/integrations
       bcryptjs:
         specifier: 2.4.3
         version: 2.4.3

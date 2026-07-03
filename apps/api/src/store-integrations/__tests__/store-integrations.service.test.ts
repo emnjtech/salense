@@ -1,10 +1,16 @@
 import {
   BadRequestException,
   ConflictException,
+  InternalServerErrorException,
   NotFoundException,
   NotImplementedException,
   UnauthorizedException,
 } from "@nestjs/common";
+import {
+  IntegrationNotImplementedError,
+  IntegrationPlatform,
+  type IntegrationFactory,
+} from "@salense/integrations";
 import type { PrismaService } from "../../database/prisma.service.js";
 import { StoreIntegrationsService } from "../store-integrations.service.js";
 import { StoreConnectionStatus } from "../types/store-connection-status.enum.js";
@@ -15,10 +21,18 @@ function createStoreIntegrationsServiceMocks(): {
   readonly findBusiness: jest.Mock;
   readonly findManyConnectedStores: jest.Mock;
   readonly findFirstConnectedStore: jest.Mock;
+  readonly getProvider: jest.Mock;
+  readonly connect: jest.Mock;
+  readonly disconnect: jest.Mock;
+  readonly synchroniseOrders: jest.Mock;
 } {
   const findBusiness = jest.fn();
   const findManyConnectedStores = jest.fn();
   const findFirstConnectedStore = jest.fn();
+  const connect = jest.fn();
+  const disconnect = jest.fn();
+  const synchroniseOrders = jest.fn();
+  const getProvider = jest.fn().mockReturnValue({ connect, disconnect, synchroniseOrders });
   const prismaService = {
     client: {
       business: { findUnique: findBusiness },
@@ -28,12 +42,17 @@ function createStoreIntegrationsServiceMocks(): {
       },
     },
   } as unknown as PrismaService;
+  const integrationFactory = { getProvider } as unknown as IntegrationFactory;
 
   return {
-    service: new StoreIntegrationsService(prismaService),
+    service: new StoreIntegrationsService(prismaService, integrationFactory),
     findBusiness,
     findManyConnectedStores,
     findFirstConnectedStore,
+    getProvider,
+    connect,
+    disconnect,
+    synchroniseOrders,
   };
 }
 
@@ -106,7 +125,7 @@ describe("StoreIntegrationsService", () => {
   });
 
   it("rejects unsupported platforms before attempting marketplace auth", async () => {
-    const { service, findBusiness } = createStoreIntegrationsServiceMocks();
+    const { service, findBusiness, getProvider } = createStoreIntegrationsServiceMocks();
 
     await expect(
       service.prepareStoreConnection("user_1", {
@@ -115,10 +134,12 @@ describe("StoreIntegrationsService", () => {
       }),
     ).rejects.toThrow(BadRequestException);
     expect(findBusiness).not.toHaveBeenCalled();
+    expect(getProvider).not.toHaveBeenCalled();
   });
 
   it("requires a company profile before preparing a store connection", async () => {
-    const { service, findBusiness, findFirstConnectedStore } = createStoreIntegrationsServiceMocks();
+    const { service, findBusiness, findFirstConnectedStore, getProvider } =
+      createStoreIntegrationsServiceMocks();
     findBusiness.mockResolvedValue(null);
 
     await expect(
@@ -129,10 +150,12 @@ describe("StoreIntegrationsService", () => {
       }),
     ).rejects.toThrow(UnauthorizedException);
     expect(findFirstConnectedStore).not.toHaveBeenCalled();
+    expect(getProvider).not.toHaveBeenCalled();
   });
 
   it("enforces the duplicate store connection rule before placeholder auth", async () => {
-    const { service, findBusiness, findFirstConnectedStore } = createStoreIntegrationsServiceMocks();
+    const { service, findBusiness, findFirstConnectedStore, getProvider } =
+      createStoreIntegrationsServiceMocks();
     findBusiness.mockResolvedValue({ id: "business_1" });
     findFirstConnectedStore.mockResolvedValue({ id: "store_1" });
 
@@ -153,12 +176,19 @@ describe("StoreIntegrationsService", () => {
       },
       select: { id: true },
     });
+    expect(getProvider).not.toHaveBeenCalled();
   });
 
-  it("uses an explicit placeholder for real platform connection preparation", async () => {
-    const { service, findBusiness, findFirstConnectedStore } = createStoreIntegrationsServiceMocks();
+  it("uses the shared integration framework for real platform connection preparation", async () => {
+    const { service, findBusiness, findFirstConnectedStore, getProvider, connect } =
+      createStoreIntegrationsServiceMocks();
     findBusiness.mockResolvedValue({ id: "business_1" });
     findFirstConnectedStore.mockResolvedValue(null);
+    connect.mockRejectedValue(
+      new IntegrationNotImplementedError("Amazon Seller connect is not implemented.", {
+        platform: IntegrationPlatform.AmazonSeller,
+      }),
+    );
 
     await expect(
       service.prepareStoreConnection("user_1", {
@@ -167,28 +197,85 @@ describe("StoreIntegrationsService", () => {
         region: "gb",
       }),
     ).rejects.toThrow(NotImplementedException);
+    expect(getProvider).toHaveBeenCalledWith(IntegrationPlatform.AmazonSeller);
+    expect(connect).toHaveBeenCalledWith({
+      businessId: "business_1",
+      platform: IntegrationPlatform.AmazonSeller,
+      region: "GB",
+      storeName: "Amazon UK",
+    });
   });
 
-  it("uses an explicit placeholder for platform disconnect", async () => {
-    const { service, findFirstConnectedStore } = createStoreIntegrationsServiceMocks();
-    findFirstConnectedStore.mockResolvedValue({ id: "store_1" });
+  it("uses the shared integration framework for platform disconnect", async () => {
+    const { service, findFirstConnectedStore, getProvider, disconnect } =
+      createStoreIntegrationsServiceMocks();
+    findFirstConnectedStore.mockResolvedValue({
+      id: "store_1",
+      businessId: "business_1",
+      platform: StorePlatform.WooCommerce,
+    });
+    disconnect.mockRejectedValue(
+      new IntegrationNotImplementedError("WooCommerce disconnect is not implemented.", {
+        platform: IntegrationPlatform.WooCommerce,
+      }),
+    );
 
     await expect(
       service.disconnectStore("user_1", { storeId: "store_1" }),
     ).rejects.toThrow(NotImplementedException);
+    expect(getProvider).toHaveBeenCalledWith(IntegrationPlatform.WooCommerce);
+    expect(disconnect).toHaveBeenCalledWith({
+      businessId: "business_1",
+      platform: IntegrationPlatform.WooCommerce,
+      storeId: "store_1",
+    });
   });
 
-  it("uses an explicit placeholder for manual synchronisation", async () => {
-    const { service, findFirstConnectedStore } = createStoreIntegrationsServiceMocks();
-    findFirstConnectedStore.mockResolvedValue({ id: "store_1" });
+  it("uses the shared integration framework for manual synchronisation", async () => {
+    const { service, findFirstConnectedStore, getProvider, synchroniseOrders } =
+      createStoreIntegrationsServiceMocks();
+    findFirstConnectedStore.mockResolvedValue({
+      id: "store_1",
+      businessId: "business_1",
+      platform: StorePlatform.TikTokShop,
+    });
+    synchroniseOrders.mockRejectedValue(
+      new IntegrationNotImplementedError("TikTok Shop sync is not implemented.", {
+        platform: IntegrationPlatform.TikTokShop,
+      }),
+    );
 
     await expect(
       service.requestManualSync("user_1", { storeId: "store_1" }),
     ).rejects.toThrow(NotImplementedException);
+    expect(getProvider).toHaveBeenCalledWith(IntegrationPlatform.TikTokShop);
+    expect(synchroniseOrders).toHaveBeenCalledWith(
+      expect.objectContaining({
+        businessId: "business_1",
+        platform: IntegrationPlatform.TikTokShop,
+        storeId: "store_1",
+      }),
+    );
+  });
+
+  it("propagates non-placeholder integration errors", async () => {
+    const { service, findBusiness, findFirstConnectedStore, connect } =
+      createStoreIntegrationsServiceMocks();
+    findBusiness.mockResolvedValue({ id: "business_1" });
+    findFirstConnectedStore.mockResolvedValue(null);
+    connect.mockRejectedValue(new InternalServerErrorException("Unexpected provider failure."));
+
+    await expect(
+      service.prepareStoreConnection("user_1", {
+        platform: StorePlatform.WooCommerce,
+        storeName: "Main Store",
+        storeUrl: "https://shop.example.com",
+      }),
+    ).rejects.toThrow(InternalServerErrorException);
   });
 
   it("rejects disconnect and sync for stores outside the authenticated user's business", async () => {
-    const { service, findFirstConnectedStore } = createStoreIntegrationsServiceMocks();
+    const { service, findFirstConnectedStore, getProvider } = createStoreIntegrationsServiceMocks();
     findFirstConnectedStore.mockResolvedValue(null);
 
     await expect(service.disconnectStore("user_1", { storeId: "missing_store" })).rejects.toThrow(
@@ -197,5 +284,6 @@ describe("StoreIntegrationsService", () => {
     await expect(service.requestManualSync("user_1", { storeId: "missing_store" })).rejects.toThrow(
       NotFoundException,
     );
+    expect(getProvider).not.toHaveBeenCalled();
   });
 });
