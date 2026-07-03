@@ -64,6 +64,9 @@ importers:
       "@salense/integrations":
         specifier: workspace:*
         version: link:../../packages/integrations
+      "@salense/shared":
+        specifier: workspace:*
+        version: link:../../packages/shared
       bcryptjs:
         specifier: 2.4.3
         version: 2.4.3
@@ -132,6 +135,12 @@ importers:
 
   apps/worker:
     dependencies:
+      "@salense/api":
+        specifier: workspace:*
+        version: link:../api
+      "@salense/shared":
+        specifier: workspace:*
+        version: link:../../packages/shared
       bullmq:
         specifier: 5.34.2
         version: 5.34.2

@@ -1,20 +1,14 @@
 import type { Job } from "bullmq";
+export {
+  syncQueueName,
+  WooCommerceSyncJobName,
+  wooCommerceSyncJobNames,
+} from "@salense/shared";
+import type { WooCommerceSyncJobName } from "@salense/shared";
 import type { StorePlatform } from "../types/store-platform.enum.js";
 import type { WooCommerceSyncResource } from "../woocommerce-sync.service.js";
 
 export const SYNC_QUEUE = Symbol("SYNC_QUEUE");
-
-export const syncQueueName = "salense-sync";
-
-export enum WooCommerceSyncJobName {
-  ManualFullSync = "woocommerce.manual.full-sync",
-  OrdersSync = "woocommerce.orders.sync",
-  ProductsSync = "woocommerce.products.sync",
-  CustomersSync = "woocommerce.customers.sync",
-  InventorySync = "woocommerce.inventory.sync",
-  CategoriesSync = "woocommerce.categories.sync",
-  RefundsSync = "woocommerce.refunds.sync",
-}
 
 export interface WooCommerceSyncJobData {
   readonly platform: StorePlatform.WooCommerce;

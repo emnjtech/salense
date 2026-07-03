@@ -7,6 +7,7 @@ module.exports = {
     "^@salense/database$": "<rootDir>/packages/database/src/index.ts",
     "^@salense/database/prisma$": "<rootDir>/packages/database/src/prisma.ts",
     "^@salense/integrations$": "<rootDir>/packages/integrations/src/index.ts",
+    "^@salense/shared$": "<rootDir>/packages/shared/src/index.ts",
     "^(\\.{1,2}/.*)\\.js$": "$1",
   },
   modulePathIgnorePatterns: ["<rootDir>/dist", "<rootDir>/.next"],
