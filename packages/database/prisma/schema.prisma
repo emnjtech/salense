@@ -48,7 +48,14 @@ model Business {
 
   owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
-  connectedStores ConnectedStore[]
+  connectedStores             ConnectedStore[]
+  commerceOrders              CommerceOrder[]
+  commerceOrderItems          CommerceOrderItem[]
+  commerceProducts            CommerceProduct[]
+  commerceCustomers           CommerceCustomer[]
+  commerceInventorySnapshots  CommerceInventorySnapshot[]
+  commerceCategories          CommerceCategory[]
+  commerceRefunds             CommerceRefund[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -94,6 +101,14 @@ model ConnectedStore {
 
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
+  commerceOrders             CommerceOrder[]
+  commerceOrderItems         CommerceOrderItem[]
+  commerceProducts           CommerceProduct[]
+  commerceCustomers          CommerceCustomer[]
+  commerceInventorySnapshots CommerceInventorySnapshot[]
+  commerceCategories         CommerceCategory[]
+  commerceRefunds            CommerceRefund[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -103,6 +118,243 @@ model ConnectedStore {
   @@index([lastSynchronisedAt])
   @@unique([businessId, platform, storeUrl, region])
   @@map("connected_stores")
+}
+
+/// Normalised read-only order imported from a connected commerce platform.
+/// The source platform remains authoritative; Salense stores platform identity and raw metadata.
+model CommerceOrder {
+  id                   String        @id @default(cuid())
+  businessId           String
+  connectedStoreId     String
+  platform             StorePlatform
+  platformOrderId      String
+  platformOrderNumber  String?
+  orderStatus          String?
+  currency             String?
+  subtotalAmount       Decimal?
+  totalAmount          Decimal?
+  taxAmount            Decimal?
+  shippingAmount       Decimal?
+  discountAmount       Decimal?
+  refundedAmount       Decimal?
+  orderedAt            DateTime?
+  platformCreatedAt    DateTime?
+  platformUpdatedAt    DateTime?
+  sourceMetadata       Json?
+  importedAt           DateTime      @default(now())
+  lastSyncedAt         DateTime      @default(now())
+
+  business       Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  connectedStore ConnectedStore      @relation(fields: [connectedStoreId], references: [id], onDelete: Cascade)
+  items          CommerceOrderItem[]
+  refunds        CommerceRefund[]
+
+  @@unique([connectedStoreId, platformOrderId])
+  @@index([businessId])
+  @@index([connectedStoreId])
+  @@index([platform])
+  @@index([orderedAt])
+  @@index([orderStatus])
+  @@index([businessId, orderedAt])
+  @@map("commerce_orders")
+}
+
+/// Read-only order line item imported with its original platform item and product identifiers.
+/// No automatic cross-platform product matching is performed in Version 1.
+model CommerceOrderItem {
+  id                   String        @id @default(cuid())
+  businessId           String
+  connectedStoreId     String
+  commerceOrderId      String
+  platform             StorePlatform
+  platformOrderItemId  String
+  platformProductId    String?
+  platformVariationId  String?
+  sku                  String?
+  name                 String?
+  quantity             Int?
+  unitPriceAmount      Decimal?
+  subtotalAmount       Decimal?
+  totalAmount          Decimal?
+  taxAmount            Decimal?
+  sourceMetadata       Json?
+  importedAt           DateTime      @default(now())
+  lastSyncedAt         DateTime      @default(now())
+
+  business       Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  connectedStore ConnectedStore @relation(fields: [connectedStoreId], references: [id], onDelete: Cascade)
+  order          CommerceOrder  @relation(fields: [commerceOrderId], references: [id], onDelete: Cascade)
+
+  @@unique([commerceOrderId, platformOrderItemId])
+  @@index([businessId])
+  @@index([connectedStoreId])
+  @@index([platform])
+  @@index([platformProductId])
+  @@index([sku])
+  @@map("commerce_order_items")
+}
+
+/// Normalised read-only product imported from one connected store.
+/// Products from different platforms/stores intentionally remain distinct in Version 1.
+model CommerceProduct {
+  id                    String        @id @default(cuid())
+  businessId            String
+  connectedStoreId      String
+  platform              StorePlatform
+  platformProductId     String
+  platformVariationId   String?
+  sku                   String?
+  name                  String?
+  productType           String?
+  productStatus         String?
+  currency              String?
+  priceAmount           Decimal?
+  regularPriceAmount    Decimal?
+  salePriceAmount       Decimal?
+  stockStatus           String?
+  currentStockQuantity  Int?
+  platformCreatedAt     DateTime?
+  platformUpdatedAt     DateTime?
+  sourceMetadata        Json?
+  importedAt            DateTime      @default(now())
+  lastSyncedAt          DateTime      @default(now())
+
+  business       Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  connectedStore ConnectedStore @relation(fields: [connectedStoreId], references: [id], onDelete: Cascade)
+
+  @@unique([connectedStoreId, platformProductId])
+  @@index([businessId])
+  @@index([connectedStoreId])
+  @@index([platform])
+  @@index([platformProductId])
+  @@index([sku])
+  @@index([productStatus])
+  @@index([stockStatus])
+  @@map("commerce_products")
+}
+
+/// Normalised read-only customer imported from a connected commerce platform.
+/// Customer identity is platform-scoped; cross-platform identity resolution is deferred.
+model CommerceCustomer {
+  id                    String        @id @default(cuid())
+  businessId            String
+  connectedStoreId      String
+  platform              StorePlatform
+  platformCustomerId    String
+  email                 String?
+  firstName             String?
+  lastName              String?
+  username              String?
+  customerRole          String?
+  platformCreatedAt     DateTime?
+  platformUpdatedAt     DateTime?
+  sourceMetadata        Json?
+  importedAt            DateTime      @default(now())
+  lastSyncedAt          DateTime      @default(now())
+
+  business       Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  connectedStore ConnectedStore @relation(fields: [connectedStoreId], references: [id], onDelete: Cascade)
+
+  @@unique([connectedStoreId, platformCustomerId])
+  @@index([businessId])
+  @@index([connectedStoreId])
+  @@index([platform])
+  @@index([platformCustomerId])
+  @@index([email])
+  @@map("commerce_customers")
+}
+
+/// Point-in-time read-only inventory state captured from platform product stock fields.
+/// Inventory snapshots record what the source reported; Salense does not adjust marketplace stock.
+model CommerceInventorySnapshot {
+  id                    String        @id @default(cuid())
+  businessId            String
+  connectedStoreId      String
+  platform              StorePlatform
+  platformProductId     String
+  sku                   String?
+  stockQuantity         Int?
+  stockStatus           String?
+  manageStock           Boolean?
+  capturedAt            DateTime      @default(now())
+  sourceMetadata        Json?
+  importedAt            DateTime      @default(now())
+  lastSyncedAt          DateTime      @default(now())
+
+  business       Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  connectedStore ConnectedStore @relation(fields: [connectedStoreId], references: [id], onDelete: Cascade)
+
+  @@unique([connectedStoreId, platformProductId, capturedAt])
+  @@index([businessId])
+  @@index([connectedStoreId])
+  @@index([platform])
+  @@index([platformProductId])
+  @@index([sku])
+  @@index([stockStatus])
+  @@index([capturedAt])
+  @@map("commerce_inventory_snapshots")
+}
+
+/// Read-only product category imported from a connected commerce platform.
+/// Category hierarchy remains platform-scoped through platformParentCategoryId.
+model CommerceCategory {
+  id                        String        @id @default(cuid())
+  businessId                String
+  connectedStoreId          String
+  platform                  StorePlatform
+  platformCategoryId        String
+  platformParentCategoryId  String?
+  name                      String?
+  slug                      String?
+  productCount              Int?
+  sourceMetadata            Json?
+  importedAt                DateTime      @default(now())
+  lastSyncedAt              DateTime      @default(now())
+
+  business       Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  connectedStore ConnectedStore @relation(fields: [connectedStoreId], references: [id], onDelete: Cascade)
+
+  @@unique([connectedStoreId, platformCategoryId])
+  @@index([businessId])
+  @@index([connectedStoreId])
+  @@index([platform])
+  @@index([platformCategoryId])
+  @@index([platformParentCategoryId])
+  @@map("commerce_categories")
+}
+
+/// Normalised read-only refund imported from a connected commerce platform.
+/// Refunds keep source order linkage through both CommerceOrder and the platform order ID.
+model CommerceRefund {
+  id                    String        @id @default(cuid())
+  businessId            String
+  connectedStoreId      String
+  commerceOrderId       String?
+  platform              StorePlatform
+  platformRefundId      String
+  platformOrderId       String?
+  refundStatus          String?
+  reason                String?
+  currency              String?
+  amount                Decimal?
+  refundedAt            DateTime?
+  sourceMetadata        Json?
+  importedAt            DateTime      @default(now())
+  lastSyncedAt          DateTime      @default(now())
+
+  business       Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  connectedStore ConnectedStore @relation(fields: [connectedStoreId], references: [id], onDelete: Cascade)
+  order          CommerceOrder? @relation(fields: [commerceOrderId], references: [id], onDelete: SetNull)
+
+  @@unique([connectedStoreId, platformRefundId])
+  @@index([businessId])
+  @@index([connectedStoreId])
+  @@index([platform])
+  @@index([platformRefundId])
+  @@index([platformOrderId])
+  @@index([refundStatus])
+  @@index([refundedAt])
+  @@map("commerce_refunds")
 }
 
 /// Hashed email verification token generated after registration.
