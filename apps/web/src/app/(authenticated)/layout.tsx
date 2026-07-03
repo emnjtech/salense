@@ -1,6 +1,5 @@
-import { BarChart3, Link2, Settings } from "lucide-react";
-import Link from "next/link";
 import type { ReactNode } from "react";
+import { AuthenticatedNavigation } from "../../components/layout/authenticated-navigation";
 
 interface AuthenticatedLayoutProps {
   readonly children: ReactNode;
@@ -9,31 +8,7 @@ interface AuthenticatedLayoutProps {
 export default function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
   return (
     <div className="app-shell">
-      <aside className="sidebar" aria-label="Salense workspace navigation">
-        <div className="brand-lockup">
-          <span className="brand-mark">S</span>
-          <div>
-            <strong>Salense</strong>
-            <span>Commerce intelligence</span>
-          </div>
-        </div>
-
-        <nav className="sidebar-nav">
-          <Link href="/" aria-disabled="true">
-            <BarChart3 size={18} aria-hidden="true" />
-            Dashboard
-          </Link>
-          <Link href="/store-integrations" aria-current="page">
-            <Link2 size={18} aria-hidden="true" />
-            Store Integrations
-          </Link>
-          <Link href="/" aria-disabled="true">
-            <Settings size={18} aria-hidden="true" />
-            Settings
-          </Link>
-        </nav>
-      </aside>
-
+      <AuthenticatedNavigation />
       <div className="workspace-frame">{children}</div>
     </div>
   );

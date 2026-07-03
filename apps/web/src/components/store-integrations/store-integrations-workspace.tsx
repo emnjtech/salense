@@ -23,6 +23,7 @@ import {
   type StoreSyncStatus,
   type SupportedStorePlatform,
 } from "../../lib/api/store-integrations-client";
+import { getDemoAccessToken } from "../../lib/auth-session";
 
 interface WooCommerceFormState {
   readonly consumerKey: string;
@@ -51,12 +52,12 @@ export function StoreIntegrationsWorkspace() {
   const apiClient = useMemo(
     () =>
       createStoreIntegrationsApiClient({
-        accessTokenProvider: getAccessToken,
+        accessTokenProvider: getDemoAccessToken,
       }),
     [],
   );
 
-  const hasAccessToken = Boolean(getAccessToken());
+  const hasAccessToken = Boolean(getDemoAccessToken());
 
   const loadWorkspace = useCallback(async () => {
     setError(null);
@@ -66,7 +67,7 @@ export function StoreIntegrationsWorkspace() {
       const supportedPlatforms = await apiClient.listSupportedPlatforms();
       setPlatforms(supportedPlatforms);
 
-      if (!getAccessToken()) {
+      if (!getDemoAccessToken()) {
         setStores([]);
         setSyncStatuses({});
         return;
@@ -533,16 +534,6 @@ function LoadingRows() {
       <span />
       <span />
     </div>
-  );
-}
-
-function getAccessToken(): string | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  return (
-    window.localStorage.getItem("salense.accessToken") ?? window.localStorage.getItem("accessToken")
   );
 }
 
