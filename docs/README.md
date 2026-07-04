@@ -11,5 +11,5 @@ Operational notes:
 - [MVP demo checklist](./mvp-checklist.md)
 - [MVP demo seed data](./mvp-demo-seed.md)
 - [Sync scheduling](./sync-scheduling.md)
-- [Phase 2 backend checkpoint: Store Integrations and WooCommerce Sync](./woocommerce-integration-checkpoint.md)
+- [Multi-platform MVP integration checkpoint](./woocommerce-integration-checkpoint.md)
 - [Frontend authentication demo policy](./frontend-auth-demo.md)

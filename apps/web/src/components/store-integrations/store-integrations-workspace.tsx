@@ -803,7 +803,7 @@ function PlaceholderSummary() {
   return (
     <div className="sync-summary muted">
       <strong>Seeded demo channel</strong>
-      <span>Imported commerce data is available; live sync remains deferred.</span>
+      <span>Imported commerce data is available; read-only sync can be queued from this workspace.</span>
     </div>
   );
 }
@@ -821,7 +821,7 @@ function PlatformRow({ platform }: { readonly platform: SupportedStorePlatform }
         <p>
           {isSyncEnabled
             ? "Credential validation and read-only sync available."
-            : "Seeded MVP data available; live platform sync deferred."}
+            : "Seeded MVP data available."}
         </p>
       </div>
       <span className={isSyncEnabled ? "platform-state active" : "platform-state"}>
