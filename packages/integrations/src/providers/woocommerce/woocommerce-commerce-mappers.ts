@@ -29,7 +29,7 @@ export interface WooCommerceRefundMappingContext extends WooCommerceCommerceMapp
 }
 
 export interface NormalizedSourceMetadata<TRaw> {
-  readonly source: "woocommerce" | "amazon_seller";
+  readonly source: "woocommerce" | "amazon_seller" | "tiktok_shop";
   readonly raw: TRaw;
 }
 

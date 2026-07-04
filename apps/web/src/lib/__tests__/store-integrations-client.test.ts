@@ -3,6 +3,7 @@ import {
   WooCommerceApiVersion,
   createStoreIntegrationsApiClient,
   toAmazonSellerConnectionPayload,
+  toTikTokShopConnectionPayload,
   toWooCommerceConnectionPayload,
 } from "../api/store-integrations-client";
 
@@ -71,6 +72,30 @@ describe("store integrations API client", () => {
       platform: StorePlatform.AmazonSeller,
       region: "GB",
       storeName: "Amazon UK",
+    });
+    expect(JSON.stringify(payload).toLowerCase()).not.toContain("password");
+  });
+
+  it("builds TikTok Shop connection payloads without marketplace password fields", () => {
+    const payload = toTikTokShopConnectionPayload({
+      accessToken: " access-token ",
+      refreshToken: " refresh-token ",
+      region: " gb ",
+      shopCipher: " shop-cipher ",
+      shopId: " shop-id ",
+      storeName: " TikTok UK ",
+    });
+
+    expect(payload).toEqual({
+      platform: StorePlatform.TikTokShop,
+      region: "GB",
+      storeName: "TikTok UK",
+      tikTokShopCredentials: {
+        accessToken: "access-token",
+        refreshToken: "refresh-token",
+        shopCipher: "shop-cipher",
+        shopId: "shop-id",
+      },
     });
     expect(JSON.stringify(payload).toLowerCase()).not.toContain("password");
   });

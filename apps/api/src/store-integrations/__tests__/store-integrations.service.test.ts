@@ -2,12 +2,10 @@ import {
   BadRequestException,
   ConflictException,
   NotFoundException,
-  NotImplementedException,
   UnauthorizedException,
 } from "@nestjs/common";
 import {
   IntegrationAuthenticationError,
-  IntegrationNotImplementedError,
   IntegrationPlatform,
   WooCommerceApiVersion,
   type IntegrationFactory,
@@ -24,6 +22,7 @@ import {
 import type { WooCommerceSyncSchedulingService } from "../sync-queue/woocommerce-sync-scheduling.service.js";
 import {
   AmazonSellerSyncJobName,
+  TikTokShopSyncJobName,
   WooCommerceSyncJobName,
   type SyncQueuePort,
 } from "../sync-queue/sync-queue.types.js";
@@ -43,8 +42,10 @@ function createStoreIntegrationsServiceMocks(): {
   readonly disconnect: jest.Mock;
   readonly synchroniseOrders: jest.Mock;
   readonly enqueueAmazonSellerSyncJob: jest.Mock;
+  readonly enqueueTikTokShopSyncJob: jest.Mock;
   readonly enqueueWooCommerceSyncJob: jest.Mock;
   readonly getAmazonSellerStoreJobStatuses: jest.Mock;
+  readonly getTikTokShopStoreJobStatuses: jest.Mock;
   readonly getJobStatus: jest.Mock;
   readonly getWooCommerceStoreJobStatuses: jest.Mock;
   readonly findManySyncCursors: jest.Mock;
@@ -69,9 +70,11 @@ function createStoreIntegrationsServiceMocks(): {
   const disconnect = jest.fn();
   const synchroniseOrders = jest.fn();
   const enqueueAmazonSellerSyncJob = jest.fn();
+  const enqueueTikTokShopSyncJob = jest.fn();
   const enqueueWooCommerceSyncJob = jest.fn();
   const getJobStatus = jest.fn();
   const getAmazonSellerStoreJobStatuses = jest.fn().mockResolvedValue([]);
+  const getTikTokShopStoreJobStatuses = jest.fn().mockResolvedValue([]);
   const getWooCommerceStoreJobStatuses = jest.fn().mockResolvedValue([]);
   const findManySyncCursors = jest.fn().mockResolvedValue([]);
   const scheduleAutomaticSync = jest.fn();
@@ -119,9 +122,11 @@ function createStoreIntegrationsServiceMocks(): {
   const credentialEncryption = { encrypt } as unknown as AesCredentialEncryptionService;
   const syncQueue = {
     enqueueAmazonSellerSyncJob,
+    enqueueTikTokShopSyncJob,
     enqueueWooCommerceSyncJob,
     getAmazonSellerStoreJobStatuses,
     getJobStatus,
+    getTikTokShopStoreJobStatuses,
     getWooCommerceStoreJobStatuses,
   } as unknown as SyncQueuePort;
   const syncSchedulingService = {
@@ -150,9 +155,11 @@ function createStoreIntegrationsServiceMocks(): {
     disconnect,
     encrypt,
     enqueueAmazonSellerSyncJob,
+    enqueueTikTokShopSyncJob,
     enqueueWooCommerceSyncJob,
     getAmazonSellerStoreJobStatuses,
     getJobStatus,
+    getTikTokShopStoreJobStatuses,
     getWooCommerceStoreJobStatuses,
     findManySyncCursors,
     scheduleAutomaticSync,
@@ -291,31 +298,88 @@ describe("StoreIntegrationsService", () => {
     expect(getProvider).not.toHaveBeenCalled();
   });
 
-  it("keeps TikTok connection preparation as explicit future work", async () => {
-    const { service, findBusiness, findFirstConnectedStore, getProvider, connect } =
-      createStoreIntegrationsServiceMocks();
+  it("validates TikTok Shop credentials and marks the connection connected", async () => {
+    const {
+      service,
+      findBusiness,
+      findFirstConnectedStore,
+      createConnectedStore,
+      updateConnectedStore,
+      getProvider,
+      validateConnection,
+      encrypt,
+      recordAuditLog,
+    } = createStoreIntegrationsServiceMocks();
+    const createdAt = new Date("2026-07-03T11:00:00.000Z");
+    const updatedAt = new Date("2026-07-03T11:00:01.000Z");
     findBusiness.mockResolvedValue({ id: "business_1" });
     findFirstConnectedStore.mockResolvedValue(null);
-    connect.mockRejectedValue(
-      new IntegrationNotImplementedError("TikTok Shop connect is not implemented.", {
+    createConnectedStore.mockResolvedValue({
+      id: "store_tiktok_1",
+      businessId: "business_1",
+      platform: StorePlatform.TikTokShop,
+      storeName: "TikTok UK",
+      storeUrl: null,
+      region: "GB",
+      connectionStatus: StoreConnectionStatus.PendingValidation,
+      lastSynchronisedAt: null,
+      createdAt,
+      updatedAt,
+    });
+    validateConnection.mockResolvedValue({ status: "HEALTHY", checkedAt: new Date() });
+    updateConnectedStore.mockResolvedValue({
+      id: "store_tiktok_1",
+      businessId: "business_1",
+      platform: StorePlatform.TikTokShop,
+      storeName: "TikTok UK",
+      storeUrl: null,
+      region: "GB",
+      connectionStatus: StoreConnectionStatus.Connected,
+      lastSynchronisedAt: null,
+      createdAt,
+      updatedAt,
+    });
+
+    const response = await service.prepareStoreConnection("user_1", {
+      platform: StorePlatform.TikTokShop,
+      region: "gb",
+      storeName: "TikTok UK",
+      tikTokShopCredentials: {
+        accessToken: "access-token",
+        refreshToken: "refresh-token",
+        shopCipher: "shop_cipher_123",
+        shopId: "shop_123",
+      },
+    });
+
+    expect(getProvider).toHaveBeenCalledWith(IntegrationPlatform.TikTokShop);
+    expect(encrypt).toHaveBeenCalledWith("access-token");
+    expect(encrypt).toHaveBeenCalledWith("refresh-token");
+    expect(validateConnection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accessTokenHash: "access-token",
+        apiVersion: "shop_cipher_123",
+        businessId: "business_1",
+        consumerKey: "shop_123",
         platform: IntegrationPlatform.TikTokShop,
+        region: "GB",
+        storeId: "store_tiktok_1",
       }),
     );
-
-    await expect(
-      service.prepareStoreConnection("user_1", {
-        platform: StorePlatform.TikTokShop,
-        storeName: "TikTok UK",
-        region: "gb",
-      }),
-    ).rejects.toThrow(NotImplementedException);
-    expect(getProvider).toHaveBeenCalledWith(IntegrationPlatform.TikTokShop);
-    expect(connect).toHaveBeenCalledWith({
-      businessId: "business_1",
-      platform: IntegrationPlatform.TikTokShop,
-      region: "GB",
-      storeName: "TikTok UK",
+    expect(response).toMatchObject({
+      id: "store_tiktok_1",
+      platform: StorePlatform.TikTokShop,
+      connectionStatus: StoreConnectionStatus.Connected,
     });
+    expect(recordAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: AuditAction.TikTokShopConnectionCreated,
+        affectedPlatform: StorePlatform.TikTokShop,
+        affectedStoreId: "store_tiktok_1",
+      }),
+    );
+    expect(JSON.stringify(response)).not.toContain("access-token");
+    expect(JSON.stringify(recordAuditLog.mock.calls)).not.toContain("refresh-token");
   });
 
   it("validates Amazon Seller credentials and marks the connection connected", async () => {
@@ -830,23 +894,42 @@ describe("StoreIntegrationsService", () => {
     expect(JSON.stringify(response)).not.toContain("encryptedCredential");
   });
 
-  it("keeps TikTok disconnect as explicit future work", async () => {
+  it("allows the authenticated owner to disconnect a connected TikTok Shop store", async () => {
     const { service, findFirstConnectedStore, updateConnectedStore, removeAutomaticSync, getProvider } =
       createStoreIntegrationsServiceMocks();
+    const disconnectedAt = new Date("2026-07-03T17:00:00.000Z");
     findFirstConnectedStore.mockResolvedValue({
-      id: "store_1",
+      id: "store_tiktok_1",
       businessId: "business_1",
       connectionStatus: StoreConnectionStatus.Connected,
       disconnectedAt: null,
       lastSynchronisedAt: null,
       platform: StorePlatform.TikTokShop,
     });
+    removeAutomaticSync.mockResolvedValue({
+      jobId: "tiktok-shop:auto:full-sync:store_tiktok_1",
+      platform: StorePlatform.TikTokShop,
+      removedAt: disconnectedAt,
+      status: "REMOVED",
+      storeId: "store_tiktok_1",
+    });
+    updateConnectedStore.mockResolvedValue({
+      id: "store_tiktok_1",
+      businessId: "business_1",
+      connectionStatus: StoreConnectionStatus.Disconnected,
+      disconnectedAt,
+      lastSynchronisedAt: null,
+      platform: StorePlatform.TikTokShop,
+    });
 
-    await expect(service.disconnectStore("user_1", { storeId: "store_1" })).rejects.toThrow(
-      NotImplementedException,
-    );
-    expect(removeAutomaticSync).not.toHaveBeenCalled();
-    expect(updateConnectedStore).not.toHaveBeenCalled();
+    await expect(service.disconnectStore("user_1", { storeId: "store_tiktok_1" })).resolves.toEqual({
+      disconnectedAt,
+      platform: StorePlatform.TikTokShop,
+      status: StoreConnectionStatus.Disconnected,
+      storeId: "store_tiktok_1",
+    });
+    expect(removeAutomaticSync).toHaveBeenCalled();
+    expect(updateConnectedStore).toHaveBeenCalled();
     expect(getProvider).not.toHaveBeenCalled();
   });
 
@@ -979,21 +1062,47 @@ describe("StoreIntegrationsService", () => {
     );
   });
 
-  it("rejects manual sync for TikTok stores", async () => {
-    const { service, findFirstConnectedStore, enqueueAmazonSellerSyncJob, enqueueWooCommerceSyncJob } =
-      createStoreIntegrationsServiceMocks();
+  it("allows the authenticated owner to enqueue a manual TikTok Shop sync job", async () => {
+    const {
+      service,
+      findFirstConnectedStore,
+      enqueueAmazonSellerSyncJob,
+      enqueueTikTokShopSyncJob,
+      enqueueWooCommerceSyncJob,
+    } = createStoreIntegrationsServiceMocks();
+    const queuedAt = new Date("2026-07-03T14:00:00.000Z");
     findFirstConnectedStore.mockResolvedValue({
-      id: "store_1",
+      id: "store_tiktok_1",
       businessId: "business_1",
       connectionStatus: StoreConnectionStatus.Connected,
       lastSynchronisedAt: null,
       platform: StorePlatform.TikTokShop,
     });
+    enqueueTikTokShopSyncJob.mockResolvedValue({
+      jobId: "job_tiktok_1",
+      platform: StorePlatform.TikTokShop,
+      queuedAt,
+      status: "QUEUED",
+      storeId: "store_tiktok_1",
+    });
 
-    await expect(service.requestManualSync("user_1", { storeId: "store_1" })).rejects.toThrow(
-      BadRequestException,
-    );
+    await expect(service.requestManualSync("user_1", { storeId: "store_tiktok_1" })).resolves.toEqual({
+      jobId: "job_tiktok_1",
+      platform: StorePlatform.TikTokShop,
+      queuedAt,
+      status: "QUEUED",
+      storeId: "store_tiktok_1",
+    });
     expect(enqueueAmazonSellerSyncJob).not.toHaveBeenCalled();
+    expect(enqueueTikTokShopSyncJob).toHaveBeenCalledWith(
+      TikTokShopSyncJobName.ManualFullSync,
+      expect.objectContaining({
+        platform: StorePlatform.TikTokShop,
+        requestedByUserId: "user_1",
+        resource: "all",
+        storeId: "store_tiktok_1",
+      }),
+    );
     expect(enqueueWooCommerceSyncJob).not.toHaveBeenCalled();
   });
 
@@ -1346,29 +1455,58 @@ describe("StoreIntegrationsService", () => {
     expect(getWooCommerceStoreJobStatuses).not.toHaveBeenCalled();
   });
 
-  it("keeps TikTok sync status as explicit future work", async () => {
+  it("allows the authenticated owner to view safe TikTok Shop sync status", async () => {
     const {
       service,
       findFirstConnectedStore,
       findManySyncCursors,
       getAmazonSellerStoreJobStatuses,
+      getTikTokShopStoreJobStatuses,
       getWooCommerceStoreJobStatuses,
     } = createStoreIntegrationsServiceMocks();
+    const lastSynchronisedAt = new Date("2026-07-03T14:00:00.000Z");
+    const queuedAt = new Date("2026-07-03T14:05:00.000Z");
     findFirstConnectedStore.mockResolvedValue({
-      id: "store_1",
+      id: "store_tiktok_1",
       businessId: "business_1",
       connectionStatus: StoreConnectionStatus.Connected,
       disconnectedAt: null,
-      lastSynchronisedAt: null,
+      lastSynchronisedAt,
       platform: StorePlatform.TikTokShop,
     });
+    findManySyncCursors.mockResolvedValue([]);
+    getTikTokShopStoreJobStatuses.mockResolvedValue([
+      {
+        encryptedCredential: "should-not-leak",
+        jobId: "job_tiktok_1",
+        platform: StorePlatform.TikTokShop,
+        queuedAt,
+        status: "QUEUED",
+        storeId: "store_tiktok_1",
+      },
+    ]);
 
-    await expect(service.getStoreSyncStatus("user_1", "store_1")).rejects.toThrow(
-      BadRequestException,
-    );
-    expect(findManySyncCursors).not.toHaveBeenCalled();
+    const response = await service.getStoreSyncStatus("user_1", "store_tiktok_1");
+
+    expect(response).toMatchObject({
+      connectionStatus: StoreConnectionStatus.Connected,
+      jobs: [
+        {
+          jobId: "job_tiktok_1",
+          platform: StorePlatform.TikTokShop,
+          queuedAt,
+          status: "QUEUED",
+          storeId: "store_tiktok_1",
+        },
+      ],
+      lastSynchronisedAt,
+      platform: StorePlatform.TikTokShop,
+      storeId: "store_tiktok_1",
+    });
     expect(getAmazonSellerStoreJobStatuses).not.toHaveBeenCalled();
+    expect(getTikTokShopStoreJobStatuses).toHaveBeenCalledWith("store_tiktok_1");
     expect(getWooCommerceStoreJobStatuses).not.toHaveBeenCalled();
+    expect(JSON.stringify(response)).not.toContain("should-not-leak");
   });
 
   it("schedules automatic sync for stores owned by the authenticated user", async () => {

@@ -49,7 +49,7 @@ export interface StoreSyncJobStatus {
   readonly failedReason?: string;
   readonly finishedAt?: string;
   readonly jobId: string;
-  readonly platform: StorePlatform.WooCommerce | StorePlatform.AmazonSeller;
+  readonly platform: StorePlatform.WooCommerce | StorePlatform.AmazonSeller | StorePlatform.TikTokShop;
   readonly queuedAt: string;
   readonly status: "QUEUED" | "ACTIVE" | "COMPLETED" | "FAILED" | "UNKNOWN";
   readonly storeId: string;
@@ -78,6 +78,15 @@ export interface AmazonSellerConnectionInput {
   readonly refreshToken: string;
   readonly region: string;
   readonly sellerId: string;
+  readonly storeName: string;
+}
+
+export interface TikTokShopConnectionInput {
+  readonly accessToken: string;
+  readonly refreshToken: string;
+  readonly region: string;
+  readonly shopCipher: string;
+  readonly shopId: string;
   readonly storeName: string;
 }
 
@@ -117,6 +126,7 @@ export interface StoreIntegrationsApiClient {
   listSupportedPlatforms(): Promise<readonly SupportedStorePlatform[]>;
   listConnectedStores(): Promise<readonly ConnectedStore[]>;
   connectAmazonSeller(input: AmazonSellerConnectionInput): Promise<ConnectedStore>;
+  connectTikTokShop(input: TikTokShopConnectionInput): Promise<ConnectedStore>;
   connectWooCommerce(input: WooCommerceConnectionInput): Promise<ConnectedStore>;
   requestManualSync(storeId: string): Promise<ManualSyncJobResponse>;
   scheduleSync(storeId: string): Promise<SyncScheduleResponse>;
@@ -175,6 +185,12 @@ export function createStoreIntegrationsApiClient(
     connectAmazonSeller(input) {
       return request<ConnectedStore>("/store-integrations/connect", {
         body: JSON.stringify(toAmazonSellerConnectionPayload(input)),
+        method: "POST",
+      });
+    },
+    connectTikTokShop(input) {
+      return request<ConnectedStore>("/store-integrations/connect", {
+        body: JSON.stringify(toTikTokShopConnectionPayload(input)),
         method: "POST",
       });
     },
@@ -267,6 +283,30 @@ export function toAmazonSellerConnectionPayload(input: AmazonSellerConnectionInp
     platform: StorePlatform.AmazonSeller,
     region: input.region.trim().toUpperCase(),
     storeName: input.storeName.trim(),
+  };
+}
+
+export function toTikTokShopConnectionPayload(input: TikTokShopConnectionInput): {
+  readonly platform: StorePlatform.TikTokShop;
+  readonly region: string;
+  readonly storeName: string;
+  readonly tikTokShopCredentials: {
+    readonly accessToken: string;
+    readonly refreshToken: string;
+    readonly shopCipher: string;
+    readonly shopId: string;
+  };
+} {
+  return {
+    platform: StorePlatform.TikTokShop,
+    region: input.region.trim().toUpperCase(),
+    storeName: input.storeName.trim(),
+    tikTokShopCredentials: {
+      accessToken: input.accessToken.trim(),
+      refreshToken: input.refreshToken.trim(),
+      shopCipher: input.shopCipher.trim(),
+      shopId: input.shopId.trim(),
+    },
   };
 }
 

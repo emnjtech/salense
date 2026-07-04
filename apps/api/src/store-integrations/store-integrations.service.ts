@@ -1,8 +1,8 @@
 import {
   INTEGRATION_FACTORY,
-  IntegrationNotImplementedError,
   IntegrationPlatform,
   toAmazonSellerApiRegion,
+  toTikTokShopApiRegion,
   WooCommerceApiVersion,
   type IntegrationConfiguration,
   type IntegrationFactory,
@@ -14,7 +14,6 @@ import {
   Inject,
   Injectable,
   NotFoundException,
-  NotImplementedException,
   UnauthorizedException,
 } from "@nestjs/common";
 import {
@@ -35,6 +34,7 @@ import {
 import {
   SYNC_QUEUE,
   AmazonSellerSyncJobName,
+  TikTokShopSyncJobName,
   WooCommerceSyncJobName,
   type SyncJobEnqueueResult,
   type SyncJobStatusResult,
@@ -243,6 +243,7 @@ type CredentialConfiguration = Pick<
 > & {
   readonly amazonSellerValidationAccessToken?: string;
   readonly auditApiVersion?: string;
+  readonly tikTokShopValidationAccessToken?: string;
 };
 
 @Injectable()
@@ -307,20 +308,6 @@ export class StoreIntegrationsService {
       throw new ConflictException("Duplicate store connections are prohibited.");
     }
 
-    if (request.platform === StorePlatform.TikTokShop) {
-      return this.runPlaceholderIntegrationOperation(
-        this.integrationFactory.getProvider(toIntegrationPlatform(request.platform)).connect(
-          createIntegrationConfiguration({
-            businessId: business.id,
-            platform: request.platform,
-            region,
-            storeName: request.storeName.trim(),
-            storeUrl,
-          }),
-        ),
-      );
-    }
-
     const credentialConfiguration = this.createCredentialConfiguration(request);
     const connectedStore = await prisma.connectedStore.create({
       data: {
@@ -369,6 +356,9 @@ export class StoreIntegrationsService {
           ...credentialConfiguration,
           ...(credentialConfiguration.amazonSellerValidationAccessToken
             ? { accessTokenHash: credentialConfiguration.amazonSellerValidationAccessToken }
+            : {}),
+          ...(credentialConfiguration.tikTokShopValidationAccessToken
+            ? { accessTokenHash: credentialConfiguration.tikTokShopValidationAccessToken }
             : {}),
         }),
       );
@@ -467,6 +457,49 @@ export class StoreIntegrationsService {
       };
     }
 
+    if (request.platform === StorePlatform.TikTokShop) {
+      const credentials = request.tikTokShopCredentials;
+
+      if (!request.region?.trim()) {
+        throw new BadRequestException("TikTok Shop region is required.");
+      }
+
+      if (!credentials) {
+        throw new BadRequestException("TikTok Shop credentials are required.");
+      }
+
+      const apiRegion = toTikTokShopApiRegion(request.region);
+      const encryptedAccessToken = this.credentialEncryption.encrypt(credentials.accessToken.trim());
+      const encryptedRefreshToken = this.credentialEncryption.encrypt(credentials.refreshToken.trim());
+
+      return {
+        accessTokenHash: hashCredentialPlaceholder(credentials.accessToken),
+        accessTokenMetadata: {
+          credentialKind: "tiktok_shop_access_token",
+          encryptedCredential: encryptedAccessToken,
+          region: apiRegion,
+          shopCipher: credentials.shopCipher.trim(),
+          shopId: credentials.shopId.trim(),
+        },
+        apiVersion: credentials.shopCipher.trim(),
+        auditApiVersion: credentials.shopCipher.trim(),
+        consumerKey: credentials.shopId.trim(),
+        consumerKeyMetadata: {
+          configured: true,
+          keyId: encryptedAccessToken.keyId,
+        },
+        refreshTokenHash: hashCredentialPlaceholder(credentials.refreshToken),
+        refreshTokenMetadata: {
+          credentialKind: "tiktok_shop_refresh_token",
+          encryptedCredential: encryptedRefreshToken,
+          region: apiRegion,
+          shopCipher: credentials.shopCipher.trim(),
+          shopId: credentials.shopId.trim(),
+        },
+        tikTokShopValidationAccessToken: credentials.accessToken.trim(),
+      };
+    }
+
     if (request.platform !== StorePlatform.WooCommerce) {
       return {};
     }
@@ -524,12 +557,6 @@ export class StoreIntegrationsService {
   ): Promise<DisconnectStoreResponse> {
     const store = await this.assertStoreBelongsToUser(userId, request.storeId);
 
-    if (store.platform === StorePlatform.TikTokShop) {
-      throw new NotImplementedException(
-        "Disconnect is currently implemented for WooCommerce and Amazon Seller stores only.",
-      );
-    }
-
     if (store.connectionStatus !== StoreConnectionStatus.Connected) {
       throw new ConflictException("Store must be connected before it can be disconnected.");
     }
@@ -565,30 +592,12 @@ export class StoreIntegrationsService {
   async requestManualSync(userId: string, request: StoreActionRequestDto): Promise<ManualSyncResponse> {
     const store = await this.assertStoreBelongsToUser(userId, request.storeId);
 
-    if (store.platform === StorePlatform.TikTokShop) {
-      throw new BadRequestException("Manual sync is currently available for WooCommerce and Amazon Seller stores only.");
-    }
-
     if (store.connectionStatus !== StoreConnectionStatus.Connected) {
       throw new ConflictException("Store must be connected before manual synchronisation.");
     }
 
     const queuedAt = new Date();
-    const queuedJob = store.platform === StorePlatform.AmazonSeller
-      ? await this.syncQueue.enqueueAmazonSellerSyncJob(AmazonSellerSyncJobName.ManualFullSync, {
-          platform: StorePlatform.AmazonSeller,
-          queuedAt: queuedAt.toISOString(),
-          requestedByUserId: userId,
-          resource: "all",
-          storeId: store.id,
-        })
-      : await this.syncQueue.enqueueWooCommerceSyncJob(WooCommerceSyncJobName.ManualFullSync, {
-          platform: StorePlatform.WooCommerce,
-          queuedAt: queuedAt.toISOString(),
-          requestedByUserId: userId,
-          resource: "all",
-          storeId: store.id,
-        });
+    const queuedJob = await this.enqueueManualSyncJob(store, userId, queuedAt);
 
     await this.recordStoreIntegrationAuditEvent({
       action: AuditAction.ManualSyncJobQueued,
@@ -627,10 +636,6 @@ export class StoreIntegrationsService {
     storeId: string,
   ): Promise<StoreSyncStatusResponse> {
     const store = await this.assertStoreBelongsToUser(userId, storeId);
-
-    if (store.platform === StorePlatform.TikTokShop) {
-      throw new BadRequestException("Sync status is currently available for WooCommerce and Amazon Seller stores only.");
-    }
 
     const prisma = this.prismaService.client as unknown as StoreIntegrationsPrismaClient;
     const cursors = await prisma.commerceSyncCursor.findMany({
@@ -726,9 +731,12 @@ export class StoreIntegrationsService {
     platform: StorePlatform,
   ): Promise<readonly StoreSyncJobStatusResponse[]> {
     try {
-      const jobs = platform === StorePlatform.AmazonSeller
-        ? await this.syncQueue.getAmazonSellerStoreJobStatuses(storeId)
-        : await this.syncQueue.getWooCommerceStoreJobStatuses(storeId);
+      const jobs =
+        platform === StorePlatform.TikTokShop
+          ? await this.syncQueue.getTikTokShopStoreJobStatuses(storeId)
+          : platform === StorePlatform.AmazonSeller
+            ? await this.syncQueue.getAmazonSellerStoreJobStatuses(storeId)
+            : await this.syncQueue.getWooCommerceStoreJobStatuses(storeId);
 
       return jobs.map(toStoreSyncJobStatusResponse);
     } catch {
@@ -759,20 +767,37 @@ export class StoreIntegrationsService {
     return store as ConnectedStoreActionRecord;
   }
 
-  private async runPlaceholderIntegrationOperation(operation: Promise<unknown>): Promise<never> {
-    try {
-      await operation;
-    } catch (error) {
-      if (error instanceof IntegrationNotImplementedError) {
-        throw new NotImplementedException(error.message);
-      }
-
-      throw error;
+  private async enqueueManualSyncJob(
+    store: ConnectedStoreActionRecord,
+    userId: string,
+    queuedAt: Date,
+  ): Promise<SyncJobEnqueueResult> {
+    switch (store.platform) {
+      case StorePlatform.AmazonSeller:
+        return this.syncQueue.enqueueAmazonSellerSyncJob(AmazonSellerSyncJobName.ManualFullSync, {
+          platform: StorePlatform.AmazonSeller,
+          queuedAt: queuedAt.toISOString(),
+          requestedByUserId: userId,
+          resource: "all",
+          storeId: store.id,
+        });
+      case StorePlatform.TikTokShop:
+        return this.syncQueue.enqueueTikTokShopSyncJob(TikTokShopSyncJobName.ManualFullSync, {
+          platform: StorePlatform.TikTokShop,
+          queuedAt: queuedAt.toISOString(),
+          requestedByUserId: userId,
+          resource: "all",
+          storeId: store.id,
+        });
+      case StorePlatform.WooCommerce:
+        return this.syncQueue.enqueueWooCommerceSyncJob(WooCommerceSyncJobName.ManualFullSync, {
+          platform: StorePlatform.WooCommerce,
+          queuedAt: queuedAt.toISOString(),
+          requestedByUserId: userId,
+          resource: "all",
+          storeId: store.id,
+        });
     }
-
-    throw new NotImplementedException(
-      "Store integration provider returned success before real marketplace integration was implemented.",
-    );
   }
 }
 
@@ -792,7 +817,7 @@ function getConnectionCreatedAuditAction(platform: StorePlatform): AuditAction {
     case StorePlatform.AmazonSeller:
       return AuditAction.AmazonSellerConnectionCreated;
     case StorePlatform.TikTokShop:
-      throw new BadRequestException("TikTok Shop connection is not implemented.");
+      return AuditAction.TikTokShopConnectionCreated;
   }
 }
 
@@ -803,7 +828,7 @@ function getConnectionSucceededAuditAction(platform: StorePlatform): AuditAction
     case StorePlatform.AmazonSeller:
       return AuditAction.AmazonSellerConnectionValidationSucceeded;
     case StorePlatform.TikTokShop:
-      throw new BadRequestException("TikTok Shop connection is not implemented.");
+      return AuditAction.TikTokShopConnectionValidationSucceeded;
   }
 }
 
@@ -814,7 +839,7 @@ function getConnectionFailedAuditAction(platform: StorePlatform): AuditAction {
     case StorePlatform.AmazonSeller:
       return AuditAction.AmazonSellerConnectionValidationFailed;
     case StorePlatform.TikTokShop:
-      throw new BadRequestException("TikTok Shop connection is not implemented.");
+      return AuditAction.TikTokShopConnectionValidationFailed;
   }
 }
 

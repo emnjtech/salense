@@ -8,10 +8,13 @@ import type {
 import {
   AmazonSellerSyncJobName,
   createAmazonSellerRecurringSyncJobId,
+  createTikTokShopRecurringSyncJobId,
   createWooCommerceRecurringSyncJobId,
   SYNC_QUEUE,
+  TikTokShopSyncJobName,
   WooCommerceSyncJobName,
   type RecurringSyncScheduleRemovalResult,
+  type RecurringSyncScheduleRequest,
   type RecurringSyncScheduleResult,
   type SyncQueuePort,
 } from "./sync-queue.types.js";
@@ -45,39 +48,16 @@ export class WooCommerceSyncSchedulingService {
 
     const scheduledAt = new Date();
     const { intervalMs } = loadSyncScheduleConfig();
-    const schedule =
-      store.platform === StorePlatform.AmazonSeller
-        ? await this.syncQueue.scheduleRecurringWooCommerceSyncJob({
-            data: {
-              platform: StorePlatform.AmazonSeller,
-              queuedAt: scheduledAt.toISOString(),
-              requestedByUserId,
-              resource: "all",
-              storeId: store.id,
-            },
-            everyMs: intervalMs,
-            jobId,
-            name: AmazonSellerSyncJobName.ManualFullSync,
-          })
-        : await this.syncQueue.scheduleRecurringWooCommerceSyncJob({
-            data: {
-              platform: StorePlatform.WooCommerce,
-              queuedAt: scheduledAt.toISOString(),
-              requestedByUserId,
-              resource: "all",
-              storeId: store.id,
-            },
-            everyMs: intervalMs,
-            jobId,
-            name: WooCommerceSyncJobName.ManualFullSync,
-          });
+    const schedule = await this.syncQueue.scheduleRecurringWooCommerceSyncJob(
+      createRecurringSyncScheduleRequest(store, requestedByUserId, scheduledAt, intervalMs, jobId),
+    );
 
     return toScheduleResponse(schedule);
   }
 
   async removeAutomaticSync(store: SchedulableConnectedStore): Promise<SyncScheduleRemovalResponse> {
     if (!isSchedulablePlatform(store.platform)) {
-      throw new BadRequestException("Scheduled sync is currently available for WooCommerce and Amazon Seller stores only.");
+      throw new BadRequestException(syncAvailabilityMessage);
     }
 
     const removal = await this.syncQueue.removeRecurringWooCommerceSyncJob(
@@ -90,7 +70,7 @@ export class WooCommerceSyncSchedulingService {
 
   private assertSchedulableStore(store: SchedulableConnectedStore): void {
     if (!isSchedulablePlatform(store.platform)) {
-      throw new BadRequestException("Scheduled sync is currently available for WooCommerce and Amazon Seller stores only.");
+      throw new BadRequestException(syncAvailabilityMessage);
     }
 
     if (store.connectionStatus !== StoreConnectionStatus.Connected) {
@@ -99,14 +79,76 @@ export class WooCommerceSyncSchedulingService {
   }
 }
 
+const syncAvailabilityMessage =
+  "Scheduled sync is currently available for WooCommerce, Amazon Seller, and TikTok Shop stores only.";
+
+function createRecurringSyncScheduleRequest(
+  store: SchedulableConnectedStore,
+  requestedByUserId: string,
+  scheduledAt: Date,
+  intervalMs: number,
+  jobId: string,
+): RecurringSyncScheduleRequest {
+  switch (store.platform) {
+    case StorePlatform.AmazonSeller:
+      return {
+        data: {
+          platform: StorePlatform.AmazonSeller,
+          queuedAt: scheduledAt.toISOString(),
+          requestedByUserId,
+          resource: "all",
+          storeId: store.id,
+        },
+        everyMs: intervalMs,
+        jobId,
+        name: AmazonSellerSyncJobName.ManualFullSync,
+      };
+    case StorePlatform.TikTokShop:
+      return {
+        data: {
+          platform: StorePlatform.TikTokShop,
+          queuedAt: scheduledAt.toISOString(),
+          requestedByUserId,
+          resource: "all",
+          storeId: store.id,
+        },
+        everyMs: intervalMs,
+        jobId,
+        name: TikTokShopSyncJobName.ManualFullSync,
+      };
+    case StorePlatform.WooCommerce:
+      return {
+        data: {
+          platform: StorePlatform.WooCommerce,
+          queuedAt: scheduledAt.toISOString(),
+          requestedByUserId,
+          resource: "all",
+          storeId: store.id,
+        },
+        everyMs: intervalMs,
+        jobId,
+        name: WooCommerceSyncJobName.ManualFullSync,
+      };
+  }
+}
+
 function isSchedulablePlatform(platform: StorePlatform): boolean {
-  return platform === StorePlatform.WooCommerce || platform === StorePlatform.AmazonSeller;
+  return (
+    platform === StorePlatform.WooCommerce ||
+    platform === StorePlatform.AmazonSeller ||
+    platform === StorePlatform.TikTokShop
+  );
 }
 
 function createRecurringSyncJobId(store: SchedulableConnectedStore): string {
-  return store.platform === StorePlatform.AmazonSeller
-    ? createAmazonSellerRecurringSyncJobId(store.id)
-    : createWooCommerceRecurringSyncJobId(store.id);
+  switch (store.platform) {
+    case StorePlatform.AmazonSeller:
+      return createAmazonSellerRecurringSyncJobId(store.id);
+    case StorePlatform.TikTokShop:
+      return createTikTokShopRecurringSyncJobId(store.id);
+    case StorePlatform.WooCommerce:
+      return createWooCommerceRecurringSyncJobId(store.id);
+  }
 }
 
 function toScheduleResponse(schedule: RecurringSyncScheduleResult): SyncScheduleResponse {

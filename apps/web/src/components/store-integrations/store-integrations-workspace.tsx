@@ -42,6 +42,15 @@ interface AmazonSellerFormState {
   readonly storeName: string;
 }
 
+interface TikTokShopFormState {
+  readonly accessToken: string;
+  readonly refreshToken: string;
+  readonly region: string;
+  readonly shopCipher: string;
+  readonly shopId: string;
+  readonly storeName: string;
+}
+
 const emptyWooCommerceForm: WooCommerceFormState = {
   consumerKey: "",
   consumerSecret: "",
@@ -58,6 +67,15 @@ const emptyAmazonSellerForm: AmazonSellerFormState = {
   storeName: "",
 };
 
+const emptyTikTokShopForm: TikTokShopFormState = {
+  accessToken: "",
+  refreshToken: "",
+  region: "GB",
+  shopCipher: "",
+  shopId: "",
+  storeName: "",
+};
+
 export function StoreIntegrationsWorkspace() {
   const [platforms, setPlatforms] = useState<readonly SupportedStorePlatform[]>([]);
   const [stores, setStores] = useState<readonly ConnectedStore[]>([]);
@@ -65,6 +83,8 @@ export function StoreIntegrationsWorkspace() {
   const [formState, setFormState] = useState<WooCommerceFormState>(emptyWooCommerceForm);
   const [amazonFormState, setAmazonFormState] =
     useState<AmazonSellerFormState>(emptyAmazonSellerForm);
+  const [tikTokFormState, setTikTokFormState] =
+    useState<TikTokShopFormState>(emptyTikTokShopForm);
   const [loading, setLoading] = useState(true);
   const [actionStoreId, setActionStoreId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -174,6 +194,32 @@ export function StoreIntegrationsWorkspace() {
 
       setNotice(`${connectedStore.storeName} was submitted for Amazon Seller validation.`);
       setAmazonFormState(emptyAmazonSellerForm);
+      await loadWorkspace();
+    } catch (caughtError) {
+      setError(getFriendlyErrorMessage(caughtError));
+    } finally {
+      setActionStoreId(null);
+    }
+  }
+
+  async function handleTikTokShopConnect(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setActionStoreId("connect-tiktok-shop");
+    setError(null);
+    setNotice(null);
+
+    try {
+      const connectedStore = await apiClient.connectTikTokShop({
+        accessToken: tikTokFormState.accessToken,
+        refreshToken: tikTokFormState.refreshToken,
+        region: tikTokFormState.region,
+        shopCipher: tikTokFormState.shopCipher,
+        shopId: tikTokFormState.shopId,
+        storeName: tikTokFormState.storeName,
+      });
+
+      setNotice(`${connectedStore.storeName} was submitted for TikTok Shop validation.`);
+      setTikTokFormState(emptyTikTokShopForm);
       await loadWorkspace();
     } catch (caughtError) {
       setError(getFriendlyErrorMessage(caughtError));
@@ -466,6 +512,124 @@ export function StoreIntegrationsWorkspace() {
             </button>
           </form>
         </section>
+
+        <section className="panel">
+          <div className="panel-heading">
+            <div>
+              <h2>Connect TikTok Shop</h2>
+              <p>
+                Optional TikTok Shop setup for local testing; credentials are encrypted and used
+                read-only.
+              </p>
+            </div>
+          </div>
+
+          <form
+            className="integration-form"
+            onSubmit={(event) => void handleTikTokShopConnect(event)}
+          >
+            <label>
+              Store name
+              <input
+                autoComplete="organization"
+                name="tikTokStoreName"
+                onChange={(event) =>
+                  setTikTokFormState((current) => ({
+                    ...current,
+                    storeName: event.target.value,
+                  }))
+                }
+                placeholder="TikTok UK"
+                required
+                value={tikTokFormState.storeName}
+              />
+            </label>
+            <label>
+              Region
+              <input
+                autoComplete="country"
+                name="tikTokRegion"
+                onChange={(event) =>
+                  setTikTokFormState((current) => ({ ...current, region: event.target.value }))
+                }
+                placeholder="GB"
+                required
+                value={tikTokFormState.region}
+              />
+            </label>
+            <label>
+              Shop ID
+              <input
+                autoComplete="off"
+                name="tikTokShopId"
+                onChange={(event) =>
+                  setTikTokFormState((current) => ({ ...current, shopId: event.target.value }))
+                }
+                required
+                value={tikTokFormState.shopId}
+              />
+            </label>
+            <label>
+              Shop cipher
+              <input
+                autoComplete="off"
+                name="tikTokShopCipher"
+                onChange={(event) =>
+                  setTikTokFormState((current) => ({
+                    ...current,
+                    shopCipher: event.target.value,
+                  }))
+                }
+                required
+                value={tikTokFormState.shopCipher}
+              />
+            </label>
+            <label>
+              Access token
+              <input
+                autoComplete="off"
+                name="tikTokAccessToken"
+                onChange={(event) =>
+                  setTikTokFormState((current) => ({
+                    ...current,
+                    accessToken: event.target.value,
+                  }))
+                }
+                required
+                type="password"
+                value={tikTokFormState.accessToken}
+              />
+            </label>
+            <label>
+              Refresh token
+              <input
+                autoComplete="off"
+                name="tikTokRefreshToken"
+                onChange={(event) =>
+                  setTikTokFormState((current) => ({
+                    ...current,
+                    refreshToken: event.target.value,
+                  }))
+                }
+                required
+                type="password"
+                value={tikTokFormState.refreshToken}
+              />
+            </label>
+            <button
+              className="primary-button"
+              disabled={!hasAccessToken || actionStoreId === "connect-tiktok-shop"}
+              type="submit"
+            >
+              {actionStoreId === "connect-tiktok-shop" ? (
+                <Loader2 className="spin" size={16} aria-hidden="true" />
+              ) : (
+                <PlugZap size={16} aria-hidden="true" />
+              )}
+              Connect TikTok Shop
+            </button>
+          </form>
+        </section>
       </div>
 
       <section className="panel stores-panel">
@@ -717,7 +881,11 @@ function getFriendlyErrorMessage(error: unknown): string {
 }
 
 function isSyncEnabledPlatform(platform: StorePlatform): boolean {
-  return platform === StorePlatform.WooCommerce || platform === StorePlatform.AmazonSeller;
+  return (
+    platform === StorePlatform.WooCommerce ||
+    platform === StorePlatform.AmazonSeller ||
+    platform === StorePlatform.TikTokShop
+  );
 }
 
 function getPlatformLabel(platform: StorePlatform): string {

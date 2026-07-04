@@ -114,6 +114,37 @@ describe("store integration DTO validation", () => {
     expect(JSON.stringify(errors)).toContain("accessToken");
   });
 
+  it("accepts a valid TikTok Shop credential request without marketplace passwords", async () => {
+    const errors = await validatePrepareConnection({
+      platform: StorePlatform.TikTokShop,
+      region: "GB",
+      storeName: "TikTok UK",
+      tikTokShopCredentials: {
+        accessToken: "access-token",
+        refreshToken: "refresh-token",
+        shopCipher: "shop_cipher_123",
+        shopId: "shop_123",
+      },
+    });
+
+    expect(errors).toHaveLength(0);
+  });
+
+  it("rejects TikTok Shop requests with missing token credentials", async () => {
+    const errors = await validatePrepareConnection({
+      platform: StorePlatform.TikTokShop,
+      region: "GB",
+      storeName: "TikTok UK",
+      tikTokShopCredentials: {
+        refreshToken: "refresh-token",
+        shopCipher: "shop_cipher_123",
+        shopId: "shop_123",
+      },
+    });
+
+    expect(JSON.stringify(errors)).toContain("accessToken");
+  });
+
   it("rejects unsupported platforms", async () => {
     const errors = await validatePrepareConnection({
       platform: "SHOPIFY",

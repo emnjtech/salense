@@ -11,6 +11,7 @@ import {
 } from "class-validator";
 import { StorePlatform } from "../types/store-platform.enum.js";
 import { AmazonSellerConnectionCredentialsDto } from "./amazon-seller-connection-credentials.dto.js";
+import { TikTokShopConnectionCredentialsDto } from "./tiktok-shop-connection-credentials.dto.js";
 import { WooCommerceConnectionCredentialsDto } from "./woocommerce-connection-credentials.dto.js";
 
 export class PrepareStoreConnectionRequestDto {
@@ -52,4 +53,13 @@ export class PrepareStoreConnectionRequestDto {
   @ValidateNested()
   @Type(() => AmazonSellerConnectionCredentialsDto)
   declare readonly amazonSellerCredentials?: AmazonSellerConnectionCredentialsDto;
+
+  @ValidateIf(
+    (request: PrepareStoreConnectionRequestDto) =>
+      request.platform === StorePlatform.TikTokShop || request.tikTokShopCredentials !== undefined,
+  )
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => TikTokShopConnectionCredentialsDto)
+  declare readonly tikTokShopCredentials?: TikTokShopConnectionCredentialsDto;
 }

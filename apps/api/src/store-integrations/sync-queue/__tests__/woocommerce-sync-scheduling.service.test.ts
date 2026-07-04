@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException } from "@nestjs/common";
+import { ConflictException } from "@nestjs/common";
 import { StoreConnectionStatus } from "../../types/store-connection-status.enum.js";
 import { StorePlatform } from "../../types/store-platform.enum.js";
 import type { SyncQueuePort } from "../sync-queue.types.js";
@@ -101,8 +101,19 @@ describe("WooCommerceSyncSchedulingService", () => {
     },
   );
 
-  it("rejects non-WooCommerce stores", async () => {
-    const { service, scheduleRecurringWooCommerceSyncJob } = createSchedulingMocks();
+  it("creates a recurring sync schedule for a connected TikTok Shop store", async () => {
+    const { service, getRecurringWooCommerceSyncJob, scheduleRecurringWooCommerceSyncJob } =
+      createSchedulingMocks();
+    const scheduledAt = new Date("2026-07-03T15:00:00.000Z");
+    getRecurringWooCommerceSyncJob.mockResolvedValue(null);
+    scheduleRecurringWooCommerceSyncJob.mockResolvedValue({
+      everyMs: 3_600_000,
+      jobId: "tiktok-shop:auto:full-sync:store_1",
+      platform: StorePlatform.TikTokShop,
+      scheduledAt,
+      status: "SCHEDULED",
+      storeId: "store_1",
+    });
 
     await expect(
       service.scheduleAutomaticSync(
@@ -113,8 +124,25 @@ describe("WooCommerceSyncSchedulingService", () => {
         },
         "user_1",
       ),
-    ).rejects.toThrow(BadRequestException);
-    expect(scheduleRecurringWooCommerceSyncJob).not.toHaveBeenCalled();
+    ).resolves.toEqual({
+      everyMs: 3_600_000,
+      jobId: "tiktok-shop:auto:full-sync:store_1",
+      platform: StorePlatform.TikTokShop,
+      scheduledAt,
+      status: "SCHEDULED",
+      storeId: "store_1",
+    });
+    expect(scheduleRecurringWooCommerceSyncJob).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        platform: StorePlatform.TikTokShop,
+        requestedByUserId: "user_1",
+        resource: "all",
+        storeId: "store_1",
+      }),
+      everyMs: 3_600_000,
+      jobId: "tiktok-shop:auto:full-sync:store_1",
+      name: "tiktok-shop.manual.full-sync",
+    });
   });
 
   it("prevents duplicate recurring schedules", async () => {

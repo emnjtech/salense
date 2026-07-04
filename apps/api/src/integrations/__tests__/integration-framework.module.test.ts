@@ -7,6 +7,7 @@ import {
   IntegrationPlatform,
   IntegrationRegistry,
   PlaceholderIntegrationProvider,
+  TikTokShopIntegrationProvider,
   UnsupportedIntegrationPlatformError,
   WooCommerceIntegrationProvider,
 } from "@salense/integrations";
@@ -22,7 +23,7 @@ describe("IntegrationFrameworkModule", () => {
     expect(testingModule.get(INTEGRATION_REGISTRY)).toBeInstanceOf(IntegrationRegistry);
   });
 
-  it("resolves active WooCommerce and Amazon providers with TikTok kept as placeholder", async () => {
+  it("resolves active WooCommerce, Amazon, and TikTok providers", async () => {
     const testingModule = await Test.createTestingModule({
       imports: [IntegrationFrameworkModule],
     }).compile();
@@ -37,7 +38,8 @@ describe("IntegrationFrameworkModule", () => {
     expect(amazonProvider).toBeInstanceOf(AmazonSellerIntegrationProvider);
     expect(amazonProvider).not.toBeInstanceOf(PlaceholderIntegrationProvider);
     expect(amazonProvider.platform).toBe(IntegrationPlatform.AmazonSeller);
-    expect(tikTokProvider).toBeInstanceOf(PlaceholderIntegrationProvider);
+    expect(tikTokProvider).toBeInstanceOf(TikTokShopIntegrationProvider);
+    expect(tikTokProvider).not.toBeInstanceOf(PlaceholderIntegrationProvider);
     expect(tikTokProvider.platform).toBe(IntegrationPlatform.TikTokShop);
   });
 

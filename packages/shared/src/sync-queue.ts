@@ -33,3 +33,19 @@ export const amazonSellerSyncJobNames = Object.values(AmazonSellerSyncJobName);
 export function createAmazonSellerRecurringSyncJobId(storeId: string): string {
   return `amazon-seller:auto:full-sync:${storeId}`;
 }
+
+export enum TikTokShopSyncJobName {
+  ManualFullSync = "tiktok-shop.manual.full-sync",
+  OrdersSync = "tiktok-shop.orders.sync",
+  ProductsSync = "tiktok-shop.products.sync",
+  CustomersSync = "tiktok-shop.customers.sync",
+  InventorySync = "tiktok-shop.inventory.sync",
+  CategoriesSync = "tiktok-shop.categories.sync",
+  RefundsSync = "tiktok-shop.refunds.sync",
+}
+
+export const tikTokShopSyncJobNames = Object.values(TikTokShopSyncJobName);
+
+export function createTikTokShopRecurringSyncJobId(storeId: string): string {
+  return `tiktok-shop:auto:full-sync:${storeId}`;
+}

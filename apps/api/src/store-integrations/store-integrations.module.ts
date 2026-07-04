@@ -15,8 +15,14 @@ import { CommerceSyncCursorService } from "./sync-cursors/commerce-sync-cursor.s
 import { AmazonSellerSyncWorkerHandler } from "./sync-queue/amazon-seller-sync-worker.handler.js";
 import { createBullMqSyncQueue } from "./sync-queue/bullmq-sync-queue.js";
 import { SYNC_QUEUE } from "./sync-queue/sync-queue.types.js";
+import { TikTokShopSyncWorkerHandler } from "./sync-queue/tiktok-shop-sync-worker.handler.js";
 import { WooCommerceSyncSchedulingService } from "./sync-queue/woocommerce-sync-scheduling.service.js";
 import { WooCommerceSyncWorkerHandler } from "./sync-queue/woocommerce-sync-worker.handler.js";
+import {
+  createTikTokShopRestClient,
+  TIKTOK_SHOP_REST_CLIENT,
+  TikTokShopSyncService,
+} from "./tiktok-shop-sync.service.js";
 import { WooCommerceCommercePersistenceService } from "./woocommerce-commerce-persistence.service.js";
 import {
   createWooCommerceRestClient,
@@ -36,18 +42,23 @@ import {
     AmazonSellerSyncService,
     AmazonSellerSyncWorkerHandler,
     StoreIntegrationsService,
+    TikTokShopSyncService,
+    TikTokShopSyncWorkerHandler,
     WooCommerceCommercePersistenceService,
     WooCommerceSyncSchedulingService,
     WooCommerceSyncService,
     WooCommerceSyncWorkerHandler,
     { provide: SYNC_QUEUE, useFactory: createBullMqSyncQueue },
     { provide: AMAZON_SELLER_REST_CLIENT, useFactory: createAmazonSellerRestClient },
+    { provide: TIKTOK_SHOP_REST_CLIENT, useFactory: createTikTokShopRestClient },
     { provide: WOOCOMMERCE_REST_CLIENT, useFactory: createWooCommerceRestClient },
   ],
   exports: [
     AmazonSellerSyncService,
     AmazonSellerSyncWorkerHandler,
     StoreIntegrationsService,
+    TikTokShopSyncService,
+    TikTokShopSyncWorkerHandler,
     CommerceSyncCursorService,
     WooCommerceCommercePersistenceService,
     WooCommerceSyncSchedulingService,

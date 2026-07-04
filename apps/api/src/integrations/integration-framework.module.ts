@@ -4,9 +4,8 @@ import {
   INTEGRATION_FACTORY,
   INTEGRATION_REGISTRY,
   IntegrationFactory,
-  IntegrationPlatform,
   IntegrationRegistry,
-  PlaceholderIntegrationProvider,
+  TikTokShopIntegrationProvider,
   WooCommerceIntegrationProvider,
 } from "@salense/integrations";
 
@@ -18,7 +17,7 @@ import {
         new IntegrationRegistry([
           new WooCommerceIntegrationProvider(),
           new AmazonSellerIntegrationProvider(),
-          new PlaceholderIntegrationProvider(IntegrationPlatform.TikTokShop),
+          new TikTokShopIntegrationProvider(),
         ]),
     },
     {

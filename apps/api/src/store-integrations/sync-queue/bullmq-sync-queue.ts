@@ -13,6 +13,8 @@ import {
   type SyncJobStatusResult,
   type SyncQueuePort,
   type StoreSyncJobStatusResult,
+  type TikTokShopSyncJobData,
+  type TikTokShopSyncJobName,
   type WooCommerceSyncJobData,
   type WooCommerceSyncJobName,
   type SyncJobData,
@@ -69,6 +71,21 @@ export class BullMqSyncQueue implements SyncQueuePort {
     };
   }
 
+  async enqueueTikTokShopSyncJob(
+    name: TikTokShopSyncJobName,
+    data: TikTokShopSyncJobData,
+  ): Promise<SyncJobEnqueueResult> {
+    const job = await this.getQueue().add(name, data, defaultJobOptions);
+
+    return {
+      jobId: String(job.id),
+      platform: data.platform,
+      queuedAt: new Date(data.queuedAt),
+      status: "QUEUED",
+      storeId: data.storeId,
+    };
+  }
+
   async getJobStatus(jobId: string): Promise<SyncJobStatusResult | null> {
     const job = await this.getQueue().getJob(jobId);
 
@@ -99,6 +116,12 @@ export class BullMqSyncQueue implements SyncQueuePort {
     storeId: string,
   ): Promise<readonly StoreSyncJobStatusResult[]> {
     return this.getStoreJobStatuses(storeId, StorePlatform.AmazonSeller);
+  }
+
+  async getTikTokShopStoreJobStatuses(
+    storeId: string,
+  ): Promise<readonly StoreSyncJobStatusResult[]> {
+    return this.getStoreJobStatuses(storeId, StorePlatform.TikTokShop);
   }
 
   private async getStoreJobStatuses(
@@ -139,9 +162,7 @@ export class BullMqSyncQueue implements SyncQueuePort {
     return {
       everyMs: Number(repeatableJob.every ?? 0),
       jobId,
-      platform: jobId.startsWith("amazon-seller:")
-        ? StorePlatform.AmazonSeller
-        : StorePlatform.WooCommerce,
+      platform: platformFromRecurringJobId(jobId),
       storeId: storeIdFromRecurringJobId(jobId),
     };
   }
@@ -156,9 +177,7 @@ export class BullMqSyncQueue implements SyncQueuePort {
     if (!repeatableJob) {
       return {
         jobId,
-        platform: jobId.startsWith("amazon-seller:")
-          ? StorePlatform.AmazonSeller
-          : StorePlatform.WooCommerce,
+        platform: platformFromRecurringJobId(jobId),
         removedAt: new Date(),
         status: "NOT_FOUND",
         storeId,
@@ -169,9 +188,7 @@ export class BullMqSyncQueue implements SyncQueuePort {
 
     return {
       jobId,
-      platform: jobId.startsWith("amazon-seller:")
-        ? StorePlatform.AmazonSeller
-        : StorePlatform.WooCommerce,
+      platform: platformFromRecurringJobId(jobId),
       removedAt: new Date(),
       status: "REMOVED",
       storeId,
@@ -212,6 +229,18 @@ export class BullMqSyncQueue implements SyncQueuePort {
 
 function storeIdFromRecurringJobId(jobId: string): string {
   return jobId.split(":").at(-1) ?? jobId;
+}
+
+function platformFromRecurringJobId(jobId: string): StorePlatform {
+  if (jobId.startsWith("amazon-seller:")) {
+    return StorePlatform.AmazonSeller;
+  }
+
+  if (jobId.startsWith("tiktok-shop:")) {
+    return StorePlatform.TikTokShop;
+  }
+
+  return StorePlatform.WooCommerce;
 }
 
 export function createBullMqSyncQueue(): SyncQueuePort {
