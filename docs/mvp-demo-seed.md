@@ -30,12 +30,12 @@ Set `DATABASE_URL` to a local PostgreSQL database that has the current Prisma sc
 pnpm demo:seed
 ```
 
-The script is rerunnable. It deletes the existing demo user by email and recreates that user’s business, stores, and commerce data through cascade cleanup.
+The script is rerunnable. It deletes the existing demo user by email and recreates that user's business, stores, and commerce data through cascade cleanup.
 
 ## Demo Shape
 
-- Amazon Seller is the strongest platform for today’s revenue.
+- Amazon Seller is the strongest platform for today's revenue.
 - TikTok Shop contributes visible product velocity.
 - WooCommerce includes a partial refund for refund-count visibility.
-- Low-stock and out-of-stock products are included for Today and Products page signals.
+- Low-stock and out-of-stock products are included for Today, Products, and Inventory page signals.
 - Today and yesterday orders are included so revenue-change metrics are meaningful.
