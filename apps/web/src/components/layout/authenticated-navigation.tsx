@@ -3,6 +3,7 @@
 import {
   BarChart3,
   Building2,
+  Boxes,
   Link2,
   ListOrdered,
   LogOut,
@@ -68,6 +69,9 @@ export function AuthenticatedNavigation() {
         </NavigationLink>
         <NavigationLink currentPath={pathname} href="/customers" icon={<Users size={18} />}>
           Customers
+        </NavigationLink>
+        <NavigationLink currentPath={pathname} href="/inventory" icon={<Boxes size={18} />}>
+          Inventory
         </NavigationLink>
         <NavigationLink
           currentPath={pathname}
