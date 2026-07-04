@@ -6,6 +6,7 @@ Product requirements are governed by the Salense PRD + SES.
 
 Operational notes:
 
+- [Continuous integration](./ci.md)
 - [MVP demo runbook](./mvp-demo-runbook.md)
 - [MVP demo checklist](./mvp-checklist.md)
 - [MVP demo seed data](./mvp-demo-seed.md)
