@@ -26,6 +26,6 @@ import { JwtSessionConfigService, JwtSessionTokenService } from "./session/index
     JwtSessionTokenService,
     JwtAccessTokenGuard,
   ],
-  exports: [AuthService, JwtAccessTokenGuard],
+  exports: [AuthService, JwtAccessTokenGuard, JwtSessionTokenService],
 })
 export class AuthModule {}

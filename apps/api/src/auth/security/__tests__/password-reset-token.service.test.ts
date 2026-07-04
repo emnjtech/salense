@@ -21,11 +21,11 @@ describe("PasswordResetTokenService", () => {
     expect(hash).toHaveLength(64);
     expect(service.hashToken("raw-reset-token")).toBe(hash);
   });
+it("creates default expiry dates", () => {
+  const service = new PasswordResetTokenService();
+  const now = new Date("2026-07-02T12:00:00.000Z");
 
-  it("creates configurable expiry dates", () => {
-    const service = new PasswordResetTokenService({ expiresInMs: 1_000 });
-    const now = new Date("2026-07-02T12:00:00.000Z");
-
-    expect(service.getExpiryDate(now)).toEqual(new Date("2026-07-02T12:00:01.000Z"));
-  });
+  expect(service.getExpiryDate(now)).toEqual(new Date("2026-07-02T13:00:00.000Z"));
+});
+ 
 });

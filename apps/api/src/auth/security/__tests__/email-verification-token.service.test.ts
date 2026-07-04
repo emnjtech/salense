@@ -22,10 +22,10 @@ describe("EmailVerificationTokenService", () => {
     expect(service.hashToken("raw-verification-token")).toBe(hash);
   });
 
-  it("creates configurable expiry dates", () => {
-    const service = new EmailVerificationTokenService({ expiresInMs: 1_000 });
+  it("creates default expiry dates", () => {
+    const service = new EmailVerificationTokenService();
     const now = new Date("2026-07-02T12:00:00.000Z");
 
-    expect(service.getExpiryDate(now)).toEqual(new Date("2026-07-02T12:00:01.000Z"));
+    expect(service.getExpiryDate(now)).toEqual(new Date("2026-07-03T12:00:00.000Z"));
   });
 });

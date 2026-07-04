@@ -1,3 +1,5 @@
+
+import { AuthModule } from "../auth/auth.module.js";
 import { Module } from "@nestjs/common";
 import { AuditModule } from "../audit/audit.module.js";
 import { DatabaseModule } from "../database/database.module.js";
@@ -18,10 +20,13 @@ import {
 } from "./woocommerce-sync.service.js";
 
 @Module({
-  imports: [AuditModule, DatabaseModule, IntegrationFrameworkModule],
+ imports: [AuditModule, AuthModule, DatabaseModule, IntegrationFrameworkModule],
   controllers: [StoreIntegrationsController],
   providers: [
-    AesCredentialEncryptionService,
+    {
+    provide: AesCredentialEncryptionService,
+    useFactory: () => new AesCredentialEncryptionService(),
+  },
     CommerceSyncCursorService,
     StoreIntegrationsService,
     WooCommerceCommercePersistenceService,

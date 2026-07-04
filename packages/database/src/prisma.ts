@@ -20,7 +20,7 @@ export function getPrismaClient(options?: PrismaClientOptions): PrismaClient {
 
 export async function disconnectPrismaClient(): Promise<void> {
   await globalForPrisma.salensePrismaClient?.$disconnect();
-  globalForPrisma.salensePrismaClient = undefined;
+  delete globalForPrisma.salensePrismaClient
 }
 
 export { PrismaClient };

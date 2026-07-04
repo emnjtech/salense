@@ -1,20 +1,10 @@
 import { createHash, randomBytes } from "crypto";
 import { Injectable } from "@nestjs/common";
 
-export interface PasswordResetTokenOptions {
-  readonly expiresInMs: number;
-}
-
 const DEFAULT_PASSWORD_RESET_EXPIRES_IN_MS = 60 * 60 * 1000;
 
 @Injectable()
 export class PasswordResetTokenService {
-  constructor(
-    private readonly options: PasswordResetTokenOptions = {
-      expiresInMs: DEFAULT_PASSWORD_RESET_EXPIRES_IN_MS,
-    },
-  ) {}
-
   generateToken(): string {
     return randomBytes(32).toString("base64url");
   }
@@ -24,6 +14,6 @@ export class PasswordResetTokenService {
   }
 
   getExpiryDate(now: Date = new Date()): Date {
-    return new Date(now.getTime() + this.options.expiresInMs);
+    return new Date(now.getTime() + DEFAULT_PASSWORD_RESET_EXPIRES_IN_MS);
   }
 }

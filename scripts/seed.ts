@@ -163,6 +163,8 @@ const customers = [
     "amelia.brooks@example.test",
     "Amelia",
     "Brooks",
+    "GB",
+    "London",
   ),
   customer(
     "woo_cust_102",
@@ -171,6 +173,8 @@ const customers = [
     "oliver.reed@example.test",
     "Oliver",
     "Reed",
+    "GB",
+    "Bristol",
   ),
   customer(
     "amz_cust_201",
@@ -179,6 +183,8 @@ const customers = [
     "sophia.patel@example.test",
     "Sophia",
     "Patel",
+    "GB",
+    "Manchester",
   ),
   customer(
     "amz_cust_202",
@@ -187,6 +193,8 @@ const customers = [
     "noah.evans@example.test",
     "Noah",
     "Evans",
+    "GB",
+    "Leeds",
   ),
   customer(
     "tt_cust_301",
@@ -195,6 +203,8 @@ const customers = [
     "ava.morgan@example.test",
     "Ava",
     "Morgan",
+    "GB",
+    "Birmingham",
   ),
   customer(
     "tt_cust_302",
@@ -203,6 +213,8 @@ const customers = [
     "leo.turner@example.test",
     "Leo",
     "Turner",
+    "GB",
+    "Glasgow",
   ),
 ] as const;
 
@@ -435,7 +447,16 @@ async function createCustomer(prisma: PrismaClient, customerRecord: CustomerSeed
       platformCreatedAt: addDays(syncTime, -20),
       platformCustomerId: customerRecord.platformCustomerId,
       platformUpdatedAt: syncTime,
-      sourceMetadata: sourceMetadata(customerRecord.platform, { demoCustomer: true }),
+      sourceMetadata: sourceMetadata(customerRecord.platform, {
+        billing: {
+          city: customerRecord.city,
+          country: customerRecord.country,
+          email: customerRecord.email,
+          first_name: customerRecord.firstName,
+          last_name: customerRecord.lastName,
+        },
+        demoCustomer: true,
+      }),
       username: customerRecord.email.split("@")[0],
     },
   });
@@ -578,8 +599,19 @@ function customer(
   email: string,
   firstName: string,
   lastName: string,
+  country: string,
+  city: string,
 ): CustomerSeed {
-  return { connectedStoreId, email, firstName, lastName, platform, platformCustomerId };
+  return {
+    city,
+    connectedStoreId,
+    country,
+    email,
+    firstName,
+    lastName,
+    platform,
+    platformCustomerId,
+  };
 }
 
 function category(
@@ -667,7 +699,9 @@ interface ProductSeed {
 }
 
 interface CustomerSeed {
+  readonly city: string;
   readonly connectedStoreId: string;
+  readonly country: string;
   readonly email: string;
   readonly firstName: string;
   readonly lastName: string;

@@ -1,20 +1,10 @@
 import { createHash, randomBytes } from "crypto";
 import { Injectable } from "@nestjs/common";
 
-export interface EmailVerificationTokenOptions {
-  readonly expiresInMs: number;
-}
-
 const DEFAULT_EMAIL_VERIFICATION_EXPIRES_IN_MS = 24 * 60 * 60 * 1000;
 
 @Injectable()
 export class EmailVerificationTokenService {
-  constructor(
-    private readonly options: EmailVerificationTokenOptions = {
-      expiresInMs: DEFAULT_EMAIL_VERIFICATION_EXPIRES_IN_MS,
-    },
-  ) {}
-
   generateToken(): string {
     return randomBytes(32).toString("base64url");
   }
@@ -24,6 +14,6 @@ export class EmailVerificationTokenService {
   }
 
   getExpiryDate(now: Date = new Date()): Date {
-    return new Date(now.getTime() + this.options.expiresInMs);
+    return new Date(now.getTime() + DEFAULT_EMAIL_VERIFICATION_EXPIRES_IN_MS);
   }
 }

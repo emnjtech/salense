@@ -8,6 +8,7 @@ import {
   LogOut,
   PackageSearch,
   Settings,
+  Users,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -64,6 +65,9 @@ export function AuthenticatedNavigation() {
         </NavigationLink>
         <NavigationLink currentPath={pathname} href="/products" icon={<PackageSearch size={18} />}>
           Products
+        </NavigationLink>
+        <NavigationLink currentPath={pathname} href="/customers" icon={<Users size={18} />}>
+          Customers
         </NavigationLink>
         <NavigationLink
           currentPath={pathname}

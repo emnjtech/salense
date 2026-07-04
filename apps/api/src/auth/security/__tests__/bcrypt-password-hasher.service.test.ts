@@ -2,7 +2,7 @@ import { BcryptPasswordHasherService } from "../bcrypt-password-hasher.service.j
 
 describe("BcryptPasswordHasherService", () => {
   const password = "SecurePass123!";
-  const service = new BcryptPasswordHasherService({ saltRounds: 4 });
+  const service = new BcryptPasswordHasherService();
 
   it("hashes passwords without returning plaintext", async () => {
     const hash = await service.hashPassword(password);
