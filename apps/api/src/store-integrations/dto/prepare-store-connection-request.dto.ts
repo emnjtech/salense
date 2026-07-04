@@ -10,6 +10,7 @@ import {
   ValidateNested,
 } from "class-validator";
 import { StorePlatform } from "../types/store-platform.enum.js";
+import { AmazonSellerConnectionCredentialsDto } from "./amazon-seller-connection-credentials.dto.js";
 import { WooCommerceConnectionCredentialsDto } from "./woocommerce-connection-credentials.dto.js";
 
 export class PrepareStoreConnectionRequestDto {
@@ -42,4 +43,13 @@ export class PrepareStoreConnectionRequestDto {
   @ValidateNested()
   @Type(() => WooCommerceConnectionCredentialsDto)
   declare readonly wooCommerceCredentials?: WooCommerceConnectionCredentialsDto;
+
+  @ValidateIf(
+    (request: PrepareStoreConnectionRequestDto) =>
+      request.platform === StorePlatform.AmazonSeller || request.amazonSellerCredentials !== undefined,
+  )
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => AmazonSellerConnectionCredentialsDto)
+  declare readonly amazonSellerCredentials?: AmazonSellerConnectionCredentialsDto;
 }

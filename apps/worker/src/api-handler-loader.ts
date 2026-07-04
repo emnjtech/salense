@@ -1,5 +1,5 @@
 import type { Job } from "bullmq";
-import type { WooCommerceSyncJobName } from "@salense/shared";
+import type { AmazonSellerSyncJobName, WooCommerceSyncJobName } from "@salense/shared";
 
 export interface WooCommerceSyncJobData {
   readonly platform: "WOOCOMMERCE";
@@ -15,12 +15,34 @@ export type WooCommerceSyncJob = Job<
   WooCommerceSyncJobName
 >;
 
+export interface AmazonSellerSyncJobData {
+  readonly platform: "AMAZON_SELLER";
+  readonly queuedAt: string;
+  readonly requestedByUserId: string;
+  readonly resource: string;
+  readonly storeId: string;
+}
+
+export type AmazonSellerSyncJob = Job<
+  AmazonSellerSyncJobData,
+  unknown,
+  AmazonSellerSyncJobName
+>;
+
+export type SyncJobData = WooCommerceSyncJobData | AmazonSellerSyncJobData;
+export type SyncJob = WooCommerceSyncJob | AmazonSellerSyncJob;
+
 export interface WooCommerceSyncJobHandler {
   handle(job: WooCommerceSyncJob): Promise<unknown>;
 }
 
+export interface AmazonSellerSyncJobHandler {
+  handle(job: AmazonSellerSyncJob): Promise<unknown>;
+}
+
 export interface WooCommerceSyncJobHandlerContext {
   readonly close: () => Promise<void>;
+  readonly amazonSellerHandler?: AmazonSellerSyncJobHandler;
   readonly handler: WooCommerceSyncJobHandler;
 }
 

@@ -49,7 +49,7 @@ export interface StoreSyncJobStatus {
   readonly failedReason?: string;
   readonly finishedAt?: string;
   readonly jobId: string;
-  readonly platform: StorePlatform.WooCommerce;
+  readonly platform: StorePlatform.WooCommerce | StorePlatform.AmazonSeller;
   readonly queuedAt: string;
   readonly status: "QUEUED" | "ACTIVE" | "COMPLETED" | "FAILED" | "UNKNOWN";
   readonly storeId: string;
@@ -70,6 +70,15 @@ export interface WooCommerceConnectionInput {
   readonly consumerSecret: string;
   readonly storeName: string;
   readonly storeUrl: string;
+}
+
+export interface AmazonSellerConnectionInput {
+  readonly accessToken: string;
+  readonly marketplaceId: string;
+  readonly refreshToken: string;
+  readonly region: string;
+  readonly sellerId: string;
+  readonly storeName: string;
 }
 
 export interface ManualSyncJobResponse {
@@ -107,6 +116,7 @@ export interface DisconnectStoreResponse {
 export interface StoreIntegrationsApiClient {
   listSupportedPlatforms(): Promise<readonly SupportedStorePlatform[]>;
   listConnectedStores(): Promise<readonly ConnectedStore[]>;
+  connectAmazonSeller(input: AmazonSellerConnectionInput): Promise<ConnectedStore>;
   connectWooCommerce(input: WooCommerceConnectionInput): Promise<ConnectedStore>;
   requestManualSync(storeId: string): Promise<ManualSyncJobResponse>;
   scheduleSync(storeId: string): Promise<SyncScheduleResponse>;
@@ -162,6 +172,12 @@ export function createStoreIntegrationsApiClient(
   }
 
   return {
+    connectAmazonSeller(input) {
+      return request<ConnectedStore>("/store-integrations/connect", {
+        body: JSON.stringify(toAmazonSellerConnectionPayload(input)),
+        method: "POST",
+      });
+    },
     connectWooCommerce(input) {
       return request<ConnectedStore>("/store-integrations/connect", {
         body: JSON.stringify(toWooCommerceConnectionPayload(input)),
@@ -227,6 +243,30 @@ export function toWooCommerceConnectionPayload(input: WooCommerceConnectionInput
       consumerKey: input.consumerKey.trim(),
       consumerSecret: input.consumerSecret.trim(),
     },
+  };
+}
+
+export function toAmazonSellerConnectionPayload(input: AmazonSellerConnectionInput): {
+  readonly amazonSellerCredentials: {
+    readonly accessToken: string;
+    readonly marketplaceId: string;
+    readonly refreshToken: string;
+    readonly sellerId: string;
+  };
+  readonly platform: StorePlatform.AmazonSeller;
+  readonly region: string;
+  readonly storeName: string;
+} {
+  return {
+    amazonSellerCredentials: {
+      accessToken: input.accessToken.trim(),
+      marketplaceId: input.marketplaceId.trim(),
+      refreshToken: input.refreshToken.trim(),
+      sellerId: input.sellerId.trim(),
+    },
+    platform: StorePlatform.AmazonSeller,
+    region: input.region.trim().toUpperCase(),
+    storeName: input.storeName.trim(),
   };
 }
 

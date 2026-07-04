@@ -83,6 +83,37 @@ describe("store integration DTO validation", () => {
     expect(JSON.stringify(errors)).toContain("apiVersion");
   });
 
+  it("accepts a valid Amazon Seller credential request without marketplace passwords", async () => {
+    const errors = await validatePrepareConnection({
+      amazonSellerCredentials: {
+        accessToken: "access-token",
+        marketplaceId: "A1F83G8C2ARO7P",
+        refreshToken: "refresh-token",
+        sellerId: "seller_123",
+      },
+      platform: StorePlatform.AmazonSeller,
+      region: "GB",
+      storeName: "Amazon UK",
+    });
+
+    expect(errors).toHaveLength(0);
+  });
+
+  it("rejects Amazon Seller requests with missing token credentials", async () => {
+    const errors = await validatePrepareConnection({
+      amazonSellerCredentials: {
+        marketplaceId: "A1F83G8C2ARO7P",
+        refreshToken: "refresh-token",
+        sellerId: "seller_123",
+      },
+      platform: StorePlatform.AmazonSeller,
+      region: "GB",
+      storeName: "Amazon UK",
+    });
+
+    expect(JSON.stringify(errors)).toContain("accessToken");
+  });
+
   it("rejects unsupported platforms", async () => {
     const errors = await validatePrepareConnection({
       platform: "SHOPIFY",

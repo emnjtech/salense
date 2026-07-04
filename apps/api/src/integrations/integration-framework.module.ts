@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import {
+  AmazonSellerIntegrationProvider,
   INTEGRATION_FACTORY,
   INTEGRATION_REGISTRY,
   IntegrationFactory,
@@ -16,7 +17,7 @@ import {
       useFactory: (): IntegrationRegistry =>
         new IntegrationRegistry([
           new WooCommerceIntegrationProvider(),
-          new PlaceholderIntegrationProvider(IntegrationPlatform.AmazonSeller),
+          new AmazonSellerIntegrationProvider(),
           new PlaceholderIntegrationProvider(IntegrationPlatform.TikTokShop),
         ]),
     },

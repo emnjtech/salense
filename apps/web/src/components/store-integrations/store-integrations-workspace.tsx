@@ -33,6 +33,15 @@ interface WooCommerceFormState {
   readonly storeUrl: string;
 }
 
+interface AmazonSellerFormState {
+  readonly accessToken: string;
+  readonly marketplaceId: string;
+  readonly refreshToken: string;
+  readonly region: string;
+  readonly sellerId: string;
+  readonly storeName: string;
+}
+
 const emptyWooCommerceForm: WooCommerceFormState = {
   consumerKey: "",
   consumerSecret: "",
@@ -40,11 +49,22 @@ const emptyWooCommerceForm: WooCommerceFormState = {
   storeUrl: "",
 };
 
+const emptyAmazonSellerForm: AmazonSellerFormState = {
+  accessToken: "",
+  marketplaceId: "",
+  refreshToken: "",
+  region: "GB",
+  sellerId: "",
+  storeName: "",
+};
+
 export function StoreIntegrationsWorkspace() {
   const [platforms, setPlatforms] = useState<readonly SupportedStorePlatform[]>([]);
   const [stores, setStores] = useState<readonly ConnectedStore[]>([]);
   const [syncStatuses, setSyncStatuses] = useState<Readonly<Record<string, StoreSyncStatus>>>({});
   const [formState, setFormState] = useState<WooCommerceFormState>(emptyWooCommerceForm);
+  const [amazonFormState, setAmazonFormState] =
+    useState<AmazonSellerFormState>(emptyAmazonSellerForm);
   const [loading, setLoading] = useState(true);
   const [actionStoreId, setActionStoreId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -79,7 +99,7 @@ export function StoreIntegrationsWorkspace() {
 
       const statuses = await Promise.all(
         connectedStores
-          .filter((store) => store.platform === StorePlatform.WooCommerce)
+          .filter((store) => isSyncEnabledPlatform(store.platform))
           .map(async (store) => [store.id, await apiClient.getStoreSyncStatus(store.id)] as const),
       );
 
@@ -136,6 +156,32 @@ export function StoreIntegrationsWorkspace() {
     }
   }
 
+  async function handleAmazonSellerConnect(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setActionStoreId("connect-amazon-seller");
+    setError(null);
+    setNotice(null);
+
+    try {
+      const connectedStore = await apiClient.connectAmazonSeller({
+        accessToken: amazonFormState.accessToken,
+        marketplaceId: amazonFormState.marketplaceId,
+        refreshToken: amazonFormState.refreshToken,
+        region: amazonFormState.region,
+        sellerId: amazonFormState.sellerId,
+        storeName: amazonFormState.storeName,
+      });
+
+      setNotice(`${connectedStore.storeName} was submitted for Amazon Seller validation.`);
+      setAmazonFormState(emptyAmazonSellerForm);
+      await loadWorkspace();
+    } catch (caughtError) {
+      setError(getFriendlyErrorMessage(caughtError));
+    } finally {
+      setActionStoreId(null);
+    }
+  }
+
   return (
     <main className="workspace">
       <header className="workspace-header">
@@ -180,9 +226,9 @@ export function StoreIntegrationsWorkspace() {
         <MetricTile label="Supported platforms" value={platforms.length.toString()} />
         <MetricTile label="Connected stores" value={stores.length.toString()} />
         <MetricTile
-          label="WooCommerce stores"
+          label="Sync-ready stores"
           value={stores
-            .filter((store) => store.platform === StorePlatform.WooCommerce)
+            .filter((store) => isSyncEnabledPlatform(store.platform))
             .length.toString()}
         />
         <MetricTile
@@ -301,6 +347,125 @@ export function StoreIntegrationsWorkspace() {
             </button>
           </form>
         </section>
+
+        <section className="panel">
+          <div className="panel-heading">
+            <div>
+              <h2>Connect Amazon Seller</h2>
+              <p>
+                Optional Amazon Seller setup for local testing; credentials are encrypted and used
+                read-only.
+              </p>
+            </div>
+          </div>
+
+          <form
+            className="integration-form"
+            onSubmit={(event) => void handleAmazonSellerConnect(event)}
+          >
+            <label>
+              Store name
+              <input
+                autoComplete="organization"
+                name="amazonStoreName"
+                onChange={(event) =>
+                  setAmazonFormState((current) => ({
+                    ...current,
+                    storeName: event.target.value,
+                  }))
+                }
+                placeholder="Amazon UK"
+                required
+                value={amazonFormState.storeName}
+              />
+            </label>
+            <label>
+              Region
+              <input
+                autoComplete="country"
+                name="amazonRegion"
+                onChange={(event) =>
+                  setAmazonFormState((current) => ({ ...current, region: event.target.value }))
+                }
+                placeholder="GB"
+                required
+                value={amazonFormState.region}
+              />
+            </label>
+            <label>
+              Seller ID
+              <input
+                autoComplete="off"
+                name="amazonSellerId"
+                onChange={(event) =>
+                  setAmazonFormState((current) => ({ ...current, sellerId: event.target.value }))
+                }
+                required
+                value={amazonFormState.sellerId}
+              />
+            </label>
+            <label>
+              Marketplace ID
+              <input
+                autoComplete="off"
+                name="amazonMarketplaceId"
+                onChange={(event) =>
+                  setAmazonFormState((current) => ({
+                    ...current,
+                    marketplaceId: event.target.value,
+                  }))
+                }
+                placeholder="A1F83G8C2ARO7P"
+                required
+                value={amazonFormState.marketplaceId}
+              />
+            </label>
+            <label>
+              Access token
+              <input
+                autoComplete="off"
+                name="amazonAccessToken"
+                onChange={(event) =>
+                  setAmazonFormState((current) => ({
+                    ...current,
+                    accessToken: event.target.value,
+                  }))
+                }
+                required
+                type="password"
+                value={amazonFormState.accessToken}
+              />
+            </label>
+            <label>
+              Refresh token
+              <input
+                autoComplete="off"
+                name="amazonRefreshToken"
+                onChange={(event) =>
+                  setAmazonFormState((current) => ({
+                    ...current,
+                    refreshToken: event.target.value,
+                  }))
+                }
+                required
+                type="password"
+                value={amazonFormState.refreshToken}
+              />
+            </label>
+            <button
+              className="primary-button"
+              disabled={!hasAccessToken || actionStoreId === "connect-amazon-seller"}
+              type="submit"
+            >
+              {actionStoreId === "connect-amazon-seller" ? (
+                <Loader2 className="spin" size={16} aria-hidden="true" />
+              ) : (
+                <PlugZap size={16} aria-hidden="true" />
+              )}
+              Connect Amazon Seller
+            </button>
+          </form>
+        </section>
       </div>
 
       <section className="panel stores-panel">
@@ -381,7 +546,7 @@ function StoreRow({
   readonly store: ConnectedStore;
   readonly syncStatus: StoreSyncStatus | undefined;
 }) {
-  const isWooCommerce = store.platform === StorePlatform.WooCommerce;
+  const isSyncEnabled = isSyncEnabledPlatform(store.platform);
   const isConnected = store.connectionStatus === StoreConnectionStatus.Connected;
   const isBusy = actionStoreId === store.id;
 
@@ -405,11 +570,11 @@ function StoreRow({
         </dl>
       </div>
 
-      {isWooCommerce ? <SyncSummary syncStatus={syncStatus} /> : <PlaceholderSummary />}
+      {isSyncEnabled ? <SyncSummary syncStatus={syncStatus} /> : <PlaceholderSummary />}
 
       <div className="store-actions" aria-label={`Actions for ${store.storeName}`}>
         <button
-          disabled={!isConnected || isBusy || !isWooCommerce}
+          disabled={!isConnected || isBusy || !isSyncEnabled}
           onClick={onManualSync}
           type="button"
         >
@@ -421,19 +586,19 @@ function StoreRow({
           Sync
         </button>
         <button
-          disabled={!isConnected || isBusy || !isWooCommerce}
+          disabled={!isConnected || isBusy || !isSyncEnabled}
           onClick={onSchedule}
           type="button"
         >
           <CalendarClock size={16} aria-hidden="true" />
           Schedule
         </button>
-        <button disabled={isBusy || !isWooCommerce} onClick={onRemoveSchedule} type="button">
+        <button disabled={isBusy || !isSyncEnabled} onClick={onRemoveSchedule} type="button">
           <Clock3 size={16} aria-hidden="true" />
           Remove schedule
         </button>
         <button
-          disabled={!isConnected || isBusy || !isWooCommerce}
+          disabled={!isConnected || isBusy || !isSyncEnabled}
           onClick={onDisconnect}
           type="button"
         >
@@ -462,7 +627,7 @@ function SyncSummary({ syncStatus }: { readonly syncStatus: StoreSyncStatus | un
 
   return (
     <div className="sync-summary">
-      <strong>WooCommerce sync</strong>
+      <strong>{getPlatformLabel(syncStatus.platform)} sync</strong>
       <span>{syncStatus.cursors.length} resources tracked</span>
       <span>{activeJobs} queued or running jobs</span>
       <span>{failedCursors} resources need attention</span>
@@ -480,7 +645,7 @@ function PlaceholderSummary() {
 }
 
 function PlatformRow({ platform }: { readonly platform: SupportedStorePlatform }) {
-  const isWooCommerce = platform.platform === StorePlatform.WooCommerce;
+  const isSyncEnabled = isSyncEnabledPlatform(platform.platform);
 
   return (
     <article className="platform-row">
@@ -490,13 +655,13 @@ function PlatformRow({ platform }: { readonly platform: SupportedStorePlatform }
       <div>
         <h3>{platform.label}</h3>
         <p>
-          {isWooCommerce
+          {isSyncEnabled
             ? "Credential validation and read-only sync available."
             : "Seeded MVP data available; live platform sync deferred."}
         </p>
       </div>
-      <span className={isWooCommerce ? "platform-state active" : "platform-state"}>
-        {isWooCommerce ? "Active" : "Seeded"}
+      <span className={isSyncEnabled ? "platform-state active" : "platform-state"}>
+        {isSyncEnabled ? "Active" : "Seeded"}
       </span>
     </article>
   );
@@ -549,6 +714,10 @@ function getFriendlyErrorMessage(error: unknown): string {
   }
 
   return "Something went wrong while loading store integrations.";
+}
+
+function isSyncEnabledPlatform(platform: StorePlatform): boolean {
+  return platform === StorePlatform.WooCommerce || platform === StorePlatform.AmazonSeller;
 }
 
 function getPlatformLabel(platform: StorePlatform): string {

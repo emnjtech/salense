@@ -29,14 +29,14 @@ export interface WooCommerceRefundMappingContext extends WooCommerceCommerceMapp
 }
 
 export interface NormalizedSourceMetadata<TRaw> {
-  readonly source: "woocommerce";
+  readonly source: "woocommerce" | "amazon_seller";
   readonly raw: TRaw;
 }
 
 export interface NormalizedCommerceOrder {
   readonly businessId: string;
   readonly connectedStoreId: string;
-  readonly platform: IntegrationPlatform.WooCommerce;
+  readonly platform: IntegrationPlatform;
   readonly platformOrderId: string;
   readonly platformOrderNumber: string | undefined;
   readonly orderStatus: string | undefined;
@@ -50,7 +50,7 @@ export interface NormalizedCommerceOrder {
   readonly orderedAt: Date | undefined;
   readonly platformCreatedAt: Date | undefined;
   readonly platformUpdatedAt: Date | undefined;
-  readonly sourceMetadata: NormalizedSourceMetadata<WooCommerceRawOrder>;
+  readonly sourceMetadata: NormalizedSourceMetadata<unknown>;
   readonly importedAt: Date;
   readonly lastSyncedAt: Date;
 }
@@ -58,7 +58,7 @@ export interface NormalizedCommerceOrder {
 export interface NormalizedCommerceOrderItem {
   readonly businessId: string;
   readonly connectedStoreId: string;
-  readonly platform: IntegrationPlatform.WooCommerce;
+  readonly platform: IntegrationPlatform;
   readonly platformOrderId: string;
   readonly platformOrderItemId: string;
   readonly platformProductId: string | undefined;
@@ -70,7 +70,7 @@ export interface NormalizedCommerceOrderItem {
   readonly subtotalAmount: string | undefined;
   readonly totalAmount: string | undefined;
   readonly taxAmount: string | undefined;
-  readonly sourceMetadata: NormalizedSourceMetadata<WooCommerceRawOrderLineItem>;
+  readonly sourceMetadata: NormalizedSourceMetadata<unknown>;
   readonly importedAt: Date;
   readonly lastSyncedAt: Date;
 }
@@ -78,7 +78,7 @@ export interface NormalizedCommerceOrderItem {
 export interface NormalizedCommerceProduct {
   readonly businessId: string;
   readonly connectedStoreId: string;
-  readonly platform: IntegrationPlatform.WooCommerce;
+  readonly platform: IntegrationPlatform;
   readonly platformProductId: string;
   readonly platformVariationId: string | undefined;
   readonly sku: string | undefined;
@@ -93,7 +93,7 @@ export interface NormalizedCommerceProduct {
   readonly currentStockQuantity: number | undefined;
   readonly platformCreatedAt: Date | undefined;
   readonly platformUpdatedAt: Date | undefined;
-  readonly sourceMetadata: NormalizedSourceMetadata<WooCommerceRawProduct>;
+  readonly sourceMetadata: NormalizedSourceMetadata<unknown>;
   readonly importedAt: Date;
   readonly lastSyncedAt: Date;
 }
@@ -101,7 +101,7 @@ export interface NormalizedCommerceProduct {
 export interface NormalizedCommerceCustomer {
   readonly businessId: string;
   readonly connectedStoreId: string;
-  readonly platform: IntegrationPlatform.WooCommerce;
+  readonly platform: IntegrationPlatform;
   readonly platformCustomerId: string;
   readonly email: string | undefined;
   readonly firstName: string | undefined;
@@ -110,7 +110,7 @@ export interface NormalizedCommerceCustomer {
   readonly customerRole: string | undefined;
   readonly platformCreatedAt: Date | undefined;
   readonly platformUpdatedAt: Date | undefined;
-  readonly sourceMetadata: NormalizedSourceMetadata<WooCommerceRawCustomer>;
+  readonly sourceMetadata: NormalizedSourceMetadata<unknown>;
   readonly importedAt: Date;
   readonly lastSyncedAt: Date;
 }
@@ -118,14 +118,14 @@ export interface NormalizedCommerceCustomer {
 export interface NormalizedCommerceInventorySnapshot {
   readonly businessId: string;
   readonly connectedStoreId: string;
-  readonly platform: IntegrationPlatform.WooCommerce;
+  readonly platform: IntegrationPlatform;
   readonly platformProductId: string;
   readonly sku: string | undefined;
   readonly stockQuantity: number | undefined;
   readonly stockStatus: string | undefined;
   readonly manageStock: boolean | undefined;
   readonly capturedAt: Date;
-  readonly sourceMetadata: NormalizedSourceMetadata<WooCommerceRawInventoryProduct>;
+  readonly sourceMetadata: NormalizedSourceMetadata<unknown>;
   readonly importedAt: Date;
   readonly lastSyncedAt: Date;
 }
@@ -133,13 +133,13 @@ export interface NormalizedCommerceInventorySnapshot {
 export interface NormalizedCommerceCategory {
   readonly businessId: string;
   readonly connectedStoreId: string;
-  readonly platform: IntegrationPlatform.WooCommerce;
+  readonly platform: IntegrationPlatform;
   readonly platformCategoryId: string;
   readonly platformParentCategoryId: string | undefined;
   readonly name: string | undefined;
   readonly slug: string | undefined;
   readonly productCount: number | undefined;
-  readonly sourceMetadata: NormalizedSourceMetadata<WooCommerceRawProductCategory>;
+  readonly sourceMetadata: NormalizedSourceMetadata<unknown>;
   readonly importedAt: Date;
   readonly lastSyncedAt: Date;
 }
@@ -147,7 +147,7 @@ export interface NormalizedCommerceCategory {
 export interface NormalizedCommerceRefund {
   readonly businessId: string;
   readonly connectedStoreId: string;
-  readonly platform: IntegrationPlatform.WooCommerce;
+  readonly platform: IntegrationPlatform;
   readonly platformRefundId: string;
   readonly platformOrderId: string | undefined;
   readonly refundStatus: string | undefined;
@@ -155,7 +155,7 @@ export interface NormalizedCommerceRefund {
   readonly currency: string | undefined;
   readonly amount: string | undefined;
   readonly refundedAt: Date | undefined;
-  readonly sourceMetadata: NormalizedSourceMetadata<WooCommerceRawRefund | WooCommerceRawOrderRefundReference>;
+  readonly sourceMetadata: NormalizedSourceMetadata<unknown>;
   readonly importedAt: Date;
   readonly lastSyncedAt: Date;
 }

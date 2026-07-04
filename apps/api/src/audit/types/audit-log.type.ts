@@ -1,6 +1,9 @@
 import type { StorePlatform } from "../../store-integrations/types/store-platform.enum.js";
 
 export enum AuditAction {
+  AmazonSellerConnectionCreated = "AMAZON_SELLER_CONNECTION_CREATED",
+  AmazonSellerConnectionValidationFailed = "AMAZON_SELLER_CONNECTION_VALIDATION_FAILED",
+  AmazonSellerConnectionValidationSucceeded = "AMAZON_SELLER_CONNECTION_VALIDATION_SUCCEEDED",
   WooCommerceConnectionCreated = "WOOCOMMERCE_CONNECTION_CREATED",
   WooCommerceConnectionValidationSucceeded = "WOOCOMMERCE_CONNECTION_VALIDATION_SUCCEEDED",
   WooCommerceConnectionValidationFailed = "WOOCOMMERCE_CONNECTION_VALIDATION_FAILED",

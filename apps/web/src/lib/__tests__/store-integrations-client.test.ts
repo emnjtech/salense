@@ -2,6 +2,7 @@ import {
   StorePlatform,
   WooCommerceApiVersion,
   createStoreIntegrationsApiClient,
+  toAmazonSellerConnectionPayload,
   toWooCommerceConnectionPayload,
 } from "../api/store-integrations-client";
 
@@ -46,6 +47,30 @@ describe("store integrations API client", () => {
         consumerKey: "ck_test",
         consumerSecret: "cs_test",
       },
+    });
+    expect(JSON.stringify(payload).toLowerCase()).not.toContain("password");
+  });
+
+  it("builds Amazon Seller connection payloads without marketplace password fields", () => {
+    const payload = toAmazonSellerConnectionPayload({
+      accessToken: " access-token ",
+      marketplaceId: " A1F83G8C2ARO7P ",
+      refreshToken: " refresh-token ",
+      region: " gb ",
+      sellerId: " seller-id ",
+      storeName: " Amazon UK ",
+    });
+
+    expect(payload).toEqual({
+      amazonSellerCredentials: {
+        accessToken: "access-token",
+        marketplaceId: "A1F83G8C2ARO7P",
+        refreshToken: "refresh-token",
+        sellerId: "seller-id",
+      },
+      platform: StorePlatform.AmazonSeller,
+      region: "GB",
+      storeName: "Amazon UK",
     });
     expect(JSON.stringify(payload).toLowerCase()).not.toContain("password");
   });

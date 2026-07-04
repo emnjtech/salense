@@ -17,3 +17,19 @@ export const wooCommerceSyncJobNames = Object.values(WooCommerceSyncJobName);
 export function createWooCommerceRecurringSyncJobId(storeId: string): string {
   return `woocommerce:auto:full-sync:${storeId}`;
 }
+
+export enum AmazonSellerSyncJobName {
+  ManualFullSync = "amazon-seller.manual.full-sync",
+  OrdersSync = "amazon-seller.orders.sync",
+  ProductsSync = "amazon-seller.products.sync",
+  CustomersSync = "amazon-seller.customers.sync",
+  InventorySync = "amazon-seller.inventory.sync",
+  CategoriesSync = "amazon-seller.categories.sync",
+  RefundsSync = "amazon-seller.refunds.sync",
+}
+
+export const amazonSellerSyncJobNames = Object.values(AmazonSellerSyncJobName);
+
+export function createAmazonSellerRecurringSyncJobId(storeId: string): string {
+  return `amazon-seller:auto:full-sync:${storeId}`;
+}

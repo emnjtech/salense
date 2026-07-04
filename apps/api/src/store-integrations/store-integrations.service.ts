@@ -2,6 +2,7 @@ import {
   INTEGRATION_FACTORY,
   IntegrationNotImplementedError,
   IntegrationPlatform,
+  toAmazonSellerApiRegion,
   WooCommerceApiVersion,
   type IntegrationConfiguration,
   type IntegrationFactory,
@@ -33,10 +34,12 @@ import {
 } from "./sync-cursors/commerce-sync-cursor.types.js";
 import {
   SYNC_QUEUE,
+  AmazonSellerSyncJobName,
   WooCommerceSyncJobName,
   type SyncJobEnqueueResult,
   type SyncJobStatusResult,
   type SyncQueuePort,
+  type StoreSyncJobStatusResult,
 } from "./sync-queue/sync-queue.types.js";
 import { WooCommerceSyncSchedulingService } from "./sync-queue/woocommerce-sync-scheduling.service.js";
 import type { ConnectedStoreResponse } from "./types/connected-store-response.type.js";
@@ -226,6 +229,22 @@ const syncStatusResources = [
   CommerceSyncCursorResource.Refunds,
 ] as const;
 
+type CredentialConfiguration = Pick<
+  IntegrationConfiguration,
+  | "accessTokenHash"
+  | "accessTokenMetadata"
+  | "apiVersion"
+  | "consumerKey"
+  | "consumerKeyMetadata"
+  | "consumerSecret"
+  | "consumerSecretMetadata"
+  | "refreshTokenHash"
+  | "refreshTokenMetadata"
+> & {
+  readonly amazonSellerValidationAccessToken?: string;
+  readonly auditApiVersion?: string;
+};
+
 @Injectable()
 export class StoreIntegrationsService {
   constructor(
@@ -288,7 +307,7 @@ export class StoreIntegrationsService {
       throw new ConflictException("Duplicate store connections are prohibited.");
     }
 
-    if (request.platform !== StorePlatform.WooCommerce) {
+    if (request.platform === StorePlatform.TikTokShop) {
       return this.runPlaceholderIntegrationOperation(
         this.integrationFactory.getProvider(toIntegrationPlatform(request.platform)).connect(
           createIntegrationConfiguration({
@@ -320,11 +339,14 @@ export class StoreIntegrationsService {
     });
 
     await this.recordStoreIntegrationAuditEvent({
-      action: AuditAction.WooCommerceConnectionCreated,
+      action: getConnectionCreatedAuditAction(request.platform),
+      affectedPlatform: request.platform,
       businessId: business.id,
       metadata: {
-        apiVersion: credentialConfiguration.apiVersion,
+        apiVersion: credentialConfiguration.auditApiVersion,
         connectionStatus: connectedStore.connectionStatus,
+        marketplaceId: getSafeMarketplaceId(credentialConfiguration.accessTokenMetadata),
+        region,
         storeUrl,
       },
       result: AuditLogResult.Success,
@@ -332,7 +354,8 @@ export class StoreIntegrationsService {
       userId,
     });
 
-    const provider = this.integrationFactory.getProvider(IntegrationPlatform.WooCommerce);
+    const integrationPlatform = toIntegrationPlatform(request.platform);
+    const provider = this.integrationFactory.getProvider(integrationPlatform);
 
     try {
       await provider.validateConnection(
@@ -344,6 +367,9 @@ export class StoreIntegrationsService {
           storeName: request.storeName.trim(),
           storeUrl,
           ...credentialConfiguration,
+          ...(credentialConfiguration.amazonSellerValidationAccessToken
+            ? { accessTokenHash: credentialConfiguration.amazonSellerValidationAccessToken }
+            : {}),
         }),
       );
       const validatedStore = await prisma.connectedStore.update({
@@ -353,10 +379,13 @@ export class StoreIntegrationsService {
       });
 
       await this.recordStoreIntegrationAuditEvent({
-        action: AuditAction.WooCommerceConnectionValidationSucceeded,
+        action: getConnectionSucceededAuditAction(request.platform),
+        affectedPlatform: request.platform,
         businessId: business.id,
         metadata: {
           connectionStatus: validatedStore.connectionStatus,
+          marketplaceId: getSafeMarketplaceId(credentialConfiguration.accessTokenMetadata),
+          region,
           storeUrl,
         },
         result: AuditLogResult.Success,
@@ -373,11 +402,14 @@ export class StoreIntegrationsService {
       });
 
       await this.recordStoreIntegrationAuditEvent({
-        action: AuditAction.WooCommerceConnectionValidationFailed,
+        action: getConnectionFailedAuditAction(request.platform),
+        affectedPlatform: request.platform,
         businessId: business.id,
         metadata: {
           connectionStatus: failedStore.connectionStatus,
           errorName: error instanceof Error ? error.name : "UnknownError",
+          marketplaceId: getSafeMarketplaceId(credentialConfiguration.accessTokenMetadata),
+          region,
           storeUrl,
         },
         result: AuditLogResult.Failure,
@@ -391,18 +423,50 @@ export class StoreIntegrationsService {
 
   private createCredentialConfiguration(
     request: PrepareStoreConnectionRequestDto,
-  ): Pick<
-    IntegrationConfiguration,
-    | "accessTokenHash"
-    | "accessTokenMetadata"
-    | "apiVersion"
-    | "consumerKey"
-    | "consumerKeyMetadata"
-    | "consumerSecret"
-    | "consumerSecretMetadata"
-    | "refreshTokenHash"
-    | "refreshTokenMetadata"
-  > {
+  ): CredentialConfiguration {
+    if (request.platform === StorePlatform.AmazonSeller) {
+      const credentials = request.amazonSellerCredentials;
+
+      if (!request.region?.trim()) {
+        throw new BadRequestException("Amazon Seller region is required.");
+      }
+
+      if (!credentials) {
+        throw new BadRequestException("Amazon Seller credentials are required.");
+      }
+
+      const apiRegion = toAmazonSellerApiRegion(request.region);
+      const encryptedAccessToken = this.credentialEncryption.encrypt(credentials.accessToken.trim());
+      const encryptedRefreshToken = this.credentialEncryption.encrypt(credentials.refreshToken.trim());
+
+      return {
+        accessTokenHash: hashCredentialPlaceholder(credentials.accessToken),
+        accessTokenMetadata: {
+          credentialKind: "amazon_seller_access_token",
+          encryptedCredential: encryptedAccessToken,
+          marketplaceId: credentials.marketplaceId.trim(),
+          region: apiRegion,
+          sellerId: credentials.sellerId.trim(),
+        },
+        amazonSellerValidationAccessToken: credentials.accessToken.trim(),
+        apiVersion: credentials.marketplaceId.trim(),
+        auditApiVersion: credentials.marketplaceId.trim(),
+        consumerKey: credentials.sellerId.trim(),
+        consumerKeyMetadata: {
+          configured: true,
+          keyId: encryptedAccessToken.keyId,
+        },
+        refreshTokenHash: hashCredentialPlaceholder(credentials.refreshToken),
+        refreshTokenMetadata: {
+          credentialKind: "amazon_seller_refresh_token",
+          encryptedCredential: encryptedRefreshToken,
+          marketplaceId: credentials.marketplaceId.trim(),
+          region: apiRegion,
+          sellerId: credentials.sellerId.trim(),
+        },
+      };
+    }
+
     if (request.platform !== StorePlatform.WooCommerce) {
       return {};
     }
@@ -434,6 +498,7 @@ export class StoreIntegrationsService {
         encryptedCredential: encryptedConsumerKey,
       },
       apiVersion: credentials.apiVersion,
+      auditApiVersion: credentials.apiVersion,
       consumerKey: credentials.consumerKey.trim(),
       consumerKeyMetadata: {
         configured: true,
@@ -459,9 +524,9 @@ export class StoreIntegrationsService {
   ): Promise<DisconnectStoreResponse> {
     const store = await this.assertStoreBelongsToUser(userId, request.storeId);
 
-    if (store.platform !== StorePlatform.WooCommerce) {
+    if (store.platform === StorePlatform.TikTokShop) {
       throw new NotImplementedException(
-        "Disconnect is currently implemented for WooCommerce stores only.",
+        "Disconnect is currently implemented for WooCommerce and Amazon Seller stores only.",
       );
     }
 
@@ -483,6 +548,7 @@ export class StoreIntegrationsService {
 
     await this.recordStoreIntegrationAuditEvent({
       action: AuditAction.StoreDisconnected,
+      affectedPlatform: store.platform,
       businessId: store.businessId,
       metadata: {
         connectionStatus: StoreConnectionStatus.Disconnected,
@@ -499,8 +565,8 @@ export class StoreIntegrationsService {
   async requestManualSync(userId: string, request: StoreActionRequestDto): Promise<ManualSyncResponse> {
     const store = await this.assertStoreBelongsToUser(userId, request.storeId);
 
-    if (store.platform !== StorePlatform.WooCommerce) {
-      throw new BadRequestException("Manual sync is currently available for WooCommerce stores only.");
+    if (store.platform === StorePlatform.TikTokShop) {
+      throw new BadRequestException("Manual sync is currently available for WooCommerce and Amazon Seller stores only.");
     }
 
     if (store.connectionStatus !== StoreConnectionStatus.Connected) {
@@ -508,19 +574,25 @@ export class StoreIntegrationsService {
     }
 
     const queuedAt = new Date();
-    const queuedJob = await this.syncQueue.enqueueWooCommerceSyncJob(
-      WooCommerceSyncJobName.ManualFullSync,
-      {
-        platform: StorePlatform.WooCommerce,
-        queuedAt: queuedAt.toISOString(),
-        requestedByUserId: userId,
-        resource: "all",
-        storeId: store.id,
-      },
-    );
+    const queuedJob = store.platform === StorePlatform.AmazonSeller
+      ? await this.syncQueue.enqueueAmazonSellerSyncJob(AmazonSellerSyncJobName.ManualFullSync, {
+          platform: StorePlatform.AmazonSeller,
+          queuedAt: queuedAt.toISOString(),
+          requestedByUserId: userId,
+          resource: "all",
+          storeId: store.id,
+        })
+      : await this.syncQueue.enqueueWooCommerceSyncJob(WooCommerceSyncJobName.ManualFullSync, {
+          platform: StorePlatform.WooCommerce,
+          queuedAt: queuedAt.toISOString(),
+          requestedByUserId: userId,
+          resource: "all",
+          storeId: store.id,
+        });
 
     await this.recordStoreIntegrationAuditEvent({
       action: AuditAction.ManualSyncJobQueued,
+      affectedPlatform: store.platform,
       businessId: store.businessId,
       metadata: {
         jobId: queuedJob.jobId,
@@ -556,8 +628,8 @@ export class StoreIntegrationsService {
   ): Promise<StoreSyncStatusResponse> {
     const store = await this.assertStoreBelongsToUser(userId, storeId);
 
-    if (store.platform !== StorePlatform.WooCommerce) {
-      throw new BadRequestException("Sync status is currently available for WooCommerce stores only.");
+    if (store.platform === StorePlatform.TikTokShop) {
+      throw new BadRequestException("Sync status is currently available for WooCommerce and Amazon Seller stores only.");
     }
 
     const prisma = this.prismaService.client as unknown as StoreIntegrationsPrismaClient;
@@ -566,7 +638,7 @@ export class StoreIntegrationsService {
       orderBy: { resource: "asc" },
       select: commerceSyncCursorSelect,
     });
-    const jobs = await this.getSafeStoreJobStatuses(store.id);
+    const jobs = await this.getSafeStoreJobStatuses(store.id, store.platform);
 
     return {
       connectionStatus: store.connectionStatus,
@@ -588,6 +660,7 @@ export class StoreIntegrationsService {
 
     await this.recordStoreIntegrationAuditEvent({
       action: AuditAction.ScheduledSyncCreated,
+      affectedPlatform: store.platform,
       businessId: store.businessId,
       metadata: {
         everyMs: schedule.everyMs,
@@ -612,6 +685,7 @@ export class StoreIntegrationsService {
 
     await this.recordStoreIntegrationAuditEvent({
       action: AuditAction.ScheduledSyncRemoved,
+      affectedPlatform: store.platform,
       businessId: store.businessId,
       metadata: {
         jobId: removal.jobId,
@@ -628,6 +702,7 @@ export class StoreIntegrationsService {
 
   private async recordStoreIntegrationAuditEvent(input: {
     readonly action: AuditAction;
+    readonly affectedPlatform?: StorePlatform;
     readonly businessId: string;
     readonly metadata?: Readonly<Record<string, unknown>>;
     readonly result: AuditLogResult;
@@ -637,7 +712,7 @@ export class StoreIntegrationsService {
     await this.auditLogService.record({
       action: input.action,
       affectedModule: AuditLogModule.StoreIntegrations,
-      affectedPlatform: StorePlatform.WooCommerce,
+      affectedPlatform: input.affectedPlatform ?? StorePlatform.WooCommerce,
       affectedStoreId: input.storeId,
       businessId: input.businessId,
       ...(input.metadata ? { metadata: input.metadata } : {}),
@@ -648,9 +723,12 @@ export class StoreIntegrationsService {
 
   private async getSafeStoreJobStatuses(
     storeId: string,
+    platform: StorePlatform,
   ): Promise<readonly StoreSyncJobStatusResponse[]> {
     try {
-      const jobs = await this.syncQueue.getWooCommerceStoreJobStatuses(storeId);
+      const jobs = platform === StorePlatform.AmazonSeller
+        ? await this.syncQueue.getAmazonSellerStoreJobStatuses(storeId)
+        : await this.syncQueue.getWooCommerceStoreJobStatuses(storeId);
 
       return jobs.map(toStoreSyncJobStatusResponse);
     } catch {
@@ -705,6 +783,45 @@ function normalizeOptionalValue(value: string | undefined): string | null {
 
 function hashCredentialPlaceholder(value: string): string {
   return createHash("sha256").update(value.trim(), "utf8").digest("hex");
+}
+
+function getConnectionCreatedAuditAction(platform: StorePlatform): AuditAction {
+  switch (platform) {
+    case StorePlatform.WooCommerce:
+      return AuditAction.WooCommerceConnectionCreated;
+    case StorePlatform.AmazonSeller:
+      return AuditAction.AmazonSellerConnectionCreated;
+    case StorePlatform.TikTokShop:
+      throw new BadRequestException("TikTok Shop connection is not implemented.");
+  }
+}
+
+function getConnectionSucceededAuditAction(platform: StorePlatform): AuditAction {
+  switch (platform) {
+    case StorePlatform.WooCommerce:
+      return AuditAction.WooCommerceConnectionValidationSucceeded;
+    case StorePlatform.AmazonSeller:
+      return AuditAction.AmazonSellerConnectionValidationSucceeded;
+    case StorePlatform.TikTokShop:
+      throw new BadRequestException("TikTok Shop connection is not implemented.");
+  }
+}
+
+function getConnectionFailedAuditAction(platform: StorePlatform): AuditAction {
+  switch (platform) {
+    case StorePlatform.WooCommerce:
+      return AuditAction.WooCommerceConnectionValidationFailed;
+    case StorePlatform.AmazonSeller:
+      return AuditAction.AmazonSellerConnectionValidationFailed;
+    case StorePlatform.TikTokShop:
+      throw new BadRequestException("TikTok Shop connection is not implemented.");
+  }
+}
+
+function getSafeMarketplaceId(
+  metadata: Readonly<Record<string, unknown>> | undefined,
+): string | undefined {
+  return typeof metadata?.marketplaceId === "string" ? metadata.marketplaceId : undefined;
 }
 
 function toConnectedStoreResponse(store: ConnectedStoreRecord): ConnectedStoreResponse {
@@ -847,7 +964,7 @@ function toSafeErrorSummary(
 }
 
 function toStoreSyncJobStatusResponse(
-  jobStatus: StoreSyncJobStatusResponse,
+  jobStatus: StoreSyncJobStatusResult,
 ): StoreSyncJobStatusResponse {
   return {
     ...(jobStatus.failedReason ? { failedReason: jobStatus.failedReason } : {}),

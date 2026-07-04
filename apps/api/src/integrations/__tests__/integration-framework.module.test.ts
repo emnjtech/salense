@@ -2,6 +2,7 @@ import { Test } from "@nestjs/testing";
 import {
   INTEGRATION_FACTORY,
   INTEGRATION_REGISTRY,
+  AmazonSellerIntegrationProvider,
   IntegrationFactory,
   IntegrationPlatform,
   IntegrationRegistry,
@@ -21,7 +22,7 @@ describe("IntegrationFrameworkModule", () => {
     expect(testingModule.get(INTEGRATION_REGISTRY)).toBeInstanceOf(IntegrationRegistry);
   });
 
-  it("resolves the WooCommerce-specific provider and generic placeholders for other Version 1 platforms", async () => {
+  it("resolves active WooCommerce and Amazon providers with TikTok kept as placeholder", async () => {
     const testingModule = await Test.createTestingModule({
       imports: [IntegrationFrameworkModule],
     }).compile();
@@ -33,10 +34,9 @@ describe("IntegrationFrameworkModule", () => {
 
     expect(wooCommerceProvider).toBeInstanceOf(WooCommerceIntegrationProvider);
     expect(wooCommerceProvider).not.toBeInstanceOf(PlaceholderIntegrationProvider);
-    expect(amazonProvider).toBeInstanceOf(PlaceholderIntegrationProvider);
-    expect(amazonProvider.platform).toBe(
-      IntegrationPlatform.AmazonSeller,
-    );
+    expect(amazonProvider).toBeInstanceOf(AmazonSellerIntegrationProvider);
+    expect(amazonProvider).not.toBeInstanceOf(PlaceholderIntegrationProvider);
+    expect(amazonProvider.platform).toBe(IntegrationPlatform.AmazonSeller);
     expect(tikTokProvider).toBeInstanceOf(PlaceholderIntegrationProvider);
     expect(tikTokProvider.platform).toBe(IntegrationPlatform.TikTokShop);
   });

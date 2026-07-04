@@ -6,6 +6,8 @@ import type {
   SyncScheduleResponse,
 } from "../types/sync-schedule-response.type.js";
 import {
+  AmazonSellerSyncJobName,
+  createAmazonSellerRecurringSyncJobId,
   createWooCommerceRecurringSyncJobId,
   SYNC_QUEUE,
   WooCommerceSyncJobName,
@@ -32,9 +34,9 @@ export class WooCommerceSyncSchedulingService {
     store: SchedulableConnectedStore,
     requestedByUserId: string,
   ): Promise<SyncScheduleResponse> {
-    this.assertSchedulableWooCommerceStore(store);
+    this.assertSchedulableStore(store);
 
-    const jobId = createWooCommerceRecurringSyncJobId(store.id);
+    const jobId = createRecurringSyncJobId(store);
     const existingSchedule = await this.syncQueue.getRecurringWooCommerceSyncJob(jobId);
 
     if (existingSchedule) {
@@ -43,44 +45,68 @@ export class WooCommerceSyncSchedulingService {
 
     const scheduledAt = new Date();
     const { intervalMs } = loadSyncScheduleConfig();
-    const schedule = await this.syncQueue.scheduleRecurringWooCommerceSyncJob({
-      data: {
-        platform: StorePlatform.WooCommerce,
-        queuedAt: scheduledAt.toISOString(),
-        requestedByUserId,
-        resource: "all",
-        storeId: store.id,
-      },
-      everyMs: intervalMs,
-      jobId,
-      name: WooCommerceSyncJobName.ManualFullSync,
-    });
+    const schedule =
+      store.platform === StorePlatform.AmazonSeller
+        ? await this.syncQueue.scheduleRecurringWooCommerceSyncJob({
+            data: {
+              platform: StorePlatform.AmazonSeller,
+              queuedAt: scheduledAt.toISOString(),
+              requestedByUserId,
+              resource: "all",
+              storeId: store.id,
+            },
+            everyMs: intervalMs,
+            jobId,
+            name: AmazonSellerSyncJobName.ManualFullSync,
+          })
+        : await this.syncQueue.scheduleRecurringWooCommerceSyncJob({
+            data: {
+              platform: StorePlatform.WooCommerce,
+              queuedAt: scheduledAt.toISOString(),
+              requestedByUserId,
+              resource: "all",
+              storeId: store.id,
+            },
+            everyMs: intervalMs,
+            jobId,
+            name: WooCommerceSyncJobName.ManualFullSync,
+          });
 
     return toScheduleResponse(schedule);
   }
 
   async removeAutomaticSync(store: SchedulableConnectedStore): Promise<SyncScheduleRemovalResponse> {
-    if (store.platform !== StorePlatform.WooCommerce) {
-      throw new BadRequestException("Scheduled sync is currently available for WooCommerce stores only.");
+    if (!isSchedulablePlatform(store.platform)) {
+      throw new BadRequestException("Scheduled sync is currently available for WooCommerce and Amazon Seller stores only.");
     }
 
     const removal = await this.syncQueue.removeRecurringWooCommerceSyncJob(
-      createWooCommerceRecurringSyncJobId(store.id),
+      createRecurringSyncJobId(store),
       store.id,
     );
 
     return toScheduleRemovalResponse(removal);
   }
 
-  private assertSchedulableWooCommerceStore(store: SchedulableConnectedStore): void {
-    if (store.platform !== StorePlatform.WooCommerce) {
-      throw new BadRequestException("Scheduled sync is currently available for WooCommerce stores only.");
+  private assertSchedulableStore(store: SchedulableConnectedStore): void {
+    if (!isSchedulablePlatform(store.platform)) {
+      throw new BadRequestException("Scheduled sync is currently available for WooCommerce and Amazon Seller stores only.");
     }
 
     if (store.connectionStatus !== StoreConnectionStatus.Connected) {
       throw new ConflictException("Store must be connected before automatic synchronisation can be scheduled.");
     }
   }
+}
+
+function isSchedulablePlatform(platform: StorePlatform): boolean {
+  return platform === StorePlatform.WooCommerce || platform === StorePlatform.AmazonSeller;
+}
+
+function createRecurringSyncJobId(store: SchedulableConnectedStore): string {
+  return store.platform === StorePlatform.AmazonSeller
+    ? createAmazonSellerRecurringSyncJobId(store.id)
+    : createWooCommerceRecurringSyncJobId(store.id);
 }
 
 function toScheduleResponse(schedule: RecurringSyncScheduleResult): SyncScheduleResponse {

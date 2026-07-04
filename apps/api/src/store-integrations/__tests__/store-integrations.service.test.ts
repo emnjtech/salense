@@ -22,7 +22,11 @@ import {
   CommerceSyncCursorStatus,
 } from "../sync-cursors/commerce-sync-cursor.types.js";
 import type { WooCommerceSyncSchedulingService } from "../sync-queue/woocommerce-sync-scheduling.service.js";
-import { WooCommerceSyncJobName, type SyncQueuePort } from "../sync-queue/sync-queue.types.js";
+import {
+  AmazonSellerSyncJobName,
+  WooCommerceSyncJobName,
+  type SyncQueuePort,
+} from "../sync-queue/sync-queue.types.js";
 import { StoreConnectionStatus } from "../types/store-connection-status.enum.js";
 import { StorePlatform } from "../types/store-platform.enum.js";
 
@@ -38,7 +42,9 @@ function createStoreIntegrationsServiceMocks(): {
   readonly validateConnection: jest.Mock;
   readonly disconnect: jest.Mock;
   readonly synchroniseOrders: jest.Mock;
+  readonly enqueueAmazonSellerSyncJob: jest.Mock;
   readonly enqueueWooCommerceSyncJob: jest.Mock;
+  readonly getAmazonSellerStoreJobStatuses: jest.Mock;
   readonly getJobStatus: jest.Mock;
   readonly getWooCommerceStoreJobStatuses: jest.Mock;
   readonly findManySyncCursors: jest.Mock;
@@ -62,8 +68,10 @@ function createStoreIntegrationsServiceMocks(): {
   const validateConnection = jest.fn();
   const disconnect = jest.fn();
   const synchroniseOrders = jest.fn();
+  const enqueueAmazonSellerSyncJob = jest.fn();
   const enqueueWooCommerceSyncJob = jest.fn();
   const getJobStatus = jest.fn();
+  const getAmazonSellerStoreJobStatuses = jest.fn().mockResolvedValue([]);
   const getWooCommerceStoreJobStatuses = jest.fn().mockResolvedValue([]);
   const findManySyncCursors = jest.fn().mockResolvedValue([]);
   const scheduleAutomaticSync = jest.fn();
@@ -110,7 +118,9 @@ function createStoreIntegrationsServiceMocks(): {
   const integrationFactory = { getProvider } as unknown as IntegrationFactory;
   const credentialEncryption = { encrypt } as unknown as AesCredentialEncryptionService;
   const syncQueue = {
+    enqueueAmazonSellerSyncJob,
     enqueueWooCommerceSyncJob,
+    getAmazonSellerStoreJobStatuses,
     getJobStatus,
     getWooCommerceStoreJobStatuses,
   } as unknown as SyncQueuePort;
@@ -139,7 +149,9 @@ function createStoreIntegrationsServiceMocks(): {
     validateConnection,
     disconnect,
     encrypt,
+    enqueueAmazonSellerSyncJob,
     enqueueWooCommerceSyncJob,
+    getAmazonSellerStoreJobStatuses,
     getJobStatus,
     getWooCommerceStoreJobStatuses,
     findManySyncCursors,
@@ -279,31 +291,155 @@ describe("StoreIntegrationsService", () => {
     expect(getProvider).not.toHaveBeenCalled();
   });
 
-  it("uses the shared integration framework for real platform connection preparation", async () => {
+  it("keeps TikTok connection preparation as explicit future work", async () => {
     const { service, findBusiness, findFirstConnectedStore, getProvider, connect } =
       createStoreIntegrationsServiceMocks();
     findBusiness.mockResolvedValue({ id: "business_1" });
     findFirstConnectedStore.mockResolvedValue(null);
     connect.mockRejectedValue(
-      new IntegrationNotImplementedError("Amazon Seller connect is not implemented.", {
-        platform: IntegrationPlatform.AmazonSeller,
+      new IntegrationNotImplementedError("TikTok Shop connect is not implemented.", {
+        platform: IntegrationPlatform.TikTokShop,
       }),
     );
 
     await expect(
       service.prepareStoreConnection("user_1", {
-        platform: StorePlatform.AmazonSeller,
-        storeName: "Amazon UK",
+        platform: StorePlatform.TikTokShop,
+        storeName: "TikTok UK",
         region: "gb",
       }),
     ).rejects.toThrow(NotImplementedException);
-    expect(getProvider).toHaveBeenCalledWith(IntegrationPlatform.AmazonSeller);
+    expect(getProvider).toHaveBeenCalledWith(IntegrationPlatform.TikTokShop);
     expect(connect).toHaveBeenCalledWith({
       businessId: "business_1",
-      platform: IntegrationPlatform.AmazonSeller,
+      platform: IntegrationPlatform.TikTokShop,
       region: "GB",
+      storeName: "TikTok UK",
+    });
+  });
+
+  it("validates Amazon Seller credentials and marks the connection connected", async () => {
+    const {
+      service,
+      findBusiness,
+      findFirstConnectedStore,
+      createConnectedStore,
+      updateConnectedStore,
+      getProvider,
+      validateConnection,
+      encrypt,
+      recordAuditLog,
+    } = createStoreIntegrationsServiceMocks();
+    const createdAt = new Date("2026-07-03T11:00:00.000Z");
+    const updatedAt = new Date("2026-07-03T11:00:01.000Z");
+    findBusiness.mockResolvedValue({ id: "business_1" });
+    findFirstConnectedStore.mockResolvedValue(null);
+    createConnectedStore.mockResolvedValue({
+      id: "store_amazon_1",
+      businessId: "business_1",
+      platform: StorePlatform.AmazonSeller,
+      storeName: "Amazon UK",
+      storeUrl: null,
+      region: "GB",
+      connectionStatus: StoreConnectionStatus.PendingValidation,
+      lastSynchronisedAt: null,
+      createdAt,
+      updatedAt,
+    });
+    validateConnection.mockResolvedValue({ status: "HEALTHY", checkedAt: new Date() });
+    updateConnectedStore.mockResolvedValue({
+      id: "store_amazon_1",
+      businessId: "business_1",
+      platform: StorePlatform.AmazonSeller,
+      storeName: "Amazon UK",
+      storeUrl: null,
+      region: "GB",
+      connectionStatus: StoreConnectionStatus.Connected,
+      lastSynchronisedAt: null,
+      createdAt,
+      updatedAt,
+    });
+
+    const response = await service.prepareStoreConnection("user_1", {
+      amazonSellerCredentials: {
+        accessToken: "access-token",
+        marketplaceId: "A1F83G8C2ARO7P",
+        refreshToken: "refresh-token",
+        sellerId: "seller_123",
+      },
+      platform: StorePlatform.AmazonSeller,
+      region: "gb",
       storeName: "Amazon UK",
     });
+
+    expect(getProvider).toHaveBeenCalledWith(IntegrationPlatform.AmazonSeller);
+    expect(encrypt).toHaveBeenCalledWith("access-token");
+    expect(encrypt).toHaveBeenCalledWith("refresh-token");
+    expect(createConnectedStore).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        accessTokenHash: expect.any(String),
+        accessTokenMetadata: expect.objectContaining({
+          credentialKind: "amazon_seller_access_token",
+          encryptedCredential: expect.objectContaining({ ciphertext: "encrypted-1" }),
+          marketplaceId: "A1F83G8C2ARO7P",
+          sellerId: "seller_123",
+        }),
+        businessId: "business_1",
+        connectionStatus: StoreConnectionStatus.PendingValidation,
+        platform: IntegrationPlatform.AmazonSeller,
+        refreshTokenHash: expect.any(String),
+        refreshTokenMetadata: expect.objectContaining({
+          credentialKind: "amazon_seller_refresh_token",
+          encryptedCredential: expect.objectContaining({ ciphertext: "encrypted-2" }),
+        }),
+        region: "GB",
+        storeName: "Amazon UK",
+        storeUrl: null,
+      }),
+      select: expect.objectContaining({ id: true }),
+    });
+    expect(validateConnection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accessTokenHash: "access-token",
+        apiVersion: "A1F83G8C2ARO7P",
+        businessId: "business_1",
+        consumerKey: "seller_123",
+        platform: IntegrationPlatform.AmazonSeller,
+        region: "GB",
+        storeId: "store_amazon_1",
+      }),
+    );
+    expect(response).toEqual({
+      id: "store_amazon_1",
+      businessId: "business_1",
+      platform: StorePlatform.AmazonSeller,
+      storeName: "Amazon UK",
+      storeUrl: null,
+      region: "GB",
+      connectionStatus: StoreConnectionStatus.Connected,
+      lastSynchronisedAt: null,
+      createdAt,
+      updatedAt,
+    });
+    expect(recordAuditLog).toHaveBeenCalledWith({
+      action: AuditAction.AmazonSellerConnectionCreated,
+      affectedModule: AuditLogModule.StoreIntegrations,
+      affectedPlatform: StorePlatform.AmazonSeller,
+      affectedStoreId: "store_amazon_1",
+      businessId: "business_1",
+      metadata: {
+        apiVersion: "A1F83G8C2ARO7P",
+        connectionStatus: StoreConnectionStatus.PendingValidation,
+        marketplaceId: "A1F83G8C2ARO7P",
+        region: "GB",
+        storeUrl: null,
+      },
+      result: AuditLogResult.Success,
+      userId: "user_1",
+    });
+    expect(JSON.stringify(response)).not.toContain("access-token");
+    expect(JSON.stringify(recordAuditLog.mock.calls)).not.toContain("refresh-token");
+    expect(JSON.stringify(recordAuditLog.mock.calls)).not.toContain("encryptedCredential");
   });
 
   it("validates WooCommerce credentials and marks the connection connected", async () => {
@@ -432,6 +568,8 @@ describe("StoreIntegrationsService", () => {
       metadata: {
         apiVersion: WooCommerceApiVersion.WcV3,
         connectionStatus: StoreConnectionStatus.PendingValidation,
+        marketplaceId: undefined,
+        region: null,
         storeUrl: "https://shop.example.com",
       },
       result: AuditLogResult.Success,
@@ -445,6 +583,8 @@ describe("StoreIntegrationsService", () => {
       businessId: "business_1",
       metadata: {
         connectionStatus: StoreConnectionStatus.Connected,
+        marketplaceId: undefined,
+        region: null,
         storeUrl: "https://shop.example.com",
       },
       result: AuditLogResult.Success,
@@ -528,6 +668,8 @@ describe("StoreIntegrationsService", () => {
       metadata: {
         connectionStatus: StoreConnectionStatus.Error,
         errorName: "IntegrationAuthenticationError",
+        marketplaceId: undefined,
+        region: null,
         storeUrl: "https://shop.example.com",
       },
       result: AuditLogResult.Failure,
@@ -688,7 +830,7 @@ describe("StoreIntegrationsService", () => {
     expect(JSON.stringify(response)).not.toContain("encryptedCredential");
   });
 
-  it("keeps Amazon and TikTok disconnect as explicit future work", async () => {
+  it("keeps TikTok disconnect as explicit future work", async () => {
     const { service, findFirstConnectedStore, updateConnectedStore, removeAutomaticSync, getProvider } =
       createStoreIntegrationsServiceMocks();
     findFirstConnectedStore.mockResolvedValue({
@@ -785,8 +927,60 @@ describe("StoreIntegrationsService", () => {
     });
   });
 
-  it("rejects manual sync for non-WooCommerce stores", async () => {
-    const { service, findFirstConnectedStore, enqueueWooCommerceSyncJob } =
+  it("allows the authenticated owner to enqueue a manual Amazon Seller sync job", async () => {
+    const {
+      service,
+      findFirstConnectedStore,
+      enqueueAmazonSellerSyncJob,
+      enqueueWooCommerceSyncJob,
+      recordAuditLog,
+    } = createStoreIntegrationsServiceMocks();
+    const queuedAt = new Date("2026-07-03T14:00:00.000Z");
+    findFirstConnectedStore.mockResolvedValue({
+      id: "store_amazon_1",
+      businessId: "business_1",
+      connectionStatus: StoreConnectionStatus.Connected,
+      lastSynchronisedAt: null,
+      platform: StorePlatform.AmazonSeller,
+    });
+    enqueueAmazonSellerSyncJob.mockResolvedValue({
+      jobId: "job_amazon_1",
+      platform: StorePlatform.AmazonSeller,
+      queuedAt,
+      status: "QUEUED",
+      storeId: "store_amazon_1",
+    });
+
+    await expect(
+      service.requestManualSync("user_1", { storeId: "store_amazon_1" }),
+    ).resolves.toEqual({
+      jobId: "job_amazon_1",
+      platform: StorePlatform.AmazonSeller,
+      queuedAt,
+      status: "QUEUED",
+      storeId: "store_amazon_1",
+    });
+    expect(enqueueAmazonSellerSyncJob).toHaveBeenCalledWith(
+      AmazonSellerSyncJobName.ManualFullSync,
+      expect.objectContaining({
+        platform: StorePlatform.AmazonSeller,
+        requestedByUserId: "user_1",
+        resource: "all",
+        storeId: "store_amazon_1",
+      }),
+    );
+    expect(enqueueWooCommerceSyncJob).not.toHaveBeenCalled();
+    expect(recordAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: AuditAction.ManualSyncJobQueued,
+        affectedPlatform: StorePlatform.AmazonSeller,
+        affectedStoreId: "store_amazon_1",
+      }),
+    );
+  });
+
+  it("rejects manual sync for TikTok stores", async () => {
+    const { service, findFirstConnectedStore, enqueueAmazonSellerSyncJob, enqueueWooCommerceSyncJob } =
       createStoreIntegrationsServiceMocks();
     findFirstConnectedStore.mockResolvedValue({
       id: "store_1",
@@ -799,6 +993,7 @@ describe("StoreIntegrationsService", () => {
     await expect(service.requestManualSync("user_1", { storeId: "store_1" })).rejects.toThrow(
       BadRequestException,
     );
+    expect(enqueueAmazonSellerSyncJob).not.toHaveBeenCalled();
     expect(enqueueWooCommerceSyncJob).not.toHaveBeenCalled();
   });
 
@@ -1085,6 +1280,60 @@ describe("StoreIntegrationsService", () => {
     expect(JSON.stringify(response)).not.toContain("rawMarketplacePayload");
   });
 
+  it("allows the authenticated owner to view safe Amazon Seller sync status", async () => {
+    const {
+      service,
+      findFirstConnectedStore,
+      findManySyncCursors,
+      getAmazonSellerStoreJobStatuses,
+      getWooCommerceStoreJobStatuses,
+    } = createStoreIntegrationsServiceMocks();
+    const lastSynchronisedAt = new Date("2026-07-03T14:00:00.000Z");
+    const queuedAt = new Date("2026-07-03T14:05:00.000Z");
+    findFirstConnectedStore.mockResolvedValue({
+      id: "store_amazon_1",
+      businessId: "business_1",
+      connectionStatus: StoreConnectionStatus.Connected,
+      disconnectedAt: null,
+      lastSynchronisedAt,
+      platform: StorePlatform.AmazonSeller,
+    });
+    findManySyncCursors.mockResolvedValue([]);
+    getAmazonSellerStoreJobStatuses.mockResolvedValue([
+      {
+        jobId: "job_amazon_1",
+        platform: StorePlatform.AmazonSeller,
+        queuedAt,
+        status: "QUEUED",
+        storeId: "store_amazon_1",
+        encryptedCredential: "should-not-leak",
+      },
+    ]);
+
+    const response = await service.getStoreSyncStatus("user_1", "store_amazon_1");
+
+    expect(getAmazonSellerStoreJobStatuses).toHaveBeenCalledWith("store_amazon_1");
+    expect(getWooCommerceStoreJobStatuses).not.toHaveBeenCalled();
+    expect(response).toMatchObject({
+      connectionStatus: StoreConnectionStatus.Connected,
+      jobs: [
+        {
+          jobId: "job_amazon_1",
+          platform: StorePlatform.AmazonSeller,
+          queuedAt,
+          status: "QUEUED",
+          storeId: "store_amazon_1",
+        },
+      ],
+      lastSynchronisedAt,
+      platform: StorePlatform.AmazonSeller,
+      storeId: "store_amazon_1",
+    });
+    expect(response.cursors).toHaveLength(6);
+    expect(JSON.stringify(response)).not.toContain("should-not-leak");
+    expect(JSON.stringify(response)).not.toContain("encryptedCredential");
+  });
+
   it("rejects sync status for stores outside the authenticated user's business", async () => {
     const { service, findFirstConnectedStore, findManySyncCursors, getWooCommerceStoreJobStatuses } =
       createStoreIntegrationsServiceMocks();
@@ -1097,22 +1346,28 @@ describe("StoreIntegrationsService", () => {
     expect(getWooCommerceStoreJobStatuses).not.toHaveBeenCalled();
   });
 
-  it("keeps Amazon and TikTok sync status as explicit future work", async () => {
-    const { service, findFirstConnectedStore, findManySyncCursors, getWooCommerceStoreJobStatuses } =
-      createStoreIntegrationsServiceMocks();
+  it("keeps TikTok sync status as explicit future work", async () => {
+    const {
+      service,
+      findFirstConnectedStore,
+      findManySyncCursors,
+      getAmazonSellerStoreJobStatuses,
+      getWooCommerceStoreJobStatuses,
+    } = createStoreIntegrationsServiceMocks();
     findFirstConnectedStore.mockResolvedValue({
       id: "store_1",
       businessId: "business_1",
       connectionStatus: StoreConnectionStatus.Connected,
       disconnectedAt: null,
       lastSynchronisedAt: null,
-      platform: StorePlatform.AmazonSeller,
+      platform: StorePlatform.TikTokShop,
     });
 
     await expect(service.getStoreSyncStatus("user_1", "store_1")).rejects.toThrow(
       BadRequestException,
     );
     expect(findManySyncCursors).not.toHaveBeenCalled();
+    expect(getAmazonSellerStoreJobStatuses).not.toHaveBeenCalled();
     expect(getWooCommerceStoreJobStatuses).not.toHaveBeenCalled();
   });
 

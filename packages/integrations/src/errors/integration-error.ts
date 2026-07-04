@@ -28,6 +28,8 @@ export class DuplicateIntegrationProviderError extends IntegrationError {}
 
 export class IntegrationAuthenticationError extends IntegrationError {}
 
+export class IntegrationConfigurationError extends IntegrationError {}
+
 export class IntegrationConnectionError extends IntegrationError {}
 
 export class IntegrationSynchronisationError extends IntegrationError {}

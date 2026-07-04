@@ -3,6 +3,8 @@ import { Queue, type JobType, type JobsOptions } from "bullmq";
 import { StorePlatform } from "../types/store-platform.enum.js";
 import {
   syncQueueName,
+  type AmazonSellerSyncJobData,
+  type AmazonSellerSyncJobName,
   type RecurringSyncScheduleLookupResult,
   type RecurringSyncScheduleRemovalResult,
   type RecurringSyncScheduleRequest,
@@ -13,6 +15,8 @@ import {
   type StoreSyncJobStatusResult,
   type WooCommerceSyncJobData,
   type WooCommerceSyncJobName,
+  type SyncJobData,
+  type SyncJobName,
 } from "./sync-queue.types.js";
 
 const defaultJobOptions = {
@@ -33,11 +37,26 @@ const storeStatusJobTypes = [
 ] satisfies JobType[];
 
 export class BullMqSyncQueue implements SyncQueuePort {
-  private queue?: Queue<WooCommerceSyncJobData, unknown, WooCommerceSyncJobName>;
+  private queue?: Queue<SyncJobData, unknown, SyncJobName>;
 
   async enqueueWooCommerceSyncJob(
     name: WooCommerceSyncJobName,
     data: WooCommerceSyncJobData,
+  ): Promise<SyncJobEnqueueResult> {
+    const job = await this.getQueue().add(name, data, defaultJobOptions);
+
+    return {
+      jobId: String(job.id),
+      platform: data.platform,
+      queuedAt: new Date(data.queuedAt),
+      status: "QUEUED",
+      storeId: data.storeId,
+    };
+  }
+
+  async enqueueAmazonSellerSyncJob(
+    name: AmazonSellerSyncJobName,
+    data: AmazonSellerSyncJobData,
   ): Promise<SyncJobEnqueueResult> {
     const job = await this.getQueue().add(name, data, defaultJobOptions);
 
@@ -73,11 +92,24 @@ export class BullMqSyncQueue implements SyncQueuePort {
   async getWooCommerceStoreJobStatuses(
     storeId: string,
   ): Promise<readonly StoreSyncJobStatusResult[]> {
+    return this.getStoreJobStatuses(storeId, StorePlatform.WooCommerce);
+  }
+
+  async getAmazonSellerStoreJobStatuses(
+    storeId: string,
+  ): Promise<readonly StoreSyncJobStatusResult[]> {
+    return this.getStoreJobStatuses(storeId, StorePlatform.AmazonSeller);
+  }
+
+  private async getStoreJobStatuses(
+    storeId: string,
+    platform: StorePlatform,
+  ): Promise<readonly StoreSyncJobStatusResult[]> {
     const jobs = await this.getQueue().getJobs(storeStatusJobTypes, 0, 50, false);
 
     return Promise.all(
       jobs
-        .filter((job) => job.data.storeId === storeId)
+        .filter((job) => job.data.storeId === storeId && job.data.platform === platform)
         .map(async (job) => {
           const state = await job.getState();
 
@@ -107,7 +139,9 @@ export class BullMqSyncQueue implements SyncQueuePort {
     return {
       everyMs: Number(repeatableJob.every ?? 0),
       jobId,
-      platform: StorePlatform.WooCommerce,
+      platform: jobId.startsWith("amazon-seller:")
+        ? StorePlatform.AmazonSeller
+        : StorePlatform.WooCommerce,
       storeId: storeIdFromRecurringJobId(jobId),
     };
   }
@@ -122,7 +156,9 @@ export class BullMqSyncQueue implements SyncQueuePort {
     if (!repeatableJob) {
       return {
         jobId,
-        platform: StorePlatform.WooCommerce,
+        platform: jobId.startsWith("amazon-seller:")
+          ? StorePlatform.AmazonSeller
+          : StorePlatform.WooCommerce,
         removedAt: new Date(),
         status: "NOT_FOUND",
         storeId,
@@ -133,7 +169,9 @@ export class BullMqSyncQueue implements SyncQueuePort {
 
     return {
       jobId,
-      platform: StorePlatform.WooCommerce,
+      platform: jobId.startsWith("amazon-seller:")
+        ? StorePlatform.AmazonSeller
+        : StorePlatform.WooCommerce,
       removedAt: new Date(),
       status: "REMOVED",
       storeId,
@@ -159,10 +197,10 @@ export class BullMqSyncQueue implements SyncQueuePort {
     };
   }
 
-  private getQueue(): Queue<WooCommerceSyncJobData, unknown, WooCommerceSyncJobName> {
+  private getQueue(): Queue<SyncJobData, unknown, SyncJobName> {
     if (!this.queue) {
       const connection = createRedisConnectionOptions();
-      this.queue = new Queue<WooCommerceSyncJobData, unknown, WooCommerceSyncJobName>(
+      this.queue = new Queue<SyncJobData, unknown, SyncJobName>(
         syncQueueName,
         { connection },
       );
