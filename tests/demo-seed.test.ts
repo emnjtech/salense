@@ -8,6 +8,7 @@ describe("MVP demo seed script", () => {
     expect(seedScript).toContain("StorePlatform.WOOCOMMERCE");
     expect(seedScript).toContain("StorePlatform.AMAZON_SELLER");
     expect(seedScript).toContain("StorePlatform.TIKTOK_SHOP");
+    expect(seedScript).toContain("StorePlatform.SHOPIFY");
   });
 
   it("marks source metadata as demo seed origin", () => {

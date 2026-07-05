@@ -36,7 +36,7 @@ function createJob(input: Partial<Job<WooCommerceSyncJobData, unknown, WooCommer
 }
 
 describe("sync worker", () => {
-  it("registers WooCommerce, Amazon Seller, and TikTok Shop job handlers on the sync queue", async () => {
+  it("registers WooCommerce, Amazon Seller, TikTok Shop, and Shopify job handlers on the sync queue", async () => {
     const handler = { handle: jest.fn().mockResolvedValue({ status: "SUCCESS" }) };
     const amazonSellerHandler = { handle: jest.fn().mockResolvedValue({ status: "SUCCESS" }) };
     const tikTokShopHandler = { handle: jest.fn().mockResolvedValue({ status: "SUCCESS" }) };

@@ -13,7 +13,7 @@ pnpm test
 pnpm build
 ```
 
-The checks validate linting, TypeScript contracts, automated tests, and production builds across the monorepo. The workflow does not start PostgreSQL, Redis, WooCommerce, Amazon Seller, or TikTok Shop services, and it does not require live marketplace credentials.
+The checks validate linting, TypeScript contracts, automated tests, and production builds across the monorepo. The workflow does not start PostgreSQL, Redis, WooCommerce, Amazon Seller, TikTok Shop, or Shopify services, and it does not require live marketplace credentials.
 
 ## Local Checks
 
