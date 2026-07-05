@@ -16,7 +16,7 @@ import {
   type CommerceProductListItem,
 } from "../../lib/api/products-client";
 import { StorePlatform } from "../../lib/api/store-integrations-client";
-import { readDemoSession } from "../../lib/auth-session";
+import { getFriendlyAuthErrorMessage, readDemoSession } from "../../lib/auth-session";
 import { DemoModeBanner } from "../demo/demo-mode-banner";
 
 const allPlatforms = "ALL";
@@ -50,7 +50,7 @@ export function ProductsWorkspace() {
 
     if (!session) {
       setProducts([]);
-      setError("Sign in as demo@salense.local to view the seeded unified products.");
+      setError("Sign in to view unified products.");
       setLoading(false);
       return;
     }
@@ -69,6 +69,22 @@ export function ProductsWorkspace() {
   useEffect(() => {
     void loadProducts();
   }, [loadProducts]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const platform = params.get("platform");
+    const search = params.get("search");
+
+    setFilters((current) => ({
+      ...current,
+      ...(isStorePlatform(platform) ? { platform } : {}),
+      ...(search ? { search } : {}),
+    }));
+  }, []);
 
   const totalRevenue = products.reduce((total, product) => total + product.revenue, 0);
   const unitsSold = products.reduce((total, product) => total + product.unitsSold, 0);
@@ -89,8 +105,8 @@ export function ProductsWorkspace() {
           <p className="eyebrow">Unified Products</p>
           <h1>See product performance across every connected channel.</h1>
           <p>
-            Review seeded platform-scoped products, stock state, units sold, and revenue while
-            keeping marketplace records authoritative and read-only.
+            Review platform-scoped products, stock state, units sold, and revenue while keeping
+            marketplace records authoritative and read-only.
           </p>
         </div>
         <button className="secondary-button" onClick={() => void loadProducts()} type="button">
@@ -108,53 +124,60 @@ export function ProductsWorkspace() {
         </section>
       ) : null}
 
-      <section className="overview-grid" aria-label="Products summary">
-        <MetricTile label="Products" value={products.length.toString()} />
-        <MetricTile label="Units sold" value={unitsSold.toString()} />
-        <MetricTile
-          label="Revenue"
-          value={formatCurrency(totalRevenue, getPrimaryCurrency(products))}
-        />
-        <MetricTile label="Low stock" value={lowStockCount.toString()} />
-        <MetricTile label="Platforms" value={uniquePlatforms.toString()} />
-      </section>
-
-      <section className="panel orders-panel">
-        <div className="products-toolbar">
-          <label className="orders-search">
-            <Search size={16} aria-hidden="true" />
-            <input
-              onChange={(event) => updateFilter("search", event.target.value)}
-              placeholder="Search product, SKU, platform ID"
-              type="search"
-              value={filters.search}
+      {!error ? (
+        <>
+          <section className="overview-grid" aria-label="Products summary">
+            <MetricTile label="Products" value={products.length.toString()} />
+            <MetricTile label="Units sold" value={unitsSold.toString()} />
+            <MetricTile
+              label="Revenue"
+              value={formatCurrency(totalRevenue, getPrimaryCurrency(products))}
             />
-          </label>
-          <select
-            aria-label="Platform"
-            onChange={(event: ChangeEvent<HTMLSelectElement>) =>
-              updateFilter("platform", event.target.value as StorePlatform | typeof allPlatforms)
-            }
-            value={filters.platform}
-          >
-            <option value={allPlatforms}>All platforms</option>
-            <option value={StorePlatform.WooCommerce}>WooCommerce</option>
-            <option value={StorePlatform.AmazonSeller}>Amazon Seller</option>
-            <option value={StorePlatform.TikTokShop}>TikTok Shop</option>
-            <option value={StorePlatform.Shopify}>Shopify</option>
-          </select>
-          <input
-            aria-label="Stock status"
-            onChange={(event) => updateFilter("stockStatus", event.target.value)}
-            placeholder="Stock status"
-            value={filters.stockStatus}
-          />
-        </div>
+            <MetricTile label="Low stock" value={lowStockCount.toString()} />
+            <MetricTile label="Platforms" value={uniquePlatforms.toString()} />
+          </section>
 
-        {loading ? <ProductsLoadingState /> : null}
-        {!loading && !error && products.length === 0 ? <ProductsEmptyState /> : null}
-        {!loading && products.length > 0 ? <ProductsTable products={products} /> : null}
-      </section>
+          <section className="panel orders-panel">
+            <div className="products-toolbar">
+              <label className="orders-search">
+                <Search size={16} aria-hidden="true" />
+                <input
+                  onChange={(event) => updateFilter("search", event.target.value)}
+                  placeholder="Search product, SKU, platform ID"
+                  type="search"
+                  value={filters.search}
+                />
+              </label>
+              <select
+                aria-label="Platform"
+                onChange={(event: ChangeEvent<HTMLSelectElement>) =>
+                  updateFilter(
+                    "platform",
+                    event.target.value as StorePlatform | typeof allPlatforms,
+                  )
+                }
+                value={filters.platform}
+              >
+                <option value={allPlatforms}>All platforms</option>
+                <option value={StorePlatform.WooCommerce}>WooCommerce</option>
+                <option value={StorePlatform.AmazonSeller}>Amazon Seller</option>
+                <option value={StorePlatform.TikTokShop}>TikTok Shop</option>
+                <option value={StorePlatform.Shopify}>Shopify</option>
+              </select>
+              <input
+                aria-label="Stock status"
+                onChange={(event) => updateFilter("stockStatus", event.target.value)}
+                placeholder="Stock status"
+                value={filters.stockStatus}
+              />
+            </div>
+
+            {loading ? <ProductsLoadingState /> : null}
+            {!loading && !error && products.length === 0 ? <ProductsEmptyState /> : null}
+            {!loading && products.length > 0 ? <ProductsTable products={products} /> : null}
+          </section>
+        </>
+      ) : null}
     </main>
   );
 }
@@ -219,7 +242,7 @@ function ProductsEmptyState() {
       <PackageSearch size={22} aria-hidden="true" />
       <strong>No products match this view</strong>
       <span>
-        Clear filters to return to the full demo product set, or sync stores to refresh normalized
+        Clear filters to return to the full product set, or sync stores to refresh normalized
         products.
       </span>
     </div>
@@ -248,6 +271,12 @@ function toApiFilters(filters: ProductsFilterState): CommerceProductFilters {
 }
 
 function getFriendlyError(error: unknown): string {
+  const authMessage = getFriendlyAuthErrorMessage(error);
+
+  if (authMessage) {
+    return authMessage;
+  }
+
   if (error instanceof ProductsClientError) {
     return error.message;
   }
@@ -296,4 +325,8 @@ function formatPlatform(platform: StorePlatform): string {
     case StorePlatform.WooCommerce:
       return "WooCommerce";
   }
+}
+
+function isStorePlatform(value: string | null): value is StorePlatform {
+  return Object.values(StorePlatform).includes(value as StorePlatform);
 }

@@ -2,8 +2,8 @@
 
 import {
   BarChart3,
-  Building2,
   Boxes,
+  ChevronDown,
   Link2,
   ListOrdered,
   LogOut,
@@ -58,9 +58,12 @@ export function AuthenticatedNavigation() {
         </div>
       </div>
 
-      <div className="sidebar-demo-card">
-        <span>Endorsement MVP</span>
-        <strong>Four channels unified for a 60-second business read.</strong>
+      <div className="sidebar-business-card" aria-label="Active business">
+        <div>
+          <span>Active business</span>
+          <strong>Northstar Home Goods</strong>
+        </div>
+        <ChevronDown size={16} aria-hidden="true" />
       </div>
 
       <nav className="sidebar-nav">
@@ -86,13 +89,6 @@ export function AuthenticatedNavigation() {
         >
           Store Integrations
         </NavigationLink>
-        <NavigationLink
-          currentPath={pathname}
-          href="/company-profile"
-          icon={<Building2 size={18} />}
-        >
-          Company Setup
-        </NavigationLink>
         <Link href="/" aria-disabled="true">
           <Settings size={18} aria-hidden="true" />
           Settings
@@ -104,7 +100,7 @@ export function AuthenticatedNavigation() {
           <ShieldCheck size={14} aria-hidden="true" />
           Marketplace data stays read-only
         </span>
-        <span>{session?.userEmail ?? "Demo session not loaded"}</span>
+        <span>{session?.userEmail ?? "Session not loaded"}</span>
         <button onClick={() => void handleLogout()} type="button">
           <LogOut size={16} aria-hidden="true" />
           {loggingOut ? "Signing out..." : "Logout"}

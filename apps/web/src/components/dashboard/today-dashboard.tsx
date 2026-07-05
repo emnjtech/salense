@@ -5,28 +5,29 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   BarChart3,
-  Boxes,
+  CalendarDays,
   CheckCircle2,
-  HeartPulse,
+  ChevronRight,
   Loader2,
   PackageSearch,
   RefreshCcw,
-  Sparkles,
+  RotateCcw,
   ShoppingBag,
+  ShoppingCart,
   Store,
+  TrendingUp,
 } from "lucide-react";
+import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { DemoModeBanner } from "../demo/demo-mode-banner";
 import {
   DashboardClientError,
   createDashboardApiClient,
   type PlatformMetric,
-  type RuleBasedInsight,
   type TodayDashboardResponse,
 } from "../../lib/api/dashboard-client";
 import { StorePlatform } from "../../lib/api/store-integrations-client";
-import { readDemoSession } from "../../lib/auth-session";
+import { getFriendlyAuthErrorMessage, readDemoSession } from "../../lib/auth-session";
 
 export function TodayDashboard() {
   const dashboardClient = useMemo(() => createDashboardApiClient(), []);
@@ -42,7 +43,7 @@ export function TodayDashboard() {
 
     if (!session) {
       setDashboard(null);
-      setError("Sign in as demo@salense.local to view today's seeded business dashboard.");
+      setError("Sign in to view today's commerce intelligence.");
       setLoading(false);
       return;
     }
@@ -65,20 +66,20 @@ export function TodayDashboard() {
     <main className="workspace today-workspace">
       <header className="workspace-header today-header">
         <div>
-          <p className="eyebrow">Unified Today</p>
-          <h1>Know the business in 60 seconds.</h1>
-          <p>
-            Salense turns WooCommerce, Amazon Seller, Shopify, and TikTok Shop data into one
-            read-only operating view for revenue, channel performance, stock risk, and next actions.
-          </p>
+          <h1>Today</h1>
+          <p>Overview of Northstar Home Goods across every connected commerce channel.</p>
         </div>
-        <button className="secondary-button" onClick={() => void loadDashboard()} type="button">
-          <RefreshCcw size={16} aria-hidden="true" />
-          Refresh
-        </button>
+        <div className="today-header-actions">
+          <div className="date-chip" aria-label="Current dashboard date">
+            <CalendarDays size={16} aria-hidden="true" />
+            Today
+          </div>
+          <button className="icon-button" onClick={() => void loadDashboard()} type="button">
+            <RefreshCcw size={18} aria-hidden="true" />
+            <span className="sr-only">Refresh Today dashboard</span>
+          </button>
+        </div>
       </header>
-
-      <DemoModeBanner />
 
       {loading ? <TodayLoadingState /> : null}
       {!loading && error ? <TodayErrorState message={error} /> : null}
@@ -95,51 +96,34 @@ function TodayDashboardContent({ dashboard }: { readonly dashboard: TodayDashboa
       {isEmpty ? (
         <section className="state-banner warning">
           <Store size={18} aria-hidden="true" />
-          Seed the demo data or sync a connected store to populate this daily operating view.
+          Sync a connected store to populate this daily operating view.
         </section>
       ) : null}
 
-      <section className="today-hero-grid" aria-label="Today dashboard headline">
-        <HealthScoreCard dashboard={dashboard} />
-        <div className="today-hero-metrics">
-          <MetricTile
-            label="Today revenue"
-            value={formatCurrency(dashboard.todayRevenue)}
-            supporting="Across all connected stores"
-          />
-          <MetricTile
-            label="Revenue change"
-            value={formatPercent(dashboard.revenueChangePercent)}
-            supporting={`Yesterday: ${formatCurrency(dashboard.yesterdayRevenue)}`}
-            trend={dashboard.revenueChangePercent}
-          />
-          <MetricTile
-            label="Orders today"
-            value={dashboard.ordersToday.toString()}
-            supporting={`${dashboard.productsSoldToday} products sold`}
-          />
-        </div>
-      </section>
-
-      <TodayBriefing dashboard={dashboard} />
-
-      <section className="overview-grid" aria-label="Today metrics">
+      <section className="today-top-grid" aria-label="Today headline metrics">
         <MetricTile
-          label="Average order value"
-          value={formatCurrency(dashboard.averageOrderValueToday)}
-          supporting="Today"
+          icon={<TrendingUp size={22} />}
+          label="Today revenue"
+          value={formatCurrency(dashboard.todayRevenue)}
+          supporting={`${formatTrend(dashboard.revenueChangePercent)} vs yesterday`}
+          trend={dashboard.revenueChangePercent}
         />
         <MetricTile
+          icon={<ShoppingCart size={22} />}
+          label="Orders today"
+          value={dashboard.ordersToday.toString()}
+          supporting={`${dashboard.productsSoldToday} products sold`}
+        />
+        <MetricTile
+          icon={<RotateCcw size={22} />}
           label="Refund count"
           value={dashboard.refundCountToday.toString()}
-          supporting="Today"
+          supporting="Read-only order signal"
+          inverse
         />
         <MetricTile
-          label="Active stores"
-          value={dashboard.activeStores.toString()}
-          supporting="Connected"
-        />
-        <MetricTile
+          href="/store-integrations"
+          icon={<Store size={22} />}
           label="Connected platforms"
           value={dashboard.connectedPlatforms.length.toString()}
           supporting={formatPlatformList(dashboard.connectedPlatforms)}
@@ -147,175 +131,193 @@ function TodayDashboardContent({ dashboard }: { readonly dashboard: TodayDashboa
       </section>
 
       <div className="today-content-grid">
-        <section className="panel">
-          <div className="panel-heading">
-            <div>
-              <h2>Revenue by Platform</h2>
-              <p>Each channel stays separate so performance is clear without product matching.</p>
-            </div>
-          </div>
-          <PlatformBreakdown
-            metrics={dashboard.revenueByPlatform}
-            valueFormatter={formatCurrency}
-          />
-        </section>
-
-        <section className="panel">
-          <div className="panel-heading">
-            <div>
-              <h2>Orders by Platform</h2>
-              <p>Today's source-channel order count for quick comparison.</p>
-            </div>
-          </div>
-          <PlatformBreakdown
-            metrics={dashboard.ordersByPlatform}
-            valueFormatter={(value) => value.toString()}
-          />
-        </section>
+        <PlatformPanel
+          description="Each channel stays separate so performance is clear without product matching."
+          metrics={dashboard.revenueByPlatform}
+          title="Revenue by Platform"
+          valueFormatter={formatCurrency}
+        />
+        <PlatformPanel
+          description="Today's source-channel order count for quick comparison."
+          metrics={dashboard.ordersByPlatform}
+          title="Orders by Platform"
+          valueFormatter={(value) => value.toString()}
+        />
       </div>
 
-      <div className="today-content-grid">
-        <section className="panel today-focus-panel">
-          <div className="panel-heading">
-            <div>
-              <h2>Today's Focus</h2>
-              <p>Best platform, top product, and inventory signal from the seeded commerce data.</p>
-            </div>
-          </div>
-          <div className="focus-list">
-            <FocusItem
-              icon={<BarChart3 size={18} />}
-              label="Best platform"
-              value={
-                dashboard.bestPlatformToday
-                  ? formatPlatform(dashboard.bestPlatformToday)
-                  : "No sales yet"
-              }
-            />
-            <FocusItem
-              icon={<PackageSearch size={18} />}
-              label="Top product"
-              value={dashboard.topProductToday?.name ?? "No products sold yet"}
-              {...(dashboard.topProductToday
-                ? {
-                    supporting: `${dashboard.topProductToday.quantitySold} sold - ${formatCurrency(
-                      dashboard.topProductToday.revenue,
-                    )}`,
-                  }
-                : {})}
-            />
-            <FocusItem
-              icon={<Boxes size={18} />}
-              label="Low stock count"
-              value={dashboard.lowStockCount.toString()}
-              supporting="Products needing attention"
-            />
-          </div>
-        </section>
-
-        <section className="panel today-insights-panel">
-          <div className="panel-heading">
-            <div>
-              <h2>Rule-Based Insights</h2>
-              <p>Explainable MVP rules before AI forecasting is introduced.</p>
-            </div>
-          </div>
-          <InsightList insights={dashboard.basicRuleBasedInsights} />
-        </section>
+      <div className="today-content-grid today-lower-grid">
+        <TodayBriefing dashboard={dashboard} />
+        <HealthScoreCard dashboard={dashboard} />
       </div>
+
+      <section className="panel today-focus-panel">
+        <div className="panel-heading">
+          <div>
+            <h2>Key business health contributors</h2>
+            <p>Deterministic signals from normalized commerce data.</p>
+          </div>
+        </div>
+        <div className="focus-list health-contributor-list">
+          <FocusItem
+            href={
+              dashboard.bestPlatformToday
+                ? `/orders?platform=${dashboard.bestPlatformToday}`
+                : "/orders"
+            }
+            icon={<BarChart3 size={18} />}
+            label="Strongest channel"
+            value={
+              dashboard.bestPlatformToday
+                ? formatPlatform(dashboard.bestPlatformToday)
+                : "No sales yet"
+            }
+          />
+          <FocusItem
+            href={
+              dashboard.topProductToday
+                ? `/products?search=${encodeURIComponent(dashboard.topProductToday.name)}`
+                : "/products"
+            }
+            icon={<PackageSearch size={18} />}
+            label="Top product"
+            value={dashboard.topProductToday?.name ?? "No products sold yet"}
+            supporting={
+              dashboard.topProductToday
+                ? `${dashboard.topProductToday.quantitySold} sold - ${formatCurrency(
+                    dashboard.topProductToday.revenue,
+                  )}`
+                : undefined
+            }
+          />
+          <FocusItem
+            href="/inventory?stockStatus=LOW_STOCK"
+            icon={<ShoppingBag size={18} />}
+            label="Low stock products"
+            value={dashboard.lowStockCount.toString()}
+            supporting="Review inventory risk"
+          />
+        </div>
+      </section>
     </>
+  );
+}
+
+function PlatformPanel({
+  description,
+  metrics,
+  title,
+  valueFormatter,
+}: {
+  readonly description: string;
+  readonly metrics: readonly PlatformMetric[];
+  readonly title: string;
+  readonly valueFormatter: (value: number) => string;
+}) {
+  return (
+    <section className="panel platform-performance-panel">
+      <div className="panel-heading">
+        <div>
+          <h2>{title}</h2>
+          <p>{description}</p>
+        </div>
+      </div>
+      <PlatformBreakdown metrics={metrics} valueFormatter={valueFormatter} />
+      <Link className="panel-footer-link" href="/orders">
+        View all platforms
+      </Link>
+    </section>
   );
 }
 
 function HealthScoreCard({ dashboard }: { readonly dashboard: TodayDashboardResponse }) {
   const score = dashboard.basicBusinessHealthScore;
+  const contributors = getHealthContributors(dashboard);
 
   return (
-    <section className="health-card" aria-label="Business Health Score">
-      <div>
-        <p className="eyebrow">Business Health Score</p>
-        <strong>{score}</strong>
-        <span>/100</span>
+    <section className="panel health-score-panel" aria-label="Business Health Score">
+      <div className="panel-heading">
+        <div>
+          <h2>Business Health Score</h2>
+          <p>A real-time view of overall commerce health.</p>
+        </div>
       </div>
-      <div className="health-ring" style={{ "--score": `${score}%` } as CSSProperties}>
-        <HeartPulse size={30} aria-hidden="true" />
+      <div className="health-score-body">
+        <div className="health-gauge" style={{ "--score": `${score}%` } as CSSProperties}>
+          <strong>{score}</strong>
+          <span>{getHealthLabel(score)}</span>
+        </div>
+        <div className="health-contributors">
+          {contributors.map((contributor) => (
+            <div key={contributor.label}>
+              <span>{contributor.label}</span>
+              <strong className={contributor.tone}>
+                {contributor.tone === "risk" ? (
+                  <AlertTriangle size={14} aria-hidden="true" />
+                ) : (
+                  <CheckCircle2 size={14} aria-hidden="true" />
+                )}
+                {contributor.value}
+              </strong>
+            </div>
+          ))}
+        </div>
       </div>
-      <p>{getHealthSummary(score)}</p>
-      <dl className="health-proof-list">
-        <div>
-          <dt>Channels</dt>
-          <dd>{dashboard.connectedPlatforms.length}/4</dd>
-        </div>
-        <div>
-          <dt>Orders</dt>
-          <dd>{dashboard.ordersToday}</dd>
-        </div>
-        <div>
-          <dt>Risk flags</dt>
-          <dd>{dashboard.lowStockCount}</dd>
-        </div>
-      </dl>
     </section>
   );
 }
 
 function TodayBriefing({ dashboard }: { readonly dashboard: TodayDashboardResponse }) {
-  const bestPlatform = dashboard.bestPlatformToday
-    ? formatPlatform(dashboard.bestPlatformToday)
-    : "no leading channel yet";
-  const topProduct = dashboard.topProductToday?.name ?? "no top product yet";
-  const revenueTrend =
-    dashboard.revenueChangePercent === null
-      ? "has no baseline yet"
-      : dashboard.revenueChangePercent >= 0
-        ? `is ${dashboard.revenueChangePercent}% ahead of yesterday`
-        : `is ${Math.abs(dashboard.revenueChangePercent)}% behind yesterday`;
+  const briefingItems = createBriefingItems(dashboard);
 
   return (
-    <section className="today-briefing" aria-label="Today Briefing">
-      <div className="briefing-icon">
-        <Sparkles size={18} aria-hidden="true" />
+    <section className="panel today-briefing-panel" aria-label="Today Briefing">
+      <div className="panel-heading">
+        <div>
+          <h2>Today Briefing</h2>
+          <p>Key highlights from across the business.</p>
+        </div>
       </div>
-      <div>
-        <p className="eyebrow">Today Briefing</p>
-        <strong>
-          {formatCurrency(dashboard.todayRevenue)} today across {dashboard.activeStores} stores,
-          with {bestPlatform} leading.
-        </strong>
-        <span>
-          Revenue {revenueTrend}; {topProduct} is the product to mention, and{" "}
-          {dashboard.lowStockCount} stock signal{dashboard.lowStockCount === 1 ? "" : "s"} need a
-          quick look.
-        </span>
+      <div className="briefing-list">
+        {briefingItems.map((item) => (
+          <Link className="briefing-item" href={item.href} key={item.title}>
+            <span className={`briefing-item-icon ${item.tone}`}>{item.icon}</span>
+            <span>
+              <strong>{item.title}</strong>
+              <small>{item.body}</small>
+            </span>
+            <ChevronRight size={16} aria-hidden="true" />
+          </Link>
+        ))}
       </div>
     </section>
   );
 }
 
 function MetricTile({
+  href,
+  icon,
+  inverse = false,
   label,
   supporting,
   trend,
   value,
 }: {
+  readonly href?: string;
+  readonly icon: ReactNode;
+  readonly inverse?: boolean;
   readonly label: string;
   readonly supporting: string;
   readonly trend?: number | null;
   readonly value: string;
 }) {
-  const isPositiveTrend = typeof trend === "number" && trend >= 0;
-
-  return (
-    <div className="metric-tile today-metric-tile">
+  const content = (
+    <>
+      <span className={`metric-icon ${inverse ? "inverse" : ""}`}>{icon}</span>
       <span>{label}</span>
       <strong>{value}</strong>
-      <small
-        className={
-          typeof trend === "number" ? (isPositiveTrend ? "positive" : "negative") : undefined
-        }
-      >
+      <small className={getTrendClass(trend, inverse)}>
         {typeof trend === "number" ? (
-          isPositiveTrend ? (
+          trend >= 0 ? (
             <ArrowUpRight size={14} aria-hidden="true" />
           ) : (
             <ArrowDownRight size={14} aria-hidden="true" />
@@ -323,7 +325,15 @@ function MetricTile({
         ) : null}
         {supporting}
       </small>
-    </div>
+    </>
+  );
+
+  return href ? (
+    <Link className="metric-tile today-metric-tile clickable-card" href={href}>
+      {content}
+    </Link>
+  ) : (
+    <div className="metric-tile today-metric-tile">{content}</div>
   );
 }
 
@@ -349,77 +359,61 @@ function PlatformBreakdown({
   return (
     <div className="platform-breakdown">
       {metrics.map((metric) => (
-        <div className={`platform-breakdown-row ${getPlatformClass(metric.platform)}`} key={metric.platform}>
+        <Link
+          className={`platform-breakdown-row ${getPlatformClass(metric.platform)}`}
+          href={`/orders?platform=${metric.platform}`}
+          key={metric.platform}
+        >
           <div>
             <strong>
-              <PlatformDot platform={metric.platform} />
+              <PlatformMark platform={metric.platform} />
               {formatPlatform(metric.platform)}
             </strong>
-            <span>{valueFormatter(metric.value)}</span>
+            <span>
+              {valueFormatter(metric.value)}
+              <ChevronRight size={16} aria-hidden="true" />
+            </span>
           </div>
           <div className="platform-bar" aria-hidden="true">
             <span style={{ width: `${maxValue > 0 ? (metric.value / maxValue) * 100 : 0}%` }} />
           </div>
-        </div>
+        </Link>
       ))}
     </div>
   );
 }
 
-function PlatformDot({ platform }: { readonly platform: StorePlatform }) {
-  return <span className={`platform-dot ${getPlatformClass(platform)}`} aria-hidden="true" />;
+function PlatformMark({ platform }: { readonly platform: StorePlatform }) {
+  return (
+    <span className={`platform-mark ${getPlatformClass(platform)}`} aria-hidden="true">
+      {getPlatformInitial(platform)}
+    </span>
+  );
 }
 
 function FocusItem({
+  href,
   icon,
   label,
   supporting,
   value,
 }: {
+  readonly href: string;
   readonly icon: ReactNode;
   readonly label: string;
-  readonly supporting?: string;
+  readonly supporting?: string | undefined;
   readonly value: string;
 }) {
   return (
-    <article className="focus-item">
+    <Link className="focus-item clickable-card" href={href}>
       <div className="focus-icon">{icon}</div>
       <div>
         <span>{label}</span>
         <strong>{value}</strong>
         {supporting ? <small>{supporting}</small> : null}
       </div>
-    </article>
-  );
-}
-
-function InsightList({ insights }: { readonly insights: readonly RuleBasedInsight[] }) {
-  if (insights.length === 0) {
-    return (
-      <div className="empty-state compact-empty">
-        <CheckCircle2 size={18} aria-hidden="true" />
-        <strong>No insight flags</strong>
-        <span>There are no rule-based alerts for today.</span>
-      </div>
-    );
-  }
-
-  return (
-    <div className="insight-list">
-      {insights.map((insight) => (
-        <article className={`insight-item ${insight.severity.toLowerCase()}`} key={insight.message}>
-          {insight.severity === "WARNING" ? (
-            <AlertTriangle size={18} aria-hidden="true" />
-          ) : (
-            <CheckCircle2 size={18} aria-hidden="true" />
-          )}
-          <div>
-            <strong>{formatInsightType(insight.type)}</strong>
-            <span>{insight.message}</span>
-          </div>
-        </article>
-      ))}
-    </div>
+      <ChevronRight size={16} aria-hidden="true" />
+    </Link>
   );
 }
 
@@ -427,7 +421,7 @@ function TodayLoadingState() {
   return (
     <section className="today-loading" aria-label="Loading Today dashboard">
       <Loader2 className="spin" size={24} aria-hidden="true" />
-      <span>Preparing the read-only multi-channel briefing...</span>
+      <span>Preparing read-only commerce intelligence...</span>
     </section>
   );
 }
@@ -441,7 +435,93 @@ function TodayErrorState({ message }: { readonly message: string }) {
   );
 }
 
+function createBriefingItems(dashboard: TodayDashboardResponse): readonly {
+  readonly body: string;
+  readonly href: string;
+  readonly icon: ReactNode;
+  readonly title: string;
+  readonly tone: "blue" | "green" | "orange" | "purple";
+}[] {
+  const platformCount = dashboard.connectedPlatforms.length;
+  const strongestPlatform = dashboard.bestPlatformToday
+    ? formatPlatform(dashboard.bestPlatformToday)
+    : "No channel";
+
+  return [
+    {
+      body: `${formatTrend(dashboard.revenueChangePercent)} vs yesterday across ${platformCount} platforms.`,
+      href: dashboard.bestPlatformToday
+        ? `/orders?platform=${dashboard.bestPlatformToday}`
+        : "/orders",
+      icon: <TrendingUp size={16} aria-hidden="true" />,
+      title: `Revenue is ${formatCurrency(dashboard.todayRevenue)} today.`,
+      tone: "green",
+    },
+    {
+      body: `${dashboard.productsSoldToday} products sold across connected stores.`,
+      href: "/orders",
+      icon: <ShoppingCart size={16} aria-hidden="true" />,
+      title: `${dashboard.ordersToday} orders received today.`,
+      tone: "blue",
+    },
+    {
+      body:
+        dashboard.lowStockCount > 0
+          ? "Review inventory to reduce stockout risk."
+          : "Inventory risk is currently low.",
+      href: "/inventory?stockStatus=LOW_STOCK",
+      icon: <ShoppingBag size={16} aria-hidden="true" />,
+      title: `${dashboard.lowStockCount} products are low in stock.`,
+      tone: "orange",
+    },
+    {
+      body: `${strongestPlatform} is currently the strongest channel.`,
+      href: dashboard.bestPlatformToday
+        ? `/orders?platform=${dashboard.bestPlatformToday}`
+        : "/orders",
+      icon: <RotateCcw size={16} aria-hidden="true" />,
+      title: `${dashboard.refundCountToday} refunds recorded today.`,
+      tone: "purple",
+    },
+  ];
+}
+
+function getHealthContributors(dashboard: TodayDashboardResponse): readonly {
+  readonly label: string;
+  readonly tone: "good" | "risk";
+  readonly value: string;
+}[] {
+  return [
+    {
+      label: "Sales",
+      tone: dashboard.ordersToday > 0 ? "good" : "risk",
+      value: dashboard.ordersToday > 0 ? "Good" : "At risk",
+    },
+    {
+      label: "Channel coverage",
+      tone: dashboard.connectedPlatforms.length >= 4 ? "good" : "risk",
+      value: dashboard.connectedPlatforms.length >= 4 ? "Good" : "At risk",
+    },
+    {
+      label: "Inventory",
+      tone: dashboard.lowStockCount > 0 ? "risk" : "good",
+      value: dashboard.lowStockCount > 0 ? "At risk" : "Good",
+    },
+    {
+      label: "Refund activity",
+      tone: dashboard.refundCountToday <= 2 ? "good" : "risk",
+      value: dashboard.refundCountToday <= 2 ? "Good" : "At risk",
+    },
+  ];
+}
+
 function getFriendlyError(error: unknown): string {
+  const authMessage = getFriendlyAuthErrorMessage(error);
+
+  if (authMessage) {
+    return authMessage;
+  }
+
   if (error instanceof DashboardClientError) {
     return error.message;
   }
@@ -461,7 +541,7 @@ function formatCurrency(value: number): string {
   }).format(value);
 }
 
-function formatPercent(value: number | null): string {
+function formatTrend(value: number | null): string {
   if (value === null) {
     return "No baseline";
   }
@@ -479,6 +559,19 @@ function formatPlatform(platform: StorePlatform): string {
       return "Shopify";
     case StorePlatform.WooCommerce:
       return "WooCommerce";
+  }
+}
+
+function getPlatformInitial(platform: StorePlatform): string {
+  switch (platform) {
+    case StorePlatform.AmazonSeller:
+      return "a";
+    case StorePlatform.TikTokShop:
+      return "T";
+    case StorePlatform.Shopify:
+      return "S";
+    case StorePlatform.WooCommerce:
+      return "Woo";
   }
 }
 
@@ -503,22 +596,24 @@ function formatPlatformList(platforms: readonly StorePlatform[]): string {
   return platforms.map(formatPlatform).join(", ");
 }
 
-function formatInsightType(type: RuleBasedInsight["type"]): string {
-  return type
-    .toLowerCase()
-    .split("_")
-    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
-    .join(" ");
+function getTrendClass(trend: number | null | undefined, inverse: boolean): string | undefined {
+  if (typeof trend !== "number") {
+    return undefined;
+  }
+
+  const isPositive = trend >= 0;
+
+  return isPositive !== inverse ? "positive" : "negative";
 }
 
-function getHealthSummary(score: number): string {
+function getHealthLabel(score: number): string {
   if (score >= 80) {
-    return "Strong daily signal across revenue, stores, and inventory.";
+    return "Good";
   }
 
   if (score >= 60) {
-    return "Stable, with a few areas worth checking today.";
+    return "Stable";
   }
 
-  return "Needs attention before the day gets away from you.";
+  return "Needs attention";
 }

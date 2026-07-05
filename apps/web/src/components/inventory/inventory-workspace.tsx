@@ -11,7 +11,7 @@ import {
   type CommerceInventorySummary,
 } from "../../lib/api/inventory-client";
 import { StorePlatform } from "../../lib/api/store-integrations-client";
-import { readDemoSession } from "../../lib/auth-session";
+import { getFriendlyAuthErrorMessage, readDemoSession } from "../../lib/auth-session";
 import { DemoModeBanner } from "../demo/demo-mode-banner";
 
 const allPlatforms = "ALL";
@@ -57,7 +57,7 @@ export function InventoryWorkspace() {
       setInventory([]);
       setInsights([]);
       setSummary(emptySummary);
-      setError("Sign in as demo@salense.local to view seeded inventory intelligence.");
+      setError("Sign in to view inventory intelligence.");
       setLoading(false);
       return;
     }
@@ -80,6 +80,22 @@ export function InventoryWorkspace() {
   useEffect(() => {
     void loadInventory();
   }, [loadInventory]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const platform = params.get("platform");
+    const stockStatus = params.get("stockStatus");
+
+    setFilters((current) => ({
+      ...current,
+      ...(isStorePlatform(platform) ? { platform } : {}),
+      ...(stockStatus ? { stockStatus } : {}),
+    }));
+  }, []);
 
   function updateFilter<Key extends keyof InventoryFilterState>(
     key: Key,
@@ -114,56 +130,66 @@ export function InventoryWorkspace() {
         </section>
       ) : null}
 
-      <section className="overview-grid" aria-label="Inventory intelligence summary">
-        <MetricTile label="Low stock products" value={summary.lowStockProducts.toString()} />
-        <MetricTile label="Out of stock products" value={summary.outOfStockProducts.toString()} />
-        <MetricTile label="Inventory value" value={formatCurrency(summary.inventoryValue)} />
-      </section>
-
-      {insights.length > 0 ? <InventoryInsights insights={insights} /> : null}
-
-      <section className="panel orders-panel">
-        <div className="products-toolbar">
-          <label className="orders-search">
-            <Search size={16} aria-hidden="true" />
-            <input
-              onChange={(event) => updateFilter("search", event.target.value)}
-              placeholder="Search product, SKU, platform ID"
-              type="search"
-              value={filters.search}
+      {!error ? (
+        <>
+          <section className="overview-grid" aria-label="Inventory intelligence summary">
+            <MetricTile label="Low stock products" value={summary.lowStockProducts.toString()} />
+            <MetricTile
+              label="Out of stock products"
+              value={summary.outOfStockProducts.toString()}
             />
-          </label>
-          <select
-            aria-label="Platform"
-            onChange={(event: ChangeEvent<HTMLSelectElement>) =>
-              updateFilter("platform", event.target.value as StorePlatform | typeof allPlatforms)
-            }
-            value={filters.platform}
-          >
-            <option value={allPlatforms}>All platforms</option>
-            <option value={StorePlatform.WooCommerce}>WooCommerce</option>
-            <option value={StorePlatform.AmazonSeller}>Amazon Seller</option>
-            <option value={StorePlatform.TikTokShop}>TikTok Shop</option>
-            <option value={StorePlatform.Shopify}>Shopify</option>
-          </select>
-          <input
-            aria-label="Stock status"
-            onChange={(event) => updateFilter("stockStatus", event.target.value)}
-            placeholder="Stock status"
-            value={filters.stockStatus}
-          />
-          <input
-            aria-label="Category"
-            onChange={(event) => updateFilter("category", event.target.value)}
-            placeholder="Category"
-            value={filters.category}
-          />
-        </div>
+            <MetricTile label="Inventory value" value={formatCurrency(summary.inventoryValue)} />
+          </section>
 
-        {loading ? <InventoryLoadingState /> : null}
-        {!loading && !error && inventory.length === 0 ? <InventoryEmptyState /> : null}
-        {!loading && inventory.length > 0 ? <InventoryTable inventory={inventory} /> : null}
-      </section>
+          {insights.length > 0 ? <InventoryInsights insights={insights} /> : null}
+
+          <section className="panel orders-panel">
+            <div className="products-toolbar">
+              <label className="orders-search">
+                <Search size={16} aria-hidden="true" />
+                <input
+                  onChange={(event) => updateFilter("search", event.target.value)}
+                  placeholder="Search product, SKU, platform ID"
+                  type="search"
+                  value={filters.search}
+                />
+              </label>
+              <select
+                aria-label="Platform"
+                onChange={(event: ChangeEvent<HTMLSelectElement>) =>
+                  updateFilter(
+                    "platform",
+                    event.target.value as StorePlatform | typeof allPlatforms,
+                  )
+                }
+                value={filters.platform}
+              >
+                <option value={allPlatforms}>All platforms</option>
+                <option value={StorePlatform.WooCommerce}>WooCommerce</option>
+                <option value={StorePlatform.AmazonSeller}>Amazon Seller</option>
+                <option value={StorePlatform.TikTokShop}>TikTok Shop</option>
+                <option value={StorePlatform.Shopify}>Shopify</option>
+              </select>
+              <input
+                aria-label="Stock status"
+                onChange={(event) => updateFilter("stockStatus", event.target.value)}
+                placeholder="Stock status"
+                value={filters.stockStatus}
+              />
+              <input
+                aria-label="Category"
+                onChange={(event) => updateFilter("category", event.target.value)}
+                placeholder="Category"
+                value={filters.category}
+              />
+            </div>
+
+            {loading ? <InventoryLoadingState /> : null}
+            {!loading && !error && inventory.length === 0 ? <InventoryEmptyState /> : null}
+            {!loading && inventory.length > 0 ? <InventoryTable inventory={inventory} /> : null}
+          </section>
+        </>
+      ) : null}
     </main>
   );
 }
@@ -264,7 +290,9 @@ function InventoryEmptyState() {
     <div className="empty-state orders-empty-state">
       <Boxes size={22} aria-hidden="true" />
       <strong>No inventory matches this view</strong>
-      <span>Clear filters to return to the full stock picture, or sync stores to refresh inventory.</span>
+      <span>
+        Clear filters to return to the full stock picture, or sync stores to refresh inventory.
+      </span>
     </div>
   );
 }
@@ -292,6 +320,12 @@ function toApiFilters(filters: InventoryFilterState): CommerceInventoryFilters {
 }
 
 function getFriendlyError(error: unknown): string {
+  const authMessage = getFriendlyAuthErrorMessage(error);
+
+  if (authMessage) {
+    return authMessage;
+  }
+
   if (error instanceof InventoryClientError) {
     return error.message;
   }
@@ -338,4 +372,8 @@ function formatInsightType(type: CommerceInventoryInsight["type"]): string {
     .split("_")
     .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
     .join(" ");
+}
+
+function isStorePlatform(value: string | null): value is StorePlatform {
+  return Object.values(StorePlatform).includes(value as StorePlatform);
 }

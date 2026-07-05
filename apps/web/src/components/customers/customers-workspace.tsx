@@ -10,7 +10,7 @@ import {
   type CommerceCustomersSummary,
 } from "../../lib/api/customers-client";
 import { StorePlatform } from "../../lib/api/store-integrations-client";
-import { readDemoSession } from "../../lib/auth-session";
+import { getFriendlyAuthErrorMessage, readDemoSession } from "../../lib/auth-session";
 import { DemoModeBanner } from "../demo/demo-mode-banner";
 
 const allPlatforms = "ALL";
@@ -52,7 +52,7 @@ export function CustomersWorkspace() {
     if (!session) {
       setCustomers([]);
       setSummary(emptySummary);
-      setError("Sign in as demo@salense.local to view seeded customer intelligence.");
+      setError("Sign in to view customer intelligence.");
       setLoading(false);
       return;
     }
@@ -107,56 +107,63 @@ export function CustomersWorkspace() {
         </section>
       ) : null}
 
-      <section className="overview-grid" aria-label="Customer intelligence summary">
-        <MetricTile label="New customers" value={summary.newCustomers.toString()} />
-        <MetricTile label="Returning customers" value={summary.returningCustomers.toString()} />
-        <MetricTile
-          label="Highest lifetime customer"
-          value={summary.highestLifetimeCustomer?.customerName ?? "No purchases yet"}
-          supporting={
-            summary.highestLifetimeCustomer
-              ? formatCurrency(summary.highestLifetimeCustomer.lifetimeSpend)
-              : "Seed or sync customer orders"
-          }
-        />
-      </section>
-
-      <section className="panel orders-panel">
-        <div className="products-toolbar">
-          <label className="orders-search">
-            <Search size={16} aria-hidden="true" />
-            <input
-              onChange={(event) => updateFilter("search", event.target.value)}
-              placeholder="Search customer, email, city"
-              type="search"
-              value={filters.search}
+      {!error ? (
+        <>
+          <section className="overview-grid" aria-label="Customer intelligence summary">
+            <MetricTile label="New customers" value={summary.newCustomers.toString()} />
+            <MetricTile label="Returning customers" value={summary.returningCustomers.toString()} />
+            <MetricTile
+              label="Highest lifetime customer"
+              value={summary.highestLifetimeCustomer?.customerName ?? "No purchases yet"}
+              supporting={
+                summary.highestLifetimeCustomer
+                  ? formatCurrency(summary.highestLifetimeCustomer.lifetimeSpend)
+                  : "Sync customer orders"
+              }
             />
-          </label>
-          <select
-            aria-label="Platform"
-            onChange={(event: ChangeEvent<HTMLSelectElement>) =>
-              updateFilter("platform", event.target.value as StorePlatform | typeof allPlatforms)
-            }
-            value={filters.platform}
-          >
-            <option value={allPlatforms}>All platforms</option>
-            <option value={StorePlatform.WooCommerce}>WooCommerce</option>
-            <option value={StorePlatform.AmazonSeller}>Amazon Seller</option>
-            <option value={StorePlatform.TikTokShop}>TikTok Shop</option>
-            <option value={StorePlatform.Shopify}>Shopify</option>
-          </select>
-          <input
-            aria-label="Country"
-            onChange={(event) => updateFilter("country", event.target.value)}
-            placeholder="Country"
-            value={filters.country}
-          />
-        </div>
+          </section>
 
-        {loading ? <CustomersLoadingState /> : null}
-        {!loading && !error && customers.length === 0 ? <CustomersEmptyState /> : null}
-        {!loading && customers.length > 0 ? <CustomersTable customers={customers} /> : null}
-      </section>
+          <section className="panel orders-panel">
+            <div className="products-toolbar">
+              <label className="orders-search">
+                <Search size={16} aria-hidden="true" />
+                <input
+                  onChange={(event) => updateFilter("search", event.target.value)}
+                  placeholder="Search customer, email, city"
+                  type="search"
+                  value={filters.search}
+                />
+              </label>
+              <select
+                aria-label="Platform"
+                onChange={(event: ChangeEvent<HTMLSelectElement>) =>
+                  updateFilter(
+                    "platform",
+                    event.target.value as StorePlatform | typeof allPlatforms,
+                  )
+                }
+                value={filters.platform}
+              >
+                <option value={allPlatforms}>All platforms</option>
+                <option value={StorePlatform.WooCommerce}>WooCommerce</option>
+                <option value={StorePlatform.AmazonSeller}>Amazon Seller</option>
+                <option value={StorePlatform.TikTokShop}>TikTok Shop</option>
+                <option value={StorePlatform.Shopify}>Shopify</option>
+              </select>
+              <input
+                aria-label="Country"
+                onChange={(event) => updateFilter("country", event.target.value)}
+                placeholder="Country"
+                value={filters.country}
+              />
+            </div>
+
+            {loading ? <CustomersLoadingState /> : null}
+            {!loading && !error && customers.length === 0 ? <CustomersEmptyState /> : null}
+            {!loading && customers.length > 0 ? <CustomersTable customers={customers} /> : null}
+          </section>
+        </>
+      ) : null}
     </main>
   );
 }
@@ -218,7 +225,9 @@ function CustomersEmptyState() {
     <div className="empty-state orders-empty-state">
       <Users size={22} aria-hidden="true" />
       <strong>No customers match this view</strong>
-      <span>Clear filters to return to the full customer view, or sync stores to refresh data.</span>
+      <span>
+        Clear filters to return to the full customer view, or sync stores to refresh data.
+      </span>
     </div>
   );
 }
@@ -253,6 +262,12 @@ function toApiFilters(filters: CustomersFilterState): CommerceCustomerFilters {
 }
 
 function getFriendlyError(error: unknown): string {
+  const authMessage = getFriendlyAuthErrorMessage(error);
+
+  if (authMessage) {
+    return authMessage;
+  }
+
   if (error instanceof CustomersClientError) {
     return error.message;
   }

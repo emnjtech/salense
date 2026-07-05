@@ -9,7 +9,7 @@ import {
   type CommerceOrderListItem,
 } from "../../lib/api/orders-client";
 import { StorePlatform } from "../../lib/api/store-integrations-client";
-import { readDemoSession } from "../../lib/auth-session";
+import { getFriendlyAuthErrorMessage, readDemoSession } from "../../lib/auth-session";
 import { DemoModeBanner } from "../demo/demo-mode-banner";
 
 const allPlatforms = "ALL";
@@ -47,7 +47,7 @@ export function OrdersWorkspace() {
 
     if (!session) {
       setOrders([]);
-      setError("Sign in as demo@salense.local to view the seeded unified orders.");
+      setError("Sign in to view unified orders.");
       setLoading(false);
       return;
     }
@@ -66,6 +66,18 @@ export function OrdersWorkspace() {
   useEffect(() => {
     void loadOrders();
   }, [loadOrders]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const platform = new URLSearchParams(window.location.search).get("platform");
+
+    if (isStorePlatform(platform)) {
+      setFilters((current) => ({ ...current, platform }));
+    }
+  }, []);
 
   const visibleOrders = useMemo(
     () => applySearch(orders, filters.search),
@@ -86,10 +98,10 @@ export function OrdersWorkspace() {
       <header className="workspace-header">
         <div>
           <p className="eyebrow">Unified Orders</p>
-          <h1>Every channel’s orders, ready for the MVP walkthrough.</h1>
+          <h1>Every channel's orders in one operating view.</h1>
           <p>
-            Filter seeded WooCommerce, Amazon Seller, TikTok Shop, and Shopify orders while
-            preserving each platform’s identity, customer context, and transaction values.
+            Filter WooCommerce, Amazon Seller, TikTok Shop, and Shopify orders while preserving each
+            platform's identity, customer context, and transaction values.
           </p>
         </div>
         <button className="secondary-button" onClick={() => void loadOrders()} type="button">
@@ -107,67 +119,74 @@ export function OrdersWorkspace() {
         </section>
       ) : null}
 
-      <section className="overview-grid" aria-label="Orders summary">
-        <MetricTile label="Visible orders" value={visibleOrders.length.toString()} />
-        <MetricTile
-          label="Visible value"
-          value={formatCurrency(totalValue, getPrimaryCurrency(visibleOrders))}
-        />
-        <MetricTile label="Platforms" value={uniquePlatforms.toString()} />
-        <MetricTile
-          label="Items"
-          value={visibleOrders.reduce((total, order) => total + order.itemCount, 0).toString()}
-        />
-      </section>
-
-      <section className="panel orders-panel">
-        <div className="orders-toolbar">
-          <label className="orders-search">
-            <Search size={16} aria-hidden="true" />
-            <input
-              onChange={(event) => updateFilter("search", event.target.value)}
-              placeholder="Search order, customer, store"
-              type="search"
-              value={filters.search}
+      {!error ? (
+        <>
+          <section className="overview-grid" aria-label="Orders summary">
+            <MetricTile label="Visible orders" value={visibleOrders.length.toString()} />
+            <MetricTile
+              label="Visible value"
+              value={formatCurrency(totalValue, getPrimaryCurrency(visibleOrders))}
             />
-          </label>
-          <select
-            aria-label="Platform"
-            onChange={(event: ChangeEvent<HTMLSelectElement>) =>
-              updateFilter("platform", event.target.value as StorePlatform | typeof allPlatforms)
-            }
-            value={filters.platform}
-          >
-            <option value={allPlatforms}>All platforms</option>
-            <option value={StorePlatform.WooCommerce}>WooCommerce</option>
-            <option value={StorePlatform.AmazonSeller}>Amazon Seller</option>
-            <option value={StorePlatform.TikTokShop}>TikTok Shop</option>
-            <option value={StorePlatform.Shopify}>Shopify</option>
-          </select>
-          <input
-            aria-label="Status"
-            onChange={(event) => updateFilter("status", event.target.value)}
-            placeholder="Status"
-            value={filters.status}
-          />
-          <input
-            aria-label="Date from"
-            onChange={(event) => updateFilter("dateFrom", event.target.value)}
-            type="date"
-            value={filters.dateFrom}
-          />
-          <input
-            aria-label="Date to"
-            onChange={(event) => updateFilter("dateTo", event.target.value)}
-            type="date"
-            value={filters.dateTo}
-          />
-        </div>
+            <MetricTile label="Platforms" value={uniquePlatforms.toString()} />
+            <MetricTile
+              label="Items"
+              value={visibleOrders.reduce((total, order) => total + order.itemCount, 0).toString()}
+            />
+          </section>
 
-        {loading ? <OrdersLoadingState /> : null}
-        {!loading && !error && visibleOrders.length === 0 ? <OrdersEmptyState /> : null}
-        {!loading && visibleOrders.length > 0 ? <OrdersTable orders={visibleOrders} /> : null}
-      </section>
+          <section className="panel orders-panel">
+            <div className="orders-toolbar">
+              <label className="orders-search">
+                <Search size={16} aria-hidden="true" />
+                <input
+                  onChange={(event) => updateFilter("search", event.target.value)}
+                  placeholder="Search order, customer, store"
+                  type="search"
+                  value={filters.search}
+                />
+              </label>
+              <select
+                aria-label="Platform"
+                onChange={(event: ChangeEvent<HTMLSelectElement>) =>
+                  updateFilter(
+                    "platform",
+                    event.target.value as StorePlatform | typeof allPlatforms,
+                  )
+                }
+                value={filters.platform}
+              >
+                <option value={allPlatforms}>All platforms</option>
+                <option value={StorePlatform.WooCommerce}>WooCommerce</option>
+                <option value={StorePlatform.AmazonSeller}>Amazon Seller</option>
+                <option value={StorePlatform.TikTokShop}>TikTok Shop</option>
+                <option value={StorePlatform.Shopify}>Shopify</option>
+              </select>
+              <input
+                aria-label="Status"
+                onChange={(event) => updateFilter("status", event.target.value)}
+                placeholder="Status"
+                value={filters.status}
+              />
+              <input
+                aria-label="Date from"
+                onChange={(event) => updateFilter("dateFrom", event.target.value)}
+                type="date"
+                value={filters.dateFrom}
+              />
+              <input
+                aria-label="Date to"
+                onChange={(event) => updateFilter("dateTo", event.target.value)}
+                type="date"
+                value={filters.dateTo}
+              />
+            </div>
+
+            {loading ? <OrdersLoadingState /> : null}
+            {!loading && visibleOrders.length === 0 ? <OrdersEmptyState /> : null}
+            {!loading && visibleOrders.length > 0 ? <OrdersTable orders={visibleOrders} /> : null}
+          </section>
+        </>
+      ) : null}
     </main>
   );
 }
@@ -230,8 +249,7 @@ function OrdersEmptyState() {
       <ShoppingCart size={22} aria-hidden="true" />
       <strong>No orders match this view</strong>
       <span>
-        Clear filters to return to the full demo journey, or sync stores to refresh normalized
-        orders.
+        Clear filters to return to the full order view, or sync stores to refresh normalized orders.
       </span>
     </div>
   );
@@ -285,6 +303,12 @@ function applySearch(
 }
 
 function getFriendlyError(error: unknown): string {
+  const authMessage = getFriendlyAuthErrorMessage(error);
+
+  if (authMessage) {
+    return authMessage;
+  }
+
   if (error instanceof OrdersClientError) {
     return error.message;
   }
@@ -343,4 +367,8 @@ function toStartOfDay(value: string): string {
 
 function toEndOfDay(value: string): string {
   return `${value}T23:59:59.999Z`;
+}
+
+function isStorePlatform(value: string | null): value is StorePlatform {
+  return Object.values(StorePlatform).includes(value as StorePlatform);
 }

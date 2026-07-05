@@ -23,7 +23,7 @@ import {
   type StoreSyncStatus,
   type SupportedStorePlatform,
 } from "../../lib/api/store-integrations-client";
-import { getDemoAccessToken } from "../../lib/auth-session";
+import { getDemoAccessToken, getFriendlyAuthErrorMessage } from "../../lib/auth-session";
 import { DemoModeBanner } from "../demo/demo-mode-banner";
 
 interface WooCommerceFormState {
@@ -99,8 +99,7 @@ export function StoreIntegrationsWorkspace() {
   const [formState, setFormState] = useState<WooCommerceFormState>(emptyWooCommerceForm);
   const [amazonFormState, setAmazonFormState] =
     useState<AmazonSellerFormState>(emptyAmazonSellerForm);
-  const [tikTokFormState, setTikTokFormState] =
-    useState<TikTokShopFormState>(emptyTikTokShopForm);
+  const [tikTokFormState, setTikTokFormState] = useState<TikTokShopFormState>(emptyTikTokShopForm);
   const [shopifyFormState, setShopifyFormState] = useState<ShopifyFormState>(emptyShopifyForm);
   const [loading, setLoading] = useState(true);
   const [actionStoreId, setActionStoreId] = useState<string | null>(null);
@@ -277,8 +276,8 @@ export function StoreIntegrationsWorkspace() {
           <p className="eyebrow">Store Integrations</p>
           <h1>Four connected channels, one read-only commerce layer.</h1>
           <p>
-            Review seeded WooCommerce, Amazon Seller, TikTok Shop, and Shopify connections while
-            preserving marketplace data and credentials safely.
+            Review WooCommerce, Amazon Seller, TikTok Shop, and Shopify connections while preserving
+            marketplace data and credentials securely.
           </p>
         </div>
         <button className="secondary-button" type="button" onClick={() => void loadWorkspace()}>
@@ -292,7 +291,7 @@ export function StoreIntegrationsWorkspace() {
       {!hasAccessToken ? (
         <section className="state-banner warning" aria-live="polite">
           <ShieldCheck size={18} aria-hidden="true" />
-          Sign in as demo@salense.local before managing the seeded protected store connections.
+          Sign in before managing protected store connections.
         </section>
       ) : null}
 
@@ -315,9 +314,7 @@ export function StoreIntegrationsWorkspace() {
         <MetricTile label="Connected stores" value={stores.length.toString()} />
         <MetricTile
           label="Sync-ready stores"
-          value={stores
-            .filter((store) => isSyncEnabledPlatform(store.platform))
-            .length.toString()}
+          value={stores.filter((store) => isSyncEnabledPlatform(store.platform)).length.toString()}
         />
         <MetricTile
           label="Needs attention"
@@ -337,8 +334,7 @@ export function StoreIntegrationsWorkspace() {
             <div>
               <h2>Supported Platforms</h2>
               <p>
-                The MVP demo presents WooCommerce, Amazon Seller, TikTok Shop, and Shopify side by
-                side.
+                WooCommerce, Amazon Seller, TikTok Shop, and Shopify are available side by side.
               </p>
             </div>
           </div>
@@ -360,9 +356,7 @@ export function StoreIntegrationsWorkspace() {
           <div className="panel-heading">
             <div>
               <h2>Connect WooCommerce</h2>
-              <p>
-                Optional live WooCommerce setup for local testing; demo stores are already seeded.
-              </p>
+              <p>Connect a WooCommerce store for read-only validation and synchronization.</p>
             </div>
           </div>
 
@@ -790,7 +784,7 @@ export function StoreIntegrationsWorkspace() {
         <div className="panel-heading">
           <div>
             <h2>Connected Stores</h2>
-            <p>Connection state, last sync, and safe seeded channel summaries.</p>
+            <p>Connection state, last sync, and safe channel summaries.</p>
           </div>
         </div>
 
@@ -798,7 +792,7 @@ export function StoreIntegrationsWorkspace() {
         {!loading && stores.length === 0 ? (
           <EmptyState
             title="No connected stores"
-            body="Run the demo seed to create connected WooCommerce, Amazon Seller, TikTok Shop, and Shopify stores."
+            body="Connect stores to start building a read-only commerce intelligence view."
           />
         ) : null}
 
@@ -956,8 +950,8 @@ function SyncSummary({ syncStatus }: { readonly syncStatus: StoreSyncStatus | un
 function PlaceholderSummary() {
   return (
     <div className="sync-summary muted">
-      <strong>Seeded demo channel</strong>
-      <span>Imported commerce data is available; read-only sync can be queued from this workspace.</span>
+      <strong>Read-only channel</strong>
+      <span>Imported commerce data is available; sync can be queued from this workspace.</span>
     </div>
   );
 }
@@ -975,11 +969,11 @@ function PlatformRow({ platform }: { readonly platform: SupportedStorePlatform }
         <p>
           {isSyncEnabled
             ? "Credential validation and read-only sync available."
-            : "Seeded MVP data available."}
+            : "Read-only commerce data available."}
         </p>
       </div>
       <span className={isSyncEnabled ? "platform-state active" : "platform-state"}>
-        {isSyncEnabled ? "Active" : "Seeded"}
+        {isSyncEnabled ? "Active" : "Available"}
       </span>
     </article>
   );
@@ -1023,6 +1017,12 @@ function LoadingRows() {
 }
 
 function getFriendlyErrorMessage(error: unknown): string {
+  const authMessage = getFriendlyAuthErrorMessage(error);
+
+  if (authMessage) {
+    return authMessage;
+  }
+
   if (error instanceof ApiClientError) {
     return error.message;
   }
