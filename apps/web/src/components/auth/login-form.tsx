@@ -48,6 +48,9 @@ export function LoginForm() {
       {searchParams.get("verified") === "true" ? (
         <FormMessage tone="success">Email verified. You can sign in now.</FormMessage>
       ) : null}
+      {searchParams.get("reason") === "session-expired" ? (
+        <FormMessage tone="info">Your session expired. Please sign in again.</FormMessage>
+      ) : null}
       {error ? <FormMessage tone="error">{error}</FormMessage> : null}
       <form className="auth-form" onSubmit={(event) => void handleSubmit(event)}>
         <label>

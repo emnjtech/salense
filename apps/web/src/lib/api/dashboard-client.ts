@@ -1,4 +1,5 @@
 import { getDefaultApiBaseUrl, type StorePlatform } from "./store-integrations-client";
+import { fetchWithSessionRefresh } from "../auth-session";
 
 export interface PlatformMetric {
   readonly platform: StorePlatform;
@@ -65,11 +66,17 @@ export function createDashboardApiClient(
 
   return {
     async getTodayDashboard(accessToken) {
-      const response = await fetchImpl(`${baseUrl}/dashboard/today`, {
-        headers: {
-          authorization: `Bearer ${accessToken}`,
+      const response = await fetchWithSessionRefresh(
+        `${baseUrl}/dashboard/today`,
+        {
+          headers: {},
         },
-      });
+        {
+          accessToken,
+          baseUrl,
+          fetchImpl,
+        },
+      );
 
       if (!response.ok) {
         throw new DashboardClientError(await getErrorMessage(response), response.status);

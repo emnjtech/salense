@@ -15,14 +15,10 @@ describe("orders API client", () => {
       status: "processing",
     });
 
-    expect(fetchImpl).toHaveBeenCalledWith(
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe(
       "https://api.salense.test/commerce/orders?platform=WOOCOMMERCE&status=processing&dateFrom=2026-07-01T00%3A00%3A00.000Z&dateTo=2026-07-03T23%3A59%3A59.999Z",
-      {
-        headers: {
-          authorization: "Bearer access-token",
-        },
-      },
     );
+    expect(getAuthorization(fetchImpl.mock.calls[0]?.[1])).toBe("Bearer access-token");
   });
 
   it("maps API errors safely", async () => {
@@ -41,4 +37,8 @@ function jsonResponse(body: unknown, ok = true, status = 200): Response {
     ok,
     status,
   } as Response;
+}
+
+function getAuthorization(init: RequestInit | undefined): string | null {
+  return new Headers(init?.headers).get("authorization");
 }

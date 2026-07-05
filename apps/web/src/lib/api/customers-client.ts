@@ -1,4 +1,5 @@
 import { getDefaultApiBaseUrl, type StorePlatform } from "./store-integrations-client";
+import { fetchWithSessionRefresh } from "../auth-session";
 
 export interface CommerceCustomerListItem {
   readonly averageOrderValue: number;
@@ -64,11 +65,11 @@ export function createCustomersApiClient(
 
   return {
     async listCustomers(accessToken, filters = {}) {
-      const response = await fetchImpl(`${baseUrl}/commerce/customers${toQueryString(filters)}`, {
-        headers: {
-          authorization: `Bearer ${accessToken}`,
-        },
-      });
+      const response = await fetchWithSessionRefresh(
+        `${baseUrl}/commerce/customers${toQueryString(filters)}`,
+        { headers: {} },
+        { accessToken, baseUrl, fetchImpl },
+      );
 
       if (!response.ok) {
         throw new CustomersClientError(await getErrorMessage(response), response.status);

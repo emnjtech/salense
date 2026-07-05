@@ -1,3 +1,5 @@
+import { fetchWithSessionRefresh } from "../auth-session";
+
 export enum StorePlatform {
   WooCommerce = "WOOCOMMERCE",
   AmazonSeller = "AMAZON_SELLER",
@@ -183,10 +185,18 @@ export function createStoreIntegrationsApiClient(
       headers.set("authorization", `Bearer ${token}`);
     }
 
-    const response = await fetchImpl(`${baseUrl}${path}`, {
-      ...init,
-      headers,
-    });
+    const response = await fetchWithSessionRefresh(
+      `${baseUrl}${path}`,
+      {
+        ...init,
+        headers,
+      },
+      {
+        accessToken: token ?? undefined,
+        baseUrl,
+        fetchImpl,
+      },
+    );
 
     if (!response.ok) {
       throw new ApiClientError(await getErrorMessage(response), response.status);

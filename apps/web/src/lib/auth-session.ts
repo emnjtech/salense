@@ -1,4 +1,4 @@
-import type { LoginSessionResponse } from "./api/auth-client";
+import type { LoginSessionResponse, RefreshSessionResponse } from "./api/auth-client";
 
 export interface DemoSession {
   readonly accessToken: string;
@@ -7,6 +7,13 @@ export interface DemoSession {
   readonly refreshTokenExpiresIn: string;
   readonly userEmail: string;
   readonly userId: string;
+}
+
+export class SessionExpiredError extends Error {
+  constructor(message = "Your session has expired. Please sign in again.") {
+    super(message);
+    this.name = "SessionExpiredError";
+  }
 }
 
 export interface SessionStoragePort {
@@ -24,6 +31,8 @@ const sessionKeys = {
   userId: "salense.userId",
 } as const;
 
+let refreshPromise: Promise<string> | null = null;
+
 export function saveDemoSession(
   session: LoginSessionResponse,
   storage: SessionStoragePort = getBrowserStorage(),
@@ -32,6 +41,16 @@ export function saveDemoSession(
   storage.setItem(sessionKeys.accessTokenExpiresIn, session.accessTokenExpiresIn);
   storage.setItem(sessionKeys.refreshToken, session.refreshToken);
   storage.setItem(sessionKeys.refreshTokenExpiresIn, session.refreshTokenExpiresIn);
+  storage.setItem(sessionKeys.userEmail, session.user.email);
+  storage.setItem(sessionKeys.userId, session.user.id);
+}
+
+export function updateDemoAccessToken(
+  session: RefreshSessionResponse,
+  storage: SessionStoragePort = getBrowserStorage(),
+): void {
+  storage.setItem(sessionKeys.accessToken, session.accessToken);
+  storage.setItem(sessionKeys.accessTokenExpiresIn, session.accessTokenExpiresIn);
   storage.setItem(sessionKeys.userEmail, session.user.email);
   storage.setItem(sessionKeys.userId, session.user.id);
 }
@@ -65,6 +84,139 @@ export function clearDemoSession(storage: SessionStoragePort = getBrowserStorage
 
 export function getDemoAccessToken(): string | null {
   return readDemoSession()?.accessToken ?? null;
+}
+
+export async function fetchWithSessionRefresh(
+  input: string,
+  init: RequestInit = {},
+  options: {
+    readonly accessToken?: string | undefined;
+    readonly baseUrl?: string | undefined;
+    readonly fetchImpl?: typeof fetch;
+    readonly storage?: SessionStoragePort;
+  } = {},
+): Promise<Response> {
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const storage = options.storage ?? getBrowserStorage();
+  const session = readDemoSession(storage);
+  const accessToken = options.accessToken ?? session?.accessToken;
+  const firstResponse = await fetchImpl(input, withAuthorization(init, accessToken));
+
+  if (firstResponse.status !== 401 || !session?.refreshToken) {
+    return firstResponse;
+  }
+
+  try {
+    const refreshedAccessToken = await refreshAccessToken({
+      baseUrl: options.baseUrl,
+      fetchImpl,
+      storage,
+    });
+
+    return await fetchImpl(input, withAuthorization(init, refreshedAccessToken));
+  } catch {
+    clearExpiredSession(storage);
+    throw new SessionExpiredError();
+  }
+}
+
+export function getFriendlyAuthErrorMessage(error: unknown): string | null {
+  if (error instanceof SessionExpiredError) {
+    return error.message;
+  }
+
+  if (error instanceof Error && isRawJwtError(error.message)) {
+    return "Your session has expired. Please sign in again.";
+  }
+
+  return null;
+}
+
+function refreshAccessToken({
+  baseUrl,
+  fetchImpl,
+  storage,
+}: {
+  readonly baseUrl?: string | undefined;
+  readonly fetchImpl: typeof fetch;
+  readonly storage: SessionStoragePort;
+}): Promise<string> {
+  if (!refreshPromise) {
+    refreshPromise = requestAccessTokenRefresh({ baseUrl, fetchImpl, storage }).finally(() => {
+      refreshPromise = null;
+    });
+  }
+
+  return refreshPromise;
+}
+
+async function requestAccessTokenRefresh({
+  baseUrl,
+  fetchImpl,
+  storage,
+}: {
+  readonly baseUrl?: string | undefined;
+  readonly fetchImpl: typeof fetch;
+  readonly storage: SessionStoragePort;
+}): Promise<string> {
+  const session = readDemoSession(storage);
+
+  if (!session?.refreshToken) {
+    throw new SessionExpiredError();
+  }
+
+  const response = await fetchImpl(
+    `${trimTrailingSlash(baseUrl ?? getDefaultApiBaseUrl())}/auth/refresh`,
+    {
+      body: JSON.stringify({ refreshToken: session.refreshToken }),
+      headers: {
+        "content-type": "application/json",
+      },
+      method: "POST",
+    },
+  );
+
+  if (!response.ok) {
+    throw new SessionExpiredError();
+  }
+
+  const refreshedSession = (await response.json()) as RefreshSessionResponse;
+  updateDemoAccessToken(refreshedSession, storage);
+
+  return refreshedSession.accessToken;
+}
+
+function withAuthorization(init: RequestInit, accessToken: string | null | undefined): RequestInit {
+  const headers = new Headers(init.headers);
+
+  if (accessToken) {
+    headers.set("authorization", `Bearer ${accessToken}`);
+  }
+
+  return {
+    ...init,
+    headers,
+  };
+}
+
+function clearExpiredSession(storage: SessionStoragePort): void {
+  clearDemoSession(storage);
+
+  if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+    window.location.assign("/login?reason=session-expired");
+  }
+}
+
+function isRawJwtError(message: string): boolean {
+  return /jwt .*expired|token .*expired|unauthorized/iu.test(message);
+}
+
+function trimTrailingSlash(value: string): string {
+  return value.replace(/\/+$/u, "");
+}
+
+function getDefaultApiBaseUrl(): string {
+  return process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
 }
 
 function getBrowserStorage(): SessionStoragePort {

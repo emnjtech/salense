@@ -1,4 +1,5 @@
 import { getDefaultApiBaseUrl, type StorePlatform } from "./store-integrations-client";
+import { fetchWithSessionRefresh } from "../auth-session";
 
 export interface CommerceInventoryListItem {
   readonly averageDailySales: number;
@@ -70,11 +71,11 @@ export function createInventoryApiClient(
 
   return {
     async listInventory(accessToken, filters = {}) {
-      const response = await fetchImpl(`${baseUrl}/commerce/inventory${toQueryString(filters)}`, {
-        headers: {
-          authorization: `Bearer ${accessToken}`,
-        },
-      });
+      const response = await fetchWithSessionRefresh(
+        `${baseUrl}/commerce/inventory${toQueryString(filters)}`,
+        { headers: {} },
+        { accessToken, baseUrl, fetchImpl },
+      );
 
       if (!response.ok) {
         throw new InventoryClientError(await getErrorMessage(response), response.status);

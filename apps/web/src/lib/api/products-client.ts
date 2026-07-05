@@ -1,4 +1,5 @@
 import { getDefaultApiBaseUrl, type StorePlatform } from "./store-integrations-client";
+import { fetchWithSessionRefresh } from "../auth-session";
 
 export interface CommerceProductListItem {
   readonly category: string | null;
@@ -54,11 +55,11 @@ export function createProductsApiClient(options: ProductsApiClientOptions = {}):
 
   return {
     async listProducts(accessToken, filters = {}) {
-      const response = await fetchImpl(`${baseUrl}/commerce/products${toQueryString(filters)}`, {
-        headers: {
-          authorization: `Bearer ${accessToken}`,
-        },
-      });
+      const response = await fetchWithSessionRefresh(
+        `${baseUrl}/commerce/products${toQueryString(filters)}`,
+        { headers: {} },
+        { accessToken, baseUrl, fetchImpl },
+      );
 
       if (!response.ok) {
         throw new ProductsClientError(await getErrorMessage(response), response.status);

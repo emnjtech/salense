@@ -13,11 +13,8 @@ describe("dashboard API client", () => {
 
     const dashboard = await client.getTodayDashboard("access-token");
 
-    expect(fetchImpl).toHaveBeenCalledWith("https://api.salense.test/dashboard/today", {
-      headers: {
-        authorization: "Bearer access-token",
-      },
-    });
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe("https://api.salense.test/dashboard/today");
+    expect(getAuthorization(fetchImpl.mock.calls[0]?.[1])).toBe("Bearer access-token");
     expect(dashboard.todayRevenue).toBe(1250);
     expect(dashboard.connectedPlatforms).toEqual([StorePlatform.WooCommerce]);
   });
@@ -63,6 +60,10 @@ function todayDashboardResponse() {
     },
     yesterdayRevenue: 1000,
   };
+}
+
+function getAuthorization(init: RequestInit | undefined): string | null {
+  return new Headers(init?.headers).get("authorization");
 }
 
 function jsonResponse(body: unknown, ok = true, status = 200): Response {

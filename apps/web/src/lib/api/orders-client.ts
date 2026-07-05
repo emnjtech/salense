@@ -1,4 +1,5 @@
 import { getDefaultApiBaseUrl, type StorePlatform } from "./store-integrations-client";
+import { fetchWithSessionRefresh } from "../auth-session";
 
 export interface CommerceOrderListItem {
   readonly currency: string | null;
@@ -54,11 +55,11 @@ export function createOrdersApiClient(options: OrdersApiClientOptions = {}): Ord
 
   return {
     async listOrders(accessToken, filters = {}) {
-      const response = await fetchImpl(`${baseUrl}/commerce/orders${toQueryString(filters)}`, {
-        headers: {
-          authorization: `Bearer ${accessToken}`,
-        },
-      });
+      const response = await fetchWithSessionRefresh(
+        `${baseUrl}/commerce/orders${toQueryString(filters)}`,
+        { headers: {} },
+        { accessToken, baseUrl, fetchImpl },
+      );
 
       if (!response.ok) {
         throw new OrdersClientError(await getErrorMessage(response), response.status);

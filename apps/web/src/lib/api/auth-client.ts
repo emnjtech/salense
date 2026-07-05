@@ -72,6 +72,7 @@ export interface CompanyProfileResponse {
 export interface AuthApiClient {
   register(input: RegisterInput): Promise<RegistrationResponse>;
   login(input: LoginInput): Promise<LoginSessionResponse>;
+  refreshSession(refreshToken: string): Promise<RefreshSessionResponse>;
   verifyEmail(token: string): Promise<{ readonly emailVerified: true }>;
   requestPasswordReset(email: string): Promise<{ readonly passwordResetRequested: true }>;
   confirmPasswordReset(input: {
@@ -85,6 +86,16 @@ export interface AuthApiClient {
     input: CompanyProfileInput,
   ): Promise<CompanyProfileResponse>;
   logout(refreshToken: string): Promise<{ readonly loggedOut: true }>;
+}
+
+export interface RefreshSessionResponse {
+  readonly user: {
+    readonly id: string;
+    readonly email: string;
+    readonly emailVerified: true;
+  };
+  readonly accessToken: string;
+  readonly accessTokenExpiresIn: string;
 }
 
 export class AuthClientError extends Error {
@@ -149,6 +160,12 @@ export function createAuthApiClient(options: AuthApiClientOptions = {}): AuthApi
           email: input.email.trim().toLowerCase(),
           password: input.password,
         }),
+        method: "POST",
+      });
+    },
+    refreshSession(refreshToken) {
+      return request("/auth/refresh", {
+        body: JSON.stringify({ refreshToken }),
         method: "POST",
       });
     },
