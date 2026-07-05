@@ -11,6 +11,7 @@ import {
 } from "../../lib/api/customers-client";
 import { StorePlatform } from "../../lib/api/store-integrations-client";
 import { getFriendlyAuthErrorMessage, readDemoSession } from "../../lib/auth-session";
+import { PlatformIcon } from "../brand/platform-icon";
 import { DemoModeBanner } from "../demo/demo-mode-banner";
 
 const allPlatforms = "ALL";
@@ -79,11 +80,15 @@ export function CustomersWorkspace() {
       return;
     }
 
-    const platform = new URLSearchParams(window.location.search).get("platform");
+    const params = new URLSearchParams(window.location.search);
+    const platform = params.get("platform");
+    const search = params.get("search");
 
-    if (isStorePlatform(platform)) {
-      setFilters((current) => ({ ...current, platform }));
-    }
+    setFilters((current) => ({
+      ...current,
+      ...(isStorePlatform(platform) ? { platform } : {}),
+      ...(search ? { search } : {}),
+    }));
   }, []);
 
   function updateFilter<Key extends keyof CustomersFilterState>(
@@ -206,7 +211,12 @@ function CustomersTable({
                 <strong>{customer.customerName ?? "Unnamed customer"}</strong>
                 <span>{customer.customerEmail ?? "No email captured"}</span>
               </td>
-              <td>{formatPlatform(customer.platform)}</td>
+              <td>
+                <span className="platform-cell">
+                  <PlatformIcon platform={customer.platform} size="sm" />
+                  {formatPlatform(customer.platform)}
+                </span>
+              </td>
               <td>
                 <strong>{customer.country ?? "Not captured"}</strong>
                 <span>{customer.city ?? "No city captured"}</span>

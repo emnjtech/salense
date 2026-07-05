@@ -4,6 +4,7 @@ import {
   BarChart3,
   Boxes,
   ChevronDown,
+  ChartNoAxesColumnIncreasing,
   Link2,
   ListOrdered,
   LogOut,
@@ -12,6 +13,7 @@ import {
   Settings,
   Users,
 } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
@@ -51,10 +53,16 @@ export function AuthenticatedNavigation() {
   return (
     <aside className="sidebar" aria-label="Salense workspace navigation">
       <div className="brand-lockup">
-        <span className="brand-mark">S</span>
+        <Image
+          alt="Salense"
+          className="sidebar-logo"
+          height={40}
+          priority
+          src="/brand/salense-logo-light.svg"
+          width={128}
+        />
         <div>
-          <strong>Salense</strong>
-          <span>Read-only commerce intelligence</span>
+          <span>Commerce Intelligence</span>
         </div>
       </div>
 
@@ -88,6 +96,13 @@ export function AuthenticatedNavigation() {
           icon={<Link2 size={18} />}
         >
           Store Integrations
+        </NavigationLink>
+        <NavigationLink
+          currentPath={pathname}
+          href="/reports"
+          icon={<ChartNoAxesColumnIncreasing size={18} />}
+        >
+          Reports
         </NavigationLink>
         <Link href="/" aria-disabled="true">
           <Settings size={18} aria-hidden="true" />

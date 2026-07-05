@@ -28,6 +28,7 @@ import {
 } from "../../lib/api/dashboard-client";
 import { StorePlatform } from "../../lib/api/store-integrations-client";
 import { getFriendlyAuthErrorMessage, readDemoSession } from "../../lib/auth-session";
+import { PlatformIcon } from "../brand/platform-icon";
 
 export function TodayDashboard() {
   const dashboardClient = useMemo(() => createDashboardApiClient(), []);
@@ -366,7 +367,7 @@ function PlatformBreakdown({
         >
           <div>
             <strong>
-              <PlatformMark platform={metric.platform} />
+              <PlatformIcon platform={metric.platform} />
               {formatPlatform(metric.platform)}
             </strong>
             <span>
@@ -380,14 +381,6 @@ function PlatformBreakdown({
         </Link>
       ))}
     </div>
-  );
-}
-
-function PlatformMark({ platform }: { readonly platform: StorePlatform }) {
-  return (
-    <span className={`platform-mark ${getPlatformClass(platform)}`} aria-hidden="true">
-      {getPlatformInitial(platform)}
-    </span>
   );
 }
 
@@ -559,19 +552,6 @@ function formatPlatform(platform: StorePlatform): string {
       return "Shopify";
     case StorePlatform.WooCommerce:
       return "WooCommerce";
-  }
-}
-
-function getPlatformInitial(platform: StorePlatform): string {
-  switch (platform) {
-    case StorePlatform.AmazonSeller:
-      return "a";
-    case StorePlatform.TikTokShop:
-      return "T";
-    case StorePlatform.Shopify:
-      return "S";
-    case StorePlatform.WooCommerce:
-      return "Woo";
   }
 }
 

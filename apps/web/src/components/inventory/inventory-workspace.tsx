@@ -12,6 +12,7 @@ import {
 } from "../../lib/api/inventory-client";
 import { StorePlatform } from "../../lib/api/store-integrations-client";
 import { getFriendlyAuthErrorMessage, readDemoSession } from "../../lib/auth-session";
+import { PlatformIcon } from "../brand/platform-icon";
 import { DemoModeBanner } from "../demo/demo-mode-banner";
 
 const allPlatforms = "ALL";
@@ -221,7 +222,12 @@ function InventoryTable({
                 <strong>{item.productName ?? "Unnamed product"}</strong>
                 <span>{item.category ?? "No category"}</span>
               </td>
-              <td>{formatPlatform(item.platform)}</td>
+              <td>
+                <span className="platform-cell">
+                  <PlatformIcon platform={item.platform} size="sm" />
+                  {formatPlatform(item.platform)}
+                </span>
+              </td>
               <td>{item.storeName}</td>
               <td>{item.sku ?? "Not captured"}</td>
               <td>

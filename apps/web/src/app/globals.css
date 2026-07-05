@@ -71,32 +71,21 @@ button:disabled {
   gap: 12px;
 }
 
-.brand-lockup strong,
 .brand-lockup span {
   display: block;
 }
 
-.brand-lockup strong {
-  font-size: 16px;
+.brand-lockup span {
+  color: #bac7bd;
+  font-size: 12px;
+  font-weight: 720;
   line-height: 1.2;
 }
 
-.brand-lockup span:not(.brand-mark) {
-  color: #bac7bd;
-  font-size: 12px;
-  margin-top: 2px;
-}
-
-.brand-mark {
-  align-items: center;
-  background: #c9f26d;
-  border-radius: 8px;
-  color: #17211b;
-  display: inline-flex;
-  font-weight: 800;
-  height: 38px;
-  justify-content: center;
-  width: 38px;
+.sidebar-logo {
+  display: block;
+  height: auto;
+  width: 128px;
 }
 
 .sidebar-business-card {
@@ -678,30 +667,53 @@ button:disabled {
   width: 10px;
 }
 
-.platform-mark {
+.platform-logo {
   align-items: center;
+  background: #ffffff;
+  border: 1px solid #e1e7e2;
   border-radius: 999px;
-  color: #ffffff;
   display: inline-flex;
-  font-size: 12px;
-  font-weight: 900;
-  height: 28px;
   justify-content: center;
-  line-height: 1;
-  width: 28px;
+  overflow: hidden;
+  padding: 3px;
 }
 
-.platform-breakdown-row .platform-mark {
-  color: #ffffff;
+.platform-logo img {
+  display: block;
+  height: 100%;
+  object-fit: contain;
+  width: 100%;
 }
 
-.platform-mark.platform-woocommerce {
-  font-size: 9px;
+.platform-logo-sm {
+  height: 24px;
+  width: 24px;
+}
+
+.platform-logo-md {
+  height: 30px;
+  width: 30px;
+}
+
+.platform-logo-lg {
+  height: 42px;
+  width: 42px;
+}
+
+.platform-cell {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+  white-space: nowrap;
 }
 
 .platform-breakdown-row span {
   color: #647067;
   font-weight: 700;
+}
+
+.platform-breakdown-row strong .platform-logo {
+  flex: 0 0 auto;
 }
 
 .platform-bar {
@@ -720,26 +732,22 @@ button:disabled {
 }
 
 .platform-breakdown-row.platform-amazon .platform-bar span,
-.platform-dot.platform-amazon,
-.platform-mark.platform-amazon {
+.platform-dot.platform-amazon {
   background: #f59e0b;
 }
 
 .platform-breakdown-row.platform-shopify .platform-bar span,
-.platform-dot.platform-shopify,
-.platform-mark.platform-shopify {
+.platform-dot.platform-shopify {
   background: #1f9d55;
 }
 
 .platform-breakdown-row.platform-tiktok .platform-bar span,
-.platform-dot.platform-tiktok,
-.platform-mark.platform-tiktok {
+.platform-dot.platform-tiktok {
   background: #111827;
 }
 
 .platform-breakdown-row.platform-woocommerce .platform-bar span,
-.platform-dot.platform-woocommerce,
-.platform-mark.platform-woocommerce {
+.platform-dot.platform-woocommerce {
   background: #7c3aed;
 }
 
@@ -990,6 +998,12 @@ button:disabled {
   max-width: 1320px;
 }
 
+.platform-title {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+}
+
 .platform-action-grid {
   display: grid;
   gap: 12px;
@@ -1056,6 +1070,199 @@ button:disabled {
 
 .compact-empty {
   min-height: 126px;
+}
+
+.reports-workspace {
+  max-width: 1380px;
+}
+
+.reports-header h1 {
+  font-size: 38px;
+}
+
+.reports-filter-panel {
+  align-items: end;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(5, minmax(150px, 1fr));
+}
+
+.reports-filter-panel label {
+  color: #2d3930;
+  display: grid;
+  font-size: 12px;
+  font-weight: 760;
+  gap: 7px;
+}
+
+.reports-filter-panel input,
+.reports-filter-panel select {
+  background: #ffffff;
+  border: 1px solid #cfd7d0;
+  border-radius: 8px;
+  color: #243027;
+  min-height: 42px;
+  padding: 0 12px;
+  width: 100%;
+}
+
+.reports-kpi-grid,
+.reports-inventory-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.reports-inventory-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.reports-kpi-card {
+  color: #243027;
+  min-height: 132px;
+  position: relative;
+}
+
+.reports-kpi-card .metric-icon {
+  align-items: center;
+  background: #eef5f0;
+  border-radius: 8px;
+  color: #1f6f55;
+  display: flex;
+  height: 38px;
+  justify-content: center;
+  position: absolute;
+  right: 16px;
+  top: 16px;
+  width: 38px;
+}
+
+.reports-kpi-card small {
+  color: #647067;
+  font-size: 12px;
+}
+
+.reports-chart-grid,
+.reports-table-grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.reports-chart-panel {
+  min-height: 330px;
+}
+
+.reports-line-chart {
+  display: grid;
+  gap: 12px;
+}
+
+.reports-line-chart svg {
+  background: linear-gradient(#f7faf8 1px, transparent 1px),
+    linear-gradient(90deg, #f7faf8 1px, transparent 1px);
+  background-size:
+    100% 25%,
+    12.5% 100%;
+  border: 1px solid #e4e9e4;
+  border-radius: 8px;
+  height: 220px;
+  overflow: visible;
+  width: 100%;
+}
+
+.reports-line-chart polyline {
+  fill: none;
+  stroke: #1f6f55;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3;
+}
+
+.reports-line-chart circle {
+  fill: #17211b;
+  stroke: #c9f26d;
+  stroke-width: 1.4;
+}
+
+.reports-line-chart a:hover circle {
+  fill: #1f6f55;
+}
+
+.reports-chart-axis {
+  align-items: center;
+  color: #647067;
+  display: flex;
+  font-size: 12px;
+  justify-content: space-between;
+}
+
+.reports-chart-axis strong {
+  color: #243027;
+}
+
+.reports-bar-list {
+  display: grid;
+  gap: 12px;
+}
+
+.reports-bar-row {
+  align-items: center;
+  border: 1px solid #e4e9e4;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(130px, 0.5fr) minmax(0, 1fr) auto;
+  min-height: 54px;
+  padding: 12px;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.reports-bar-row:hover {
+  border-color: #b8c8bc;
+  box-shadow: 0 14px 34px rgb(23 33 27 / 9%);
+  transform: translateY(-1px);
+}
+
+.reports-bar-track {
+  background: #edf1ed;
+  border-radius: 999px;
+  height: 12px;
+  overflow: hidden;
+}
+
+.reports-bar-track span {
+  background: #1f6f55;
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+}
+
+.reports-bar-row.platform-amazon .reports-bar-track span {
+  background: #f59e0b;
+}
+
+.reports-bar-row.platform-shopify .reports-bar-track span {
+  background: #1f9d55;
+}
+
+.reports-bar-row.platform-tiktok .reports-bar-track span {
+  background: #111827;
+}
+
+.reports-bar-row.platform-woocommerce .reports-bar-track span {
+  background: #7c3aed;
+}
+
+.reports-table {
+  min-width: 760px;
+}
+
+.reports-table a {
+  color: #17211b;
 }
 
 .orders-workspace {
@@ -1173,6 +1380,12 @@ button:disabled {
   margin-top: 3px;
 }
 
+.orders-table td .platform-cell {
+  color: #243027;
+  font-size: 13px;
+  margin-top: 0;
+}
+
 .order-status {
   background: #eef5f0;
   border-radius: 999px;
@@ -1243,9 +1456,9 @@ button:disabled {
 
 .platform-icon {
   align-items: center;
-  background: #eef5f0;
+  background: #ffffff;
+  border: 1px solid #e4e9e4;
   border-radius: 8px;
-  color: #1f6f55;
   display: flex;
   height: 40px;
   justify-content: center;
@@ -1254,22 +1467,18 @@ button:disabled {
 
 .platform-row.platform-amazon .platform-icon {
   background: #fff7e8;
-  color: #b45309;
 }
 
 .platform-row.platform-shopify .platform-icon {
   background: #eaf8ef;
-  color: #1f7a43;
 }
 
 .platform-row.platform-tiktok .platform-icon {
   background: #f1f3f5;
-  color: #111827;
 }
 
 .platform-row.platform-woocommerce .platform-icon {
   background: #f3edff;
-  color: #6d28d9;
 }
 
 .platform-row h3,
@@ -1451,6 +1660,7 @@ button:disabled {
   color: #ffffff;
   display: flex;
   flex-direction: column;
+  gap: 34px;
   justify-content: space-between;
   padding: 42px;
 }
@@ -1460,6 +1670,32 @@ button:disabled {
   display: inline-flex;
   gap: 12px;
   width: max-content;
+}
+
+.auth-logo {
+  display: block;
+  height: auto;
+  width: 150px;
+}
+
+.auth-illustration-wrap {
+  align-items: center;
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  min-height: 300px;
+}
+
+.auth-illustration {
+  height: auto;
+  max-height: 520px;
+  max-width: min(86%, 560px);
+  object-fit: contain;
+  width: 100%;
+}
+
+.auth-story-copy {
+  max-width: 620px;
 }
 
 .auth-story h1 {
@@ -1624,6 +1860,9 @@ button:disabled {
   .content-grid,
   .today-content-grid,
   .today-hero-grid,
+  .reports-chart-grid,
+  .reports-filter-panel,
+  .reports-table-grid,
   .orders-toolbar,
   .products-toolbar,
   .store-row {
@@ -1635,6 +1874,11 @@ button:disabled {
   }
 
   .today-top-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .reports-kpi-grid,
+  .reports-inventory-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -1683,6 +1927,8 @@ button:disabled {
 
   .overview-grid,
   .health-proof-list,
+  .reports-kpi-grid,
+  .reports-inventory-grid,
   .today-top-grid,
   .today-hero-metrics,
   .store-actions,

@@ -10,6 +10,7 @@ import {
 } from "../../lib/api/orders-client";
 import { StorePlatform } from "../../lib/api/store-integrations-client";
 import { getFriendlyAuthErrorMessage, readDemoSession } from "../../lib/auth-session";
+import { PlatformIcon } from "../brand/platform-icon";
 import { DemoModeBanner } from "../demo/demo-mode-banner";
 
 const allPlatforms = "ALL";
@@ -72,11 +73,17 @@ export function OrdersWorkspace() {
       return;
     }
 
-    const platform = new URLSearchParams(window.location.search).get("platform");
+    const params = new URLSearchParams(window.location.search);
+    const platform = params.get("platform");
+    const dateFrom = params.get("dateFrom");
+    const dateTo = params.get("dateTo");
 
-    if (isStorePlatform(platform)) {
-      setFilters((current) => ({ ...current, platform }));
-    }
+    setFilters((current) => ({
+      ...current,
+      ...(isStorePlatform(platform) ? { platform } : {}),
+      ...(dateFrom ? { dateFrom: toDateInputValue(dateFrom) } : {}),
+      ...(dateTo ? { dateTo: toDateInputValue(dateTo) } : {}),
+    }));
   }, []);
 
   const visibleOrders = useMemo(
@@ -218,7 +225,12 @@ function OrdersTable({ orders }: { readonly orders: readonly CommerceOrderListIt
                 <strong>{order.customerName ?? "Guest customer"}</strong>
                 <span>{order.customerEmail ?? "No email captured"}</span>
               </td>
-              <td>{formatPlatform(order.platform)}</td>
+              <td>
+                <span className="platform-cell">
+                  <PlatformIcon platform={order.platform} size="sm" />
+                  {formatPlatform(order.platform)}
+                </span>
+              </td>
               <td>{order.storeName}</td>
               <td>{formatDate(order.orderDate)}</td>
               <td>
@@ -367,6 +379,10 @@ function toStartOfDay(value: string): string {
 
 function toEndOfDay(value: string): string {
   return `${value}T23:59:59.999Z`;
+}
+
+function toDateInputValue(value: string): string {
+  return value.slice(0, 10);
 }
 
 function isStorePlatform(value: string | null): value is StorePlatform {

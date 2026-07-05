@@ -17,6 +17,7 @@ import {
 } from "../../lib/api/products-client";
 import { StorePlatform } from "../../lib/api/store-integrations-client";
 import { getFriendlyAuthErrorMessage, readDemoSession } from "../../lib/auth-session";
+import { PlatformIcon } from "../brand/platform-icon";
 import { DemoModeBanner } from "../demo/demo-mode-banner";
 
 const allPlatforms = "ALL";
@@ -205,7 +206,12 @@ function ProductsTable({ products }: { readonly products: readonly CommerceProdu
                 <strong>{product.productName ?? "Unnamed product"}</strong>
                 <span>{product.sku ?? product.platformProductId}</span>
               </td>
-              <td>{formatPlatform(product.platform)}</td>
+              <td>
+                <span className="platform-cell">
+                  <PlatformIcon platform={product.platform} size="sm" />
+                  {formatPlatform(product.platform)}
+                </span>
+              </td>
               <td>{product.storeName}</td>
               <td>{product.category ?? "Not captured"}</td>
               <td>{formatCurrency(product.price, product.currency)}</td>

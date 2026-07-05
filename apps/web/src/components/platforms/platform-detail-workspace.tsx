@@ -22,6 +22,7 @@ import {
 } from "../../lib/api/platforms-client";
 import { StorePlatform } from "../../lib/api/store-integrations-client";
 import { getFriendlyAuthErrorMessage, readDemoSession } from "../../lib/auth-session";
+import { PlatformIcon } from "../brand/platform-icon";
 
 export function PlatformDetailWorkspace({ platform }: { readonly platform: StorePlatform }) {
   const platformsClient = useMemo(() => createPlatformsApiClient(), []);
@@ -62,7 +63,10 @@ export function PlatformDetailWorkspace({ platform }: { readonly platform: Store
       <header className="workspace-header">
         <div>
           <p className="eyebrow">Platform performance</p>
-          <h1>{platformName}</h1>
+          <h1 className="platform-title">
+            <PlatformIcon platform={platform} size="lg" />
+            {platformName}
+          </h1>
           <p>
             Store health, recent orders, product performance, and inventory attention for this
             channel only.

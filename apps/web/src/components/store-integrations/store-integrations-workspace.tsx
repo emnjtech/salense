@@ -5,7 +5,6 @@ import {
   CalendarClock,
   CheckCircle2,
   Clock3,
-  Link2,
   Loader2,
   PlugZap,
   RefreshCcw,
@@ -24,6 +23,7 @@ import {
   type SupportedStorePlatform,
 } from "../../lib/api/store-integrations-client";
 import { getDemoAccessToken, getFriendlyAuthErrorMessage } from "../../lib/auth-session";
+import { PlatformIcon } from "../brand/platform-icon";
 import { DemoModeBanner } from "../demo/demo-mode-banner";
 
 interface WooCommerceFormState {
@@ -866,6 +866,7 @@ function StoreRow({
     <article className="store-row">
       <div className="store-main">
         <div className="store-title-row">
+          <PlatformIcon platform={store.platform} />
           <h3>{store.storeName}</h3>
           <StatusBadge status={store.connectionStatus} />
         </div>
@@ -962,7 +963,7 @@ function PlatformRow({ platform }: { readonly platform: SupportedStorePlatform }
   return (
     <article className={`platform-row ${getPlatformClass(platform.platform)}`}>
       <div className="platform-icon">
-        <Link2 size={18} aria-hidden="true" />
+        <PlatformIcon platform={platform.platform} />
       </div>
       <div>
         <h3>{platform.label}</h3>
