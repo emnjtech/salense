@@ -104,10 +104,9 @@ export function AuthenticatedNavigation() {
         >
           Reports
         </NavigationLink>
-        <Link href="/" aria-disabled="true">
-          <Settings size={18} aria-hidden="true" />
+        <NavigationLink currentPath={pathname} href="/settings" icon={<Settings size={18} />}>
           Settings
-        </Link>
+        </NavigationLink>
       </nav>
 
       <div className="sidebar-session">

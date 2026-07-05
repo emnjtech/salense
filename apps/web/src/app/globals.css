@@ -1409,6 +1409,96 @@ button:disabled {
   color: #17211b;
 }
 
+.settings-workspace {
+  max-width: 1180px;
+}
+
+.settings-hero {
+  background: linear-gradient(135deg, rgb(234 248 239 / 86%), rgb(255 255 255 / 96%)), #ffffff;
+  overflow: hidden;
+  position: relative;
+}
+
+.settings-hero::after {
+  background: #c9f26d;
+  border-radius: 999px;
+  content: "";
+  height: 96px;
+  opacity: 0.22;
+  position: absolute;
+  right: -32px;
+  top: -32px;
+  width: 96px;
+}
+
+.settings-hero h2 {
+  font-size: 24px;
+  line-height: 1.18;
+  margin: 10px 0 0;
+  max-width: 680px;
+}
+
+.settings-hero p:not(.eyebrow) {
+  color: #506158;
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 12px 0 0;
+  max-width: 760px;
+}
+
+.settings-hero-icon,
+.settings-card-icon {
+  align-items: center;
+  background: #eaf8ef;
+  border-radius: 8px;
+  color: #1f6f55;
+  display: inline-flex;
+  height: 42px;
+  justify-content: center;
+  width: 42px;
+}
+
+.settings-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.settings-card {
+  color: #243027;
+  display: grid;
+  gap: 12px;
+  min-height: 210px;
+  position: relative;
+  text-decoration: none;
+}
+
+.settings-card h2 {
+  font-size: 18px;
+  line-height: 1.25;
+  margin: 8px 0 0;
+}
+
+.settings-card p {
+  color: #647067;
+  font-size: 13px;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.settings-card-status {
+  background: #f4f7f4;
+  border: 1px solid #e0e8e1;
+  border-radius: 999px;
+  color: #3d5446;
+  font-size: 12px;
+  font-weight: 760;
+  padding: 5px 9px;
+  position: absolute;
+  right: 16px;
+  top: 16px;
+}
+
 .orders-workspace {
   max-width: 1320px;
 }
@@ -2006,6 +2096,7 @@ button:disabled {
   .today-hero-grid,
   .reports-chart-grid,
   .reports-filter-panel,
+  .settings-grid,
   .reports-table-grid,
   .orders-toolbar,
   .products-toolbar,
