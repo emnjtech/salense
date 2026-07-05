@@ -2,6 +2,8 @@
 
 This runbook starts the local Salense MVP demo with deterministic seed data. The demo is read-only: Salense analyses normalized commerce records and never writes back to WooCommerce, Amazon Seller, TikTok Shop, or Shopify.
 
+For a Windows setup without Docker, use [Windows Local Demo Setup](./windows-local-demo-setup.md).
+
 ## Demo Accounts
 
 Use the seeded demo account:
@@ -27,10 +29,16 @@ JWT_ACCESS_TOKEN_SECRET="local-access-token-secret"
 JWT_REFRESH_TOKEN_SECRET="local-refresh-token-secret"
 JWT_ACCESS_TOKEN_EXPIRES_IN="15m"
 JWT_REFRESH_TOKEN_EXPIRES_IN="7d"
-CREDENTIAL_ENCRYPTION_KEY="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+SALENSE_CREDENTIAL_ENCRYPTION_KEY="MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
 ```
 
 No WooCommerce, Amazon Seller, TikTok Shop, or Shopify credentials are required for the seeded MVP demo. Live connection forms are available for local validation testing only.
+
+Before starting the demo, validate the local environment:
+
+```bash
+pnpm demo:check-env
+```
 
 ## 2. Apply Prisma Schema
 

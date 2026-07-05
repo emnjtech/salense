@@ -6,7 +6,7 @@ Use this checklist before and during an Innovator Founder demo.
 
 - [ ] PostgreSQL is running.
 - [ ] Redis is running.
-- [ ] `DATABASE_URL`, `REDIS_URL`, JWT secrets, and `CREDENTIAL_ENCRYPTION_KEY` are set for the API and seed script.
+- [ ] `DATABASE_URL`, `REDIS_URL`, JWT secrets, and `SALENSE_CREDENTIAL_ENCRYPTION_KEY` are set for the API and seed script.
 - [ ] Prisma client is generated.
 - [ ] Prisma schema is applied to the local database.
 - [ ] `pnpm demo:seed` has completed successfully.

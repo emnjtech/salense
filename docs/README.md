@@ -8,6 +8,7 @@ Operational notes:
 
 - [Continuous integration](./ci.md)
 - [MVP demo runbook](./mvp-demo-runbook.md)
+- [Windows local demo setup](./windows-local-demo-setup.md)
 - [MVP demo checklist](./mvp-checklist.md)
 - [MVP demo seed data](./mvp-demo-seed.md)
 - [Sync scheduling](./sync-scheduling.md)
