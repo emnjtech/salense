@@ -74,6 +74,18 @@ export function CustomersWorkspace() {
     void loadCustomers();
   }, [loadCustomers]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const platform = new URLSearchParams(window.location.search).get("platform");
+
+    if (isStorePlatform(platform)) {
+      setFilters((current) => ({ ...current, platform }));
+    }
+  }, []);
+
   function updateFilter<Key extends keyof CustomersFilterState>(
     key: Key,
     value: CustomersFilterState[Key],
@@ -310,4 +322,8 @@ function formatPlatform(platform: StorePlatform): string {
     case StorePlatform.WooCommerce:
       return "WooCommerce";
   }
+}
+
+function isStorePlatform(value: string | null): value is StorePlatform {
+  return Object.values(StorePlatform).includes(value as StorePlatform);
 }

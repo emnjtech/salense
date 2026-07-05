@@ -986,6 +986,74 @@ button:disabled {
   margin-left: auto;
 }
 
+.platform-detail-workspace {
+  max-width: 1320px;
+}
+
+.platform-action-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.platform-action-link {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #dfe4df;
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgb(23 33 27 / 5%);
+  color: #243027;
+  display: grid;
+  font-size: 13px;
+  font-weight: 760;
+  gap: 10px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-height: 54px;
+  padding: 0 14px;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.platform-action-link:hover {
+  border-color: #b8c8bc;
+  box-shadow: 0 14px 34px rgb(23 33 27 / 9%);
+  transform: translateY(-1px);
+}
+
+.platform-detail-list {
+  display: grid;
+  gap: 10px;
+}
+
+.platform-detail-row {
+  align-items: center;
+  border: 1px solid #e4e9e4;
+  border-radius: 8px;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  min-height: 58px;
+  padding: 12px 14px;
+}
+
+.platform-detail-row div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.platform-detail-row strong,
+.platform-detail-row span {
+  overflow-wrap: anywhere;
+}
+
+.platform-detail-row span:not(.order-status) {
+  color: #647067;
+  font-size: 12px;
+}
+
 .compact-empty {
   min-height: 126px;
 }
@@ -1575,7 +1643,8 @@ button:disabled {
   }
 
   .health-score-body,
-  .health-contributor-list {
+  .health-contributor-list,
+  .platform-action-grid {
     grid-template-columns: 1fr;
   }
 

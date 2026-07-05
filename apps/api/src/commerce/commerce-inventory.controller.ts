@@ -12,7 +12,8 @@ import {
   type AuthenticatedRequest,
 } from "../auth/guards/jwt-access-token.guard.js";
 import { CommerceInventoryService } from "./commerce-inventory.service.js";
-import type { ListCommerceInventoryQueryDto } from "./dto/list-commerce-inventory-query.dto.js";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- Nest validation requires runtime DTO metadata.
+import { ListCommerceInventoryQueryDto } from "./dto/list-commerce-inventory-query.dto.js";
 import type { CommerceInventoryListResponse } from "./types/commerce-inventory-list-response.type.js";
 
 @Controller("commerce/inventory")

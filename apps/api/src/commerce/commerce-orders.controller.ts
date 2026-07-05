@@ -12,7 +12,8 @@ import {
   type AuthenticatedRequest,
 } from "../auth/guards/jwt-access-token.guard.js";
 import { CommerceOrdersService } from "./commerce-orders.service.js";
-import type { ListCommerceOrdersQueryDto } from "./dto/list-commerce-orders-query.dto.js";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- Nest validation requires runtime DTO metadata.
+import { ListCommerceOrdersQueryDto } from "./dto/list-commerce-orders-query.dto.js";
 import type { CommerceOrderListResponse } from "./types/commerce-order-list-response.type.js";
 
 @Controller("commerce/orders")

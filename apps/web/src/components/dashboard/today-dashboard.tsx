@@ -161,7 +161,7 @@ function TodayDashboardContent({ dashboard }: { readonly dashboard: TodayDashboa
           <FocusItem
             href={
               dashboard.bestPlatformToday
-                ? `/orders?platform=${dashboard.bestPlatformToday}`
+                ? `/platforms/${dashboard.bestPlatformToday}?section=orders`
                 : "/orders"
             }
             icon={<BarChart3 size={18} />}
@@ -361,7 +361,7 @@ function PlatformBreakdown({
       {metrics.map((metric) => (
         <Link
           className={`platform-breakdown-row ${getPlatformClass(metric.platform)}`}
-          href={`/orders?platform=${metric.platform}`}
+          href={`/platforms/${metric.platform}`}
           key={metric.platform}
         >
           <div>
@@ -451,7 +451,7 @@ function createBriefingItems(dashboard: TodayDashboardResponse): readonly {
     {
       body: `${formatTrend(dashboard.revenueChangePercent)} vs yesterday across ${platformCount} platforms.`,
       href: dashboard.bestPlatformToday
-        ? `/orders?platform=${dashboard.bestPlatformToday}`
+        ? `/platforms/${dashboard.bestPlatformToday}?section=revenue`
         : "/orders",
       icon: <TrendingUp size={16} aria-hidden="true" />,
       title: `Revenue is ${formatCurrency(dashboard.todayRevenue)} today.`,
@@ -477,7 +477,7 @@ function createBriefingItems(dashboard: TodayDashboardResponse): readonly {
     {
       body: `${strongestPlatform} is currently the strongest channel.`,
       href: dashboard.bestPlatformToday
-        ? `/orders?platform=${dashboard.bestPlatformToday}`
+        ? `/platforms/${dashboard.bestPlatformToday}?section=orders`
         : "/orders",
       icon: <RotateCcw size={16} aria-hidden="true" />,
       title: `${dashboard.refundCountToday} refunds recorded today.`,
