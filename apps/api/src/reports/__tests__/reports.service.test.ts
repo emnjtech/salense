@@ -28,6 +28,7 @@ describe("ReportsService", () => {
           quantity: 3,
           sku: "LAMP-1",
           totalAmount: "120.00",
+          commerceOrderId: "order_1",
         },
       ],
       orders: [
@@ -122,10 +123,40 @@ describe("ReportsService", () => {
       ],
     });
     expect(response.revenueTrend).toEqual([
-      { date: "2026-07-01", value: 120 },
-      { date: "2026-07-02", value: 80 },
-      { date: "2026-07-03", value: 0 },
+      {
+        averageOrderValue: 120,
+        bestPlatform: { platform: StorePlatform.Shopify, value: 120 },
+        date: "2026-07-01",
+        orders: 1,
+        revenue: 120,
+        topProduct: { productName: "Brass Desk Lamp", revenue: 120, unitsSold: 3 },
+        value: 120,
+      },
+      {
+        averageOrderValue: 80,
+        bestPlatform: { platform: StorePlatform.AmazonSeller, value: 80 },
+        date: "2026-07-02",
+        orders: 1,
+        revenue: 80,
+        topProduct: null,
+        value: 80,
+      },
+      {
+        averageOrderValue: 0,
+        bestPlatform: null,
+        date: "2026-07-03",
+        orders: 0,
+        revenue: 0,
+        topProduct: null,
+        value: 0,
+      },
     ]);
+    expect(response.ordersTrend[0]).toMatchObject({
+      date: "2026-07-01",
+      orders: 1,
+      revenue: 120,
+      value: 1,
+    });
     expect(prisma.commerceOrder.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
@@ -236,6 +267,7 @@ interface ReportsOrderTestRecord {
 }
 
 interface ReportsOrderItemTestRecord {
+  readonly commerceOrderId: string;
   readonly connectedStoreId: string;
   readonly name: string | null;
   readonly platform: StorePlatform;

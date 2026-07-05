@@ -117,6 +117,7 @@ interface ReportsOrderRecord {
 }
 
 interface ReportsOrderItemSelect {
+  readonly commerceOrderId: true;
   readonly connectedStoreId: true;
   readonly name: true;
   readonly platform: true;
@@ -127,6 +128,7 @@ interface ReportsOrderItemSelect {
 }
 
 interface ReportsOrderItemRecord {
+  readonly commerceOrderId: string;
   readonly connectedStoreId: string;
   readonly name: string | null;
   readonly platform: StorePlatform;
@@ -192,6 +194,20 @@ interface CustomerSummaryAccumulator {
   orders: number;
 }
 
+interface DailyTrendBucket {
+  readonly date: string;
+  readonly platforms: Map<StorePlatform, number>;
+  readonly products: Map<string, DailyTrendProductAccumulator>;
+  orders: number;
+  revenue: number;
+}
+
+interface DailyTrendProductAccumulator {
+  readonly productName: string;
+  revenue: number;
+  unitsSold: number;
+}
+
 const lowStockThreshold = 5;
 
 const orderSelect = {
@@ -204,6 +220,7 @@ const orderSelect = {
 } as const;
 
 const orderItemSelect = {
+  commerceOrderId: true,
   connectedStoreId: true,
   name: true,
   platform: true,
@@ -319,9 +336,9 @@ export class ReportsService {
         revenue,
       },
       ordersByPlatform: toOrdersByPlatform(orders),
-      ordersTrend: toOrdersTrend(orders, dateRange),
+      ordersTrend: toOrdersTrend(orders, orderItems, dateRange),
       revenueByPlatform: toRevenueByPlatform(orders),
-      revenueTrend: toRevenueTrend(orders, dateRange),
+      revenueTrend: toRevenueTrend(orders, orderItems, dateRange),
       stores: stores.map(toStoreFilterOption),
       topCustomers: toTopCustomers(customers, orders),
       topProducts: toTopProducts(orderItems, products),
@@ -357,27 +374,40 @@ function getDateRange(query: ReportsOverviewQueryDto): DateRange {
 
 function toRevenueTrend(
   orders: readonly ReportsOrderRecord[],
+  orderItems: readonly ReportsOrderItemRecord[],
   dateRange: DateRange,
 ): readonly ReportsTrendPoint[] {
-  const buckets = createDailyBuckets(dateRange);
-
-  orders.forEach((order) => {
-    if (!order.orderedAt) {
-      return;
-    }
-
-    const dateKey = toDateKey(order.orderedAt);
-    buckets.set(dateKey, roundMetric((buckets.get(dateKey) ?? 0) + toNumber(order.totalAmount)));
-  });
-
-  return [...buckets.entries()].map(([date, value]) => ({ date, value }));
+  return createDailyTrendBuckets(orders, orderItems, dateRange).map((bucket) =>
+    toTrendPoint(bucket, bucket.revenue),
+  );
 }
 
 function toOrdersTrend(
   orders: readonly ReportsOrderRecord[],
+  orderItems: readonly ReportsOrderItemRecord[],
   dateRange: DateRange,
 ): readonly ReportsTrendPoint[] {
-  const buckets = createDailyBuckets(dateRange);
+  return createDailyTrendBuckets(orders, orderItems, dateRange).map((bucket) =>
+    toTrendPoint(bucket, bucket.orders),
+  );
+}
+
+function createDailyTrendBuckets(
+  orders: readonly ReportsOrderRecord[],
+  orderItems: readonly ReportsOrderItemRecord[],
+  dateRange: DateRange,
+): readonly DailyTrendBucket[] {
+  const buckets = new Map<string, DailyTrendBucket>();
+  const cursor = new Date(dateRange.dateFrom);
+  const orderDateById = new Map<string, string>();
+
+  cursor.setUTCHours(0, 0, 0, 0);
+
+  while (cursor <= dateRange.dateTo) {
+    const date = toDateKey(cursor);
+    buckets.set(date, { date, orders: 0, platforms: new Map(), products: new Map(), revenue: 0 });
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
 
   orders.forEach((order) => {
     if (!order.orderedAt) {
@@ -385,24 +415,96 @@ function toOrdersTrend(
     }
 
     const dateKey = toDateKey(order.orderedAt);
-    buckets.set(dateKey, (buckets.get(dateKey) ?? 0) + 1);
+    const bucket = buckets.get(dateKey);
+
+    if (!bucket) {
+      return;
+    }
+
+    const orderRevenue = toNumber(order.totalAmount);
+
+    orderDateById.set(order.id, dateKey);
+    bucket.orders += 1;
+    bucket.revenue = roundMetric(bucket.revenue + orderRevenue);
+    bucket.platforms.set(
+      order.platform,
+      roundMetric((bucket.platforms.get(order.platform) ?? 0) + orderRevenue),
+    );
   });
 
-  return [...buckets.entries()].map(([date, value]) => ({ date, value }));
+  orderItems.forEach((item) => {
+    const dateKey = orderDateById.get(item.commerceOrderId);
+
+    if (!dateKey) {
+      return;
+    }
+
+    const bucket = buckets.get(dateKey);
+
+    if (!bucket) {
+      return;
+    }
+
+    const productName = item.name?.trim() || "Unknown product";
+    const productKey = `${item.platform}:${item.connectedStoreId}:${item.platformProductId ?? item.sku ?? productName}`;
+    const current = bucket.products.get(productKey) ?? {
+      productName,
+      revenue: 0,
+      unitsSold: 0,
+    };
+
+    current.revenue = roundMetric(current.revenue + toNumber(item.totalAmount));
+    current.unitsSold += Math.max(item.quantity ?? 0, 0);
+    bucket.products.set(productKey, current);
+  });
+
+  return [...buckets.values()];
 }
 
-function createDailyBuckets(dateRange: DateRange): Map<string, number> {
-  const buckets = new Map<string, number>();
-  const cursor = new Date(dateRange.dateFrom);
+function toTrendPoint(bucket: DailyTrendBucket, value: number): ReportsTrendPoint {
+  return {
+    averageOrderValue: roundMetric(bucket.orders > 0 ? bucket.revenue / bucket.orders : 0),
+    bestPlatform: getTrendBestPlatform(bucket.platforms),
+    date: bucket.date,
+    orders: bucket.orders,
+    revenue: bucket.revenue,
+    topProduct: getTrendTopProduct(bucket.products),
+    value: roundMetric(value),
+  };
+}
 
-  cursor.setUTCHours(0, 0, 0, 0);
+function getTrendBestPlatform(
+  platforms: ReadonlyMap<StorePlatform, number>,
+): ReportsTrendPoint["bestPlatform"] {
+  const [bestPlatform] = [...platforms.entries()].sort((left, right) => {
+    if (right[1] !== left[1]) {
+      return right[1] - left[1];
+    }
 
-  while (cursor <= dateRange.dateTo) {
-    buckets.set(toDateKey(cursor), 0);
-    cursor.setUTCDate(cursor.getUTCDate() + 1);
-  }
+    return left[0].localeCompare(right[0]);
+  });
 
-  return buckets;
+  return bestPlatform ? { platform: bestPlatform[0], value: roundMetric(bestPlatform[1]) } : null;
+}
+
+function getTrendTopProduct(
+  products: ReadonlyMap<string, DailyTrendProductAccumulator>,
+): ReportsTrendPoint["topProduct"] {
+  const topProduct = [...products.values()].sort((left, right) => {
+    if (right.revenue !== left.revenue) {
+      return right.revenue - left.revenue;
+    }
+
+    return right.unitsSold - left.unitsSold;
+  })[0];
+
+  return topProduct
+    ? {
+        productName: topProduct.productName,
+        revenue: roundMetric(topProduct.revenue),
+        unitsSold: topProduct.unitsSold,
+      }
+    : null;
 }
 
 function toRevenueByPlatform(

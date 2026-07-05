@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { type ChangeEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { type ChangeEvent, useCallback, useEffect, useId, useMemo, useState } from "react";
 import {
   ReportsClientError,
   createReportsApiClient,
@@ -162,12 +162,14 @@ export function ReportsOverviewView({ overview }: { readonly overview: ReportsOv
       <div className="reports-chart-grid">
         <TrendChart
           hrefForPoint={(point) => ordersHref(point.date, point.date)}
+          metricLabel="Revenue"
           title="Revenue Trend"
           valueFormatter={formatCurrency}
           points={overview.revenueTrend}
         />
         <TrendChart
           hrefForPoint={(point) => ordersHref(point.date, point.date)}
+          metricLabel="Orders"
           title="Orders Trend"
           valueFormatter={(value) => value.toString()}
           points={overview.ordersTrend}
@@ -335,22 +337,22 @@ function ReportKpiCard({
 
 function TrendChart({
   hrefForPoint,
+  metricLabel,
   points,
   title,
   valueFormatter,
 }: {
   readonly hrefForPoint: (point: ReportsTrendPoint) => string;
+  readonly metricLabel: string;
   readonly points: readonly ReportsTrendPoint[];
   readonly title: string;
   readonly valueFormatter: (value: number) => string;
 }) {
-  const maxValue = Math.max(...points.map((point) => point.value), 1);
-  const chartPoints = points.map((point, index) => ({
-    ...point,
-    x: points.length <= 1 ? 50 : (index / (points.length - 1)) * 100,
-    y: 100 - (point.value / maxValue) * 84 - 8,
-  }));
-  const polyline = chartPoints.map((point) => `${point.x},${point.y}`).join(" ");
+  const gradientId = useId().replace(/:/gu, "");
+  const chart = useMemo(() => createTrendChartModel(points), [points]);
+  const periodLabel = getTrendPeriodLabel(points);
+  const change = getTrendChange(points);
+  const totalValue = points.reduce((total, point) => total + point.value, 0);
 
   return (
     <section className="panel reports-chart-panel">
@@ -361,21 +363,82 @@ function TrendChart({
         </div>
       </div>
       {points.length > 0 ? (
-        <div className="reports-line-chart">
-          <svg aria-label={title} preserveAspectRatio="none" viewBox="0 0 100 100">
-            <polyline points={polyline} />
-            {chartPoints.map((point) => (
-              <a href={hrefForPoint(point)} key={point.date}>
-                <circle cx={point.x} cy={point.y} r="2.8">
-                  <title>{`${formatShortDate(point.date)}: ${valueFormatter(point.value)}`}</title>
-                </circle>
-              </a>
-            ))}
-          </svg>
-          <div className="reports-chart-axis">
-            <span>{formatShortDate(points[0]?.date ?? "")}</span>
-            <strong>{valueFormatter(maxValue)}</strong>
-            <span>{formatShortDate(points[points.length - 1]?.date ?? "")}</span>
+        <div className="reports-trend-card">
+          <div className="reports-trend-summary">
+            <div>
+              <span>{metricLabel}</span>
+              <strong>{valueFormatter(totalValue)}</strong>
+            </div>
+            <div>
+              <span>Change</span>
+              <strong className={change.tone}>{change.label}</strong>
+            </div>
+            <div>
+              <span>Period</span>
+              <strong>{periodLabel}</strong>
+            </div>
+          </div>
+
+          <div className="reports-line-chart">
+            <div className="reports-chart-stage">
+              <svg aria-label={title} preserveAspectRatio="none" viewBox="0 0 100 100">
+                <defs>
+                  <linearGradient id={`${gradientId}-fill`} x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%" stopColor="#2f8f68" stopOpacity="0.18" />
+                    <stop offset="100%" stopColor="#2f8f68" stopOpacity="0" />
+                  </linearGradient>
+                </defs>
+                <path
+                  className="reports-chart-area"
+                  d={chart.areaPath}
+                  fill={`url(#${gradientId}-fill)`}
+                />
+                <path className="reports-chart-line" d={chart.linePath} pathLength={1} />
+              </svg>
+              {chart.points.map((point) => (
+                <Link
+                  aria-label={`${title} on ${formatLongDate(point.date)}: ${valueFormatter(point.value)}`}
+                  className="reports-chart-point"
+                  href={hrefForPoint(point)}
+                  key={point.date}
+                  style={{ left: `${point.x}%`, top: `${point.y}%` }}
+                >
+                  <span className="reports-chart-marker" aria-hidden="true" />
+                  <span className="reports-chart-tooltip" role="tooltip">
+                    <strong>{formatLongDate(point.date)}</strong>
+                    <span>
+                      <b>Revenue</b>
+                      {formatCurrency(point.revenue)}
+                    </span>
+                    <span>
+                      <b>Orders</b>
+                      {point.orders}
+                    </span>
+                    <span>
+                      <b>Average order value</b>
+                      {formatCurrency(point.averageOrderValue)}
+                    </span>
+                    <span>
+                      <b>Best platform</b>
+                      {point.bestPlatform
+                        ? `${formatPlatform(point.bestPlatform.platform)} (${formatCurrency(point.bestPlatform.value)})`
+                        : "No orders"}
+                    </span>
+                    <span>
+                      <b>Top product</b>
+                      {point.topProduct
+                        ? `${point.topProduct.productName} (${point.topProduct.unitsSold})`
+                        : "No sales"}
+                    </span>
+                  </span>
+                </Link>
+              ))}
+            </div>
+            <div className="reports-chart-axis" aria-hidden="true">
+              {chart.axisLabels.map((label) => (
+                <span key={label.date}>{label.label}</span>
+              ))}
+            </div>
           </div>
         </div>
       ) : (
@@ -383,6 +446,130 @@ function TrendChart({
       )}
     </section>
   );
+}
+
+interface TrendChartPoint extends ReportsTrendPoint {
+  readonly x: number;
+  readonly y: number;
+}
+
+interface TrendChartModel {
+  readonly areaPath: string;
+  readonly axisLabels: readonly { readonly date: string; readonly label: string }[];
+  readonly linePath: string;
+  readonly points: readonly TrendChartPoint[];
+}
+
+function createTrendChartModel(points: readonly ReportsTrendPoint[]): TrendChartModel {
+  const maxValue = Math.max(...points.map((point) => point.value), 1);
+  const chartPoints = points.map((point, index) => ({
+    ...point,
+    x: points.length <= 1 ? 50 : 4 + (index / (points.length - 1)) * 92,
+    y: 88 - (point.value / maxValue) * 72,
+  }));
+  const linePath = toSmoothPath(chartPoints);
+  const areaPath =
+    chartPoints.length > 0
+      ? `${linePath} L ${chartPoints[chartPoints.length - 1]?.x ?? 96} 94 L ${chartPoints[0]?.x ?? 4} 94 Z`
+      : "";
+
+  return {
+    areaPath,
+    axisLabels: getAxisLabels(points),
+    linePath,
+    points: chartPoints,
+  };
+}
+
+function toSmoothPath(points: readonly TrendChartPoint[]): string {
+  if (points.length === 0) {
+    return "";
+  }
+
+  if (points.length === 1) {
+    const point = points[0] as TrendChartPoint;
+
+    return `M ${point.x} ${point.y} L ${point.x} ${point.y}`;
+  }
+
+  return points.reduce((path, point, index) => {
+    if (index === 0) {
+      return `M ${point.x} ${point.y}`;
+    }
+
+    const previous = points[index - 1] as TrendChartPoint;
+    const controlDistance = (point.x - previous.x) / 2;
+
+    return `${path} C ${previous.x + controlDistance} ${previous.y}, ${point.x - controlDistance} ${point.y}, ${point.x} ${point.y}`;
+  }, "");
+}
+
+function getAxisLabels(points: readonly ReportsTrendPoint[]) {
+  if (points.length <= 6) {
+    return points.map((point) => ({ date: point.date, label: formatShortDate(point.date) }));
+  }
+
+  const labelIndexes = new Set<number>();
+  const labelCount = 6;
+
+  for (let index = 0; index < labelCount; index += 1) {
+    labelIndexes.add(Math.round((index / (labelCount - 1)) * (points.length - 1)));
+  }
+
+  return [...labelIndexes]
+    .sort((left, right) => left - right)
+    .map((index) => {
+      const point = points[index] as ReportsTrendPoint;
+
+      return { date: point.date, label: formatShortDate(point.date) };
+    });
+}
+
+function getTrendPeriodLabel(points: readonly ReportsTrendPoint[]): string {
+  const firstPoint = points[0];
+  const lastPoint = points[points.length - 1];
+
+  if (!firstPoint || !lastPoint) {
+    return "No period";
+  }
+
+  if (firstPoint.date === lastPoint.date) {
+    return formatShortDate(firstPoint.date);
+  }
+
+  return `${formatShortDate(firstPoint.date)} - ${formatShortDate(lastPoint.date)}`;
+}
+
+function getTrendChange(points: readonly ReportsTrendPoint[]): {
+  readonly label: string;
+  readonly tone: "negative" | "neutral" | "positive";
+} {
+  if (points.length < 2) {
+    return { label: "No comparison", tone: "neutral" };
+  }
+
+  const splitIndex = Math.max(Math.floor(points.length / 2), 1);
+  const previous = points.slice(0, splitIndex).reduce((total, point) => total + point.value, 0);
+  const current = points.slice(splitIndex).reduce((total, point) => total + point.value, 0);
+
+  if (previous === 0 && current === 0) {
+    return { label: "No change", tone: "neutral" };
+  }
+
+  if (previous === 0) {
+    return { label: "New activity", tone: "positive" };
+  }
+
+  const percentage = Math.round(((current - previous) / previous) * 100);
+
+  if (percentage === 0) {
+    return { label: "No change", tone: "neutral" };
+  }
+
+  return {
+    label: `${percentage > 0 ? "+" : ""}${percentage}%`,
+    tone: percentage > 0 ? "positive" : "negative",
+  };
 }
 
 function PlatformBarChart({
@@ -642,6 +829,18 @@ function formatShortDate(value: string): string {
   return new Intl.DateTimeFormat("en-GB", {
     day: "2-digit",
     month: "short",
+  }).format(new Date(value));
+}
+
+function formatLongDate(value: string): string {
+  if (!value) {
+    return "";
+  }
+
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
   }).format(new Date(value));
 }
 

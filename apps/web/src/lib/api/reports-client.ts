@@ -33,8 +33,24 @@ export interface ReportsOverviewResponse {
 }
 
 export interface ReportsTrendPoint {
+  readonly averageOrderValue: number;
+  readonly bestPlatform: ReportsTrendPlatformSummary | null;
   readonly date: string;
+  readonly orders: number;
+  readonly revenue: number;
+  readonly topProduct: ReportsTrendProductSummary | null;
   readonly value: number;
+}
+
+export interface ReportsTrendPlatformSummary {
+  readonly platform: StorePlatform;
+  readonly value: number;
+}
+
+export interface ReportsTrendProductSummary {
+  readonly productName: string;
+  readonly revenue: number;
+  readonly unitsSold: number;
 }
 
 export interface ReportsPlatformMetric {

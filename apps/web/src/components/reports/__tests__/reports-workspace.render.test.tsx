@@ -23,9 +23,29 @@ describe("ReportsOverviewView", () => {
             revenue: 360,
           },
           ordersByPlatform: [{ platform: StorePlatform.Shopify, value: 3 }],
-          ordersTrend: [{ date: "2026-07-01", value: 3 }],
+          ordersTrend: [
+            {
+              averageOrderValue: 120,
+              bestPlatform: { platform: StorePlatform.Shopify, value: 360 },
+              date: "2026-07-01",
+              orders: 3,
+              revenue: 360,
+              topProduct: { productName: "Brass Desk Lamp", revenue: 360, unitsSold: 3 },
+              value: 3,
+            },
+          ],
           revenueByPlatform: [{ platform: StorePlatform.Shopify, value: 360 }],
-          revenueTrend: [{ date: "2026-07-01", value: 360 }],
+          revenueTrend: [
+            {
+              averageOrderValue: 120,
+              bestPlatform: { platform: StorePlatform.Shopify, value: 360 },
+              date: "2026-07-01",
+              orders: 3,
+              revenue: 360,
+              topProduct: { productName: "Brass Desk Lamp", revenue: 360, unitsSold: 3 },
+              value: 360,
+            },
+          ],
           stores: [],
           topCustomers: [
             {
@@ -56,6 +76,8 @@ describe("ReportsOverviewView", () => {
     expect(html).toContain("Top Products");
     expect(html).toContain("Top Customers");
     expect(html).toContain("Inventory Risk");
+    expect(html).toContain("Average order value");
+    expect(html).toContain("Best platform");
     expect(html).toContain("/platforms/SHOPIFY");
     expect(html).toContain("Brass Desk Lamp");
     expect(html).toContain("Ada Lovelace");
