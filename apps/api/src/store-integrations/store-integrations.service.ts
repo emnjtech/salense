@@ -1,6 +1,8 @@
 import {
   INTEGRATION_FACTORY,
   IntegrationPlatform,
+  defaultShopifyAdminApiVersion,
+  normalizeShopifyDomain,
   toAmazonSellerApiRegion,
   toTikTokShopApiRegion,
   WooCommerceApiVersion,
@@ -34,6 +36,7 @@ import {
 import {
   SYNC_QUEUE,
   AmazonSellerSyncJobName,
+  ShopifySyncJobName,
   TikTokShopSyncJobName,
   WooCommerceSyncJobName,
   type SyncJobEnqueueResult,
@@ -243,6 +246,7 @@ type CredentialConfiguration = Pick<
 > & {
   readonly amazonSellerValidationAccessToken?: string;
   readonly auditApiVersion?: string;
+  readonly shopifyValidationAccessToken?: string;
   readonly tikTokShopValidationAccessToken?: string;
 };
 
@@ -359,6 +363,9 @@ export class StoreIntegrationsService {
             : {}),
           ...(credentialConfiguration.tikTokShopValidationAccessToken
             ? { accessTokenHash: credentialConfiguration.tikTokShopValidationAccessToken }
+            : {}),
+          ...(credentialConfiguration.shopifyValidationAccessToken
+            ? { accessTokenHash: credentialConfiguration.shopifyValidationAccessToken }
             : {}),
         }),
       );
@@ -497,6 +504,50 @@ export class StoreIntegrationsService {
           shopId: credentials.shopId.trim(),
         },
         tikTokShopValidationAccessToken: credentials.accessToken.trim(),
+      };
+    }
+
+    if (request.platform === StorePlatform.Shopify) {
+      const credentials = request.shopifyCredentials;
+      const shopDomain = normalizeShopifyDomain(credentials?.shopDomain ?? request.storeUrl);
+
+      if (!request.storeUrl?.trim()) {
+        throw new BadRequestException("Shopify store URL is required.");
+      }
+
+      if (!credentials) {
+        throw new BadRequestException("Shopify credentials are required.");
+      }
+
+      if (!shopDomain) {
+        throw new BadRequestException("Shopify shop domain is required.");
+      }
+
+      const apiVersion = credentials.apiVersion?.trim() || defaultShopifyAdminApiVersion;
+      const encryptedAccessToken = this.credentialEncryption.encrypt(credentials.accessToken.trim());
+
+      return {
+        accessTokenHash: hashCredentialPlaceholder(credentials.accessToken),
+        accessTokenMetadata: {
+          apiVersion,
+          credentialKind: "shopify_admin_access_token",
+          encryptedCredential: encryptedAccessToken,
+          shopDomain,
+        },
+        apiVersion,
+        auditApiVersion: apiVersion,
+        consumerKey: shopDomain,
+        consumerKeyMetadata: {
+          configured: true,
+          keyId: encryptedAccessToken.keyId,
+        },
+        refreshTokenHash: "",
+        refreshTokenMetadata: {
+          apiVersion,
+          credentialKind: "shopify_no_refresh_token_for_private_app_token",
+          shopDomain,
+        },
+        shopifyValidationAccessToken: credentials.accessToken.trim(),
       };
     }
 
@@ -734,6 +785,8 @@ export class StoreIntegrationsService {
       const jobs =
         platform === StorePlatform.TikTokShop
           ? await this.syncQueue.getTikTokShopStoreJobStatuses(storeId)
+          : platform === StorePlatform.Shopify
+            ? await this.syncQueue.getShopifyStoreJobStatuses(storeId)
           : platform === StorePlatform.AmazonSeller
             ? await this.syncQueue.getAmazonSellerStoreJobStatuses(storeId)
             : await this.syncQueue.getWooCommerceStoreJobStatuses(storeId);
@@ -789,6 +842,14 @@ export class StoreIntegrationsService {
           resource: "all",
           storeId: store.id,
         });
+      case StorePlatform.Shopify:
+        return this.syncQueue.enqueueShopifySyncJob(ShopifySyncJobName.ManualFullSync, {
+          platform: StorePlatform.Shopify,
+          queuedAt: queuedAt.toISOString(),
+          requestedByUserId: userId,
+          resource: "all",
+          storeId: store.id,
+        });
       case StorePlatform.WooCommerce:
         return this.syncQueue.enqueueWooCommerceSyncJob(WooCommerceSyncJobName.ManualFullSync, {
           platform: StorePlatform.WooCommerce,
@@ -818,6 +879,8 @@ function getConnectionCreatedAuditAction(platform: StorePlatform): AuditAction {
       return AuditAction.AmazonSellerConnectionCreated;
     case StorePlatform.TikTokShop:
       return AuditAction.TikTokShopConnectionCreated;
+    case StorePlatform.Shopify:
+      return AuditAction.ShopifyConnectionCreated;
   }
 }
 
@@ -829,6 +892,8 @@ function getConnectionSucceededAuditAction(platform: StorePlatform): AuditAction
       return AuditAction.AmazonSellerConnectionValidationSucceeded;
     case StorePlatform.TikTokShop:
       return AuditAction.TikTokShopConnectionValidationSucceeded;
+    case StorePlatform.Shopify:
+      return AuditAction.ShopifyConnectionValidationSucceeded;
   }
 }
 
@@ -840,6 +905,8 @@ function getConnectionFailedAuditAction(platform: StorePlatform): AuditAction {
       return AuditAction.AmazonSellerConnectionValidationFailed;
     case StorePlatform.TikTokShop:
       return AuditAction.TikTokShopConnectionValidationFailed;
+    case StorePlatform.Shopify:
+      return AuditAction.ShopifyConnectionValidationFailed;
   }
 }
 
@@ -881,6 +948,8 @@ function toIntegrationPlatform(platform: StorePlatform): IntegrationPlatform {
       return IntegrationPlatform.AmazonSeller;
     case StorePlatform.TikTokShop:
       return IntegrationPlatform.TikTokShop;
+    case StorePlatform.Shopify:
+      return IntegrationPlatform.Shopify;
   }
 
   throw new BadRequestException("Unsupported store platform.");

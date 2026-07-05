@@ -2,6 +2,7 @@ export enum StorePlatform {
   WooCommerce = "WOOCOMMERCE",
   AmazonSeller = "AMAZON_SELLER",
   TikTokShop = "TIKTOK_SHOP",
+  Shopify = "SHOPIFY",
 }
 
 export enum StoreConnectionStatus {
@@ -49,7 +50,11 @@ export interface StoreSyncJobStatus {
   readonly failedReason?: string;
   readonly finishedAt?: string;
   readonly jobId: string;
-  readonly platform: StorePlatform.WooCommerce | StorePlatform.AmazonSeller | StorePlatform.TikTokShop;
+  readonly platform:
+    | StorePlatform.WooCommerce
+    | StorePlatform.AmazonSeller
+    | StorePlatform.TikTokShop
+    | StorePlatform.Shopify;
   readonly queuedAt: string;
   readonly status: "QUEUED" | "ACTIVE" | "COMPLETED" | "FAILED" | "UNKNOWN";
   readonly storeId: string;
@@ -90,6 +95,14 @@ export interface TikTokShopConnectionInput {
   readonly storeName: string;
 }
 
+export interface ShopifyConnectionInput {
+  readonly accessToken: string;
+  readonly apiVersion?: string;
+  readonly shopDomain: string;
+  readonly storeName: string;
+  readonly storeUrl: string;
+}
+
 export interface ManualSyncJobResponse {
   readonly jobId: string;
   readonly platform: StorePlatform;
@@ -126,6 +139,7 @@ export interface StoreIntegrationsApiClient {
   listSupportedPlatforms(): Promise<readonly SupportedStorePlatform[]>;
   listConnectedStores(): Promise<readonly ConnectedStore[]>;
   connectAmazonSeller(input: AmazonSellerConnectionInput): Promise<ConnectedStore>;
+  connectShopify(input: ShopifyConnectionInput): Promise<ConnectedStore>;
   connectTikTokShop(input: TikTokShopConnectionInput): Promise<ConnectedStore>;
   connectWooCommerce(input: WooCommerceConnectionInput): Promise<ConnectedStore>;
   requestManualSync(storeId: string): Promise<ManualSyncJobResponse>;
@@ -185,6 +199,12 @@ export function createStoreIntegrationsApiClient(
     connectAmazonSeller(input) {
       return request<ConnectedStore>("/store-integrations/connect", {
         body: JSON.stringify(toAmazonSellerConnectionPayload(input)),
+        method: "POST",
+      });
+    },
+    connectShopify(input) {
+      return request<ConnectedStore>("/store-integrations/connect", {
+        body: JSON.stringify(toShopifyConnectionPayload(input)),
         method: "POST",
       });
     },
@@ -307,6 +327,28 @@ export function toTikTokShopConnectionPayload(input: TikTokShopConnectionInput):
       shopCipher: input.shopCipher.trim(),
       shopId: input.shopId.trim(),
     },
+  };
+}
+
+export function toShopifyConnectionPayload(input: ShopifyConnectionInput): {
+  readonly platform: StorePlatform.Shopify;
+  readonly shopifyCredentials: {
+    readonly accessToken: string;
+    readonly apiVersion?: string;
+    readonly shopDomain: string;
+  };
+  readonly storeName: string;
+  readonly storeUrl: string;
+} {
+  return {
+    platform: StorePlatform.Shopify,
+    shopifyCredentials: {
+      accessToken: input.accessToken.trim(),
+      ...(input.apiVersion?.trim() ? { apiVersion: input.apiVersion.trim() } : {}),
+      shopDomain: input.shopDomain.trim(),
+    },
+    storeName: input.storeName.trim(),
+    storeUrl: input.storeUrl.trim(),
   };
 }
 

@@ -1,12 +1,14 @@
 import type { Job, WorkerOptions } from "bullmq";
 import {
   AmazonSellerSyncJobName,
+  ShopifySyncJobName,
   syncQueueName,
   TikTokShopSyncJobName,
   WooCommerceSyncJobName,
 } from "@salense/shared";
 import type {
   AmazonSellerSyncJobData,
+  ShopifySyncJobData,
   SyncJobData,
   TikTokShopSyncJobData,
   WooCommerceSyncJobData,
@@ -38,6 +40,7 @@ describe("sync worker", () => {
     const handler = { handle: jest.fn().mockResolvedValue({ status: "SUCCESS" }) };
     const amazonSellerHandler = { handle: jest.fn().mockResolvedValue({ status: "SUCCESS" }) };
     const tikTokShopHandler = { handle: jest.fn().mockResolvedValue({ status: "SUCCESS" }) };
+    const shopifyHandler = { handle: jest.fn().mockResolvedValue({ status: "SUCCESS" }) };
     const close = jest.fn().mockResolvedValue(undefined);
     const on = jest.fn().mockReturnThis();
     let registeredProcessor:
@@ -45,7 +48,7 @@ describe("sync worker", () => {
           job: Job<
             SyncJobData,
             unknown,
-            WooCommerceSyncJobName | AmazonSellerSyncJobName | TikTokShopSyncJobName
+            WooCommerceSyncJobName | AmazonSellerSyncJobName | TikTokShopSyncJobName | ShopifySyncJobName
           >,
         ) => Promise<unknown>)
       | undefined;
@@ -56,7 +59,7 @@ describe("sync worker", () => {
           job: Job<
             SyncJobData,
             unknown,
-            WooCommerceSyncJobName | AmazonSellerSyncJobName | TikTokShopSyncJobName
+            WooCommerceSyncJobName | AmazonSellerSyncJobName | TikTokShopSyncJobName | ShopifySyncJobName
           >,
         ) => Promise<unknown>,
         options: WorkerOptions,
@@ -72,6 +75,7 @@ describe("sync worker", () => {
       amazonSellerHandler,
       connection: { host: "localhost", port: 6379 },
       handler,
+      shopifyHandler,
       tikTokShopHandler,
       workerFactory,
     });
@@ -97,6 +101,13 @@ describe("sync worker", () => {
       ),
     ).resolves.toEqual({ status: "SUCCESS" });
     expect(tikTokShopHandler.handle).toHaveBeenCalledWith(expect.objectContaining({ id: "job_tiktok_1" }));
+
+    await expect(
+      registeredProcessor?.(
+        createShopifyJob({ name: ShopifySyncJobName.ManualFullSync }),
+      ),
+    ).resolves.toEqual({ status: "SUCCESS" });
+    expect(shopifyHandler.handle).toHaveBeenCalledWith(expect.objectContaining({ id: "job_shopify_1" }));
   });
 
   it("rejects unsupported job names before calling the handler", async () => {
@@ -174,6 +185,41 @@ describe("sync worker", () => {
     ).rejects.toThrow("TikTok Shop sync handler is not available.");
     expect(wooCommerceHandler.handle).not.toHaveBeenCalled();
   });
+
+  it("routes Shopify jobs through the Shopify handler", async () => {
+    const wooCommerceHandler = { handle: jest.fn() };
+    const amazonSellerHandler = { handle: jest.fn() };
+    const tikTokShopHandler = { handle: jest.fn() };
+    const shopifyHandler = { handle: jest.fn().mockResolvedValue({ status: "SUCCESS" }) };
+
+    await expect(
+      processSyncJob(
+        createShopifyJob({ name: ShopifySyncJobName.OrdersSync }),
+        wooCommerceHandler,
+        amazonSellerHandler,
+        tikTokShopHandler,
+        shopifyHandler,
+      ),
+    ).resolves.toEqual({ status: "SUCCESS" });
+    expect(shopifyHandler.handle).toHaveBeenCalledWith(expect.objectContaining({ id: "job_shopify_1" }));
+    expect(wooCommerceHandler.handle).not.toHaveBeenCalled();
+  });
+
+  it("rejects Shopify jobs when the Shopify handler is unavailable", async () => {
+    const wooCommerceHandler = { handle: jest.fn() };
+    const amazonSellerHandler = { handle: jest.fn() };
+    const tikTokShopHandler = { handle: jest.fn() };
+
+    await expect(
+      processSyncJob(
+        createShopifyJob({ name: ShopifySyncJobName.OrdersSync }),
+        wooCommerceHandler,
+        amazonSellerHandler,
+        tikTokShopHandler,
+      ),
+    ).rejects.toThrow("Shopify sync handler is not available.");
+    expect(wooCommerceHandler.handle).not.toHaveBeenCalled();
+  });
 });
 
 function createAmazonJob(
@@ -208,4 +254,21 @@ function createTikTokJob(
     name: TikTokShopSyncJobName.ManualFullSync,
     ...input,
   } as Job<TikTokShopSyncJobData, unknown, TikTokShopSyncJobName>;
+}
+
+function createShopifyJob(
+  input: Partial<Job<ShopifySyncJobData, unknown, ShopifySyncJobName>>,
+) {
+  return {
+    data: {
+      platform: "SHOPIFY",
+      queuedAt: "2026-07-03T14:00:00.000Z",
+      requestedByUserId: "user_1",
+      resource: "all",
+      storeId: "store_shopify_1",
+    },
+    id: "job_shopify_1",
+    name: ShopifySyncJobName.ManualFullSync,
+    ...input,
+  } as Job<ShopifySyncJobData, unknown, ShopifySyncJobName>;
 }

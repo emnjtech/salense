@@ -67,8 +67,8 @@ export function TodayDashboard() {
           <p className="eyebrow">Unified Today</p>
           <h1>Multi-channel commerce intelligence in one daily view.</h1>
           <p>
-            Compare WooCommerce, Amazon Seller, and TikTok Shop revenue, orders, product momentum,
-            stock risk, and Business Health Score without changing source records.
+            Compare WooCommerce, Amazon Seller, TikTok Shop, and Shopify revenue, orders, product
+            momentum, stock risk, and Business Health Score without changing source records.
           </p>
         </div>
         <button className="secondary-button" onClick={() => void loadDashboard()} type="button">
@@ -416,6 +416,8 @@ function formatPlatform(platform: StorePlatform): string {
       return "Amazon Seller";
     case StorePlatform.TikTokShop:
       return "TikTok Shop";
+    case StorePlatform.Shopify:
+      return "Shopify";
     case StorePlatform.WooCommerce:
       return "WooCommerce";
   }

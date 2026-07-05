@@ -9,6 +9,7 @@ The MVP demo seed creates a local multi-platform commerce dataset for the Innova
 - One connected WooCommerce store
 - One connected Amazon Seller store
 - One connected TikTok Shop store
+- One connected Shopify store
 - Orders and order items across today, yesterday, and earlier history
 - Products, customers, inventory snapshots, categories, refunds, and sync cursors
 
@@ -36,6 +37,7 @@ The script is rerunnable. It deletes the existing demo user by email and recreat
 
 - Amazon Seller is the strongest platform for today's revenue.
 - TikTok Shop contributes visible product velocity.
+- Shopify contributes visible direct-store revenue, customers, inventory, and refund data.
 - WooCommerce includes a partial refund for refund-count visibility.
 - Low-stock and out-of-stock products are included for Today, Products, and Inventory page signals.
 - Today and yesterday orders are included so revenue-change metrics are meaningful.

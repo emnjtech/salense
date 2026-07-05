@@ -22,8 +22,15 @@ export async function bootstrapSyncWorker(
   const config = options.config ?? loadSyncWorkerConfig(options.env);
   const handlerContext = await (options.loadHandlerContext ?? loadWooCommerceSyncJobHandlerContext)();
   const worker = createSyncWorker({
+    ...(handlerContext.amazonSellerHandler
+      ? { amazonSellerHandler: handlerContext.amazonSellerHandler }
+      : {}),
     connection: config.redis,
     handler: handlerContext.handler,
+    ...(handlerContext.shopifyHandler ? { shopifyHandler: handlerContext.shopifyHandler } : {}),
+    ...(handlerContext.tikTokShopHandler
+      ? { tikTokShopHandler: handlerContext.tikTokShopHandler }
+      : {}),
     ...(options.workerFactory ? { workerFactory: options.workerFactory } : {}),
   });
 

@@ -7,33 +7,34 @@ Covered Version 1 platforms:
 - WooCommerce
 - Amazon Seller
 - TikTok Shop
+- Shopify
 
 ## Executive Status
 
-WooCommerce, Amazon Seller, and TikTok Shop now share the MVP integration path. Each platform appears in Store Integrations, accepts platform-specific credentials, validates connections through a read-only provider/client path, supports manual sync, supports recurring sync scheduling, exposes safe sync status, and maps marketplace reads into normalized commerce tables.
+WooCommerce, Amazon Seller, TikTok Shop, and Shopify now share the MVP integration path. Each platform appears in Store Integrations, accepts platform-specific credentials, validates connections through a read-only provider/client path, supports manual sync, supports recurring sync scheduling, exposes safe sync status, and maps marketplace reads into normalized commerce tables.
 
 The MVP remains read-only. Salense does not create, update, delete, fulfil, or otherwise mutate marketplace records.
 
 ## Parity Summary
 
-| Capability | WooCommerce | Amazon Seller | TikTok Shop |
-| --- | --- | --- | --- |
-| Store Integrations UI visibility | Implemented | Implemented | Implemented |
-| Credential input | Implemented | Implemented | Implemented |
-| Secure credential storage | Implemented | Implemented | Implemented |
-| Connection validation | Implemented | Implemented | Implemented |
-| Read-only client | Implemented | Implemented | Implemented |
-| Manual sync queueing | Implemented | Implemented | Implemented |
-| Scheduled sync | Implemented | Implemented | Implemented |
-| Worker routing | Implemented | Implemented | Implemented |
-| Sync cursors | Implemented | Implemented | Implemented |
-| Sync status endpoint | Implemented | Implemented | Implemented |
-| Audit events | Implemented | Implemented | Implemented |
-| Normalized commerce persistence | Implemented | Implemented | Implemented |
+| Capability | WooCommerce | Amazon Seller | TikTok Shop | Shopify |
+| --- | --- | --- | --- | --- |
+| Store Integrations UI visibility | Implemented | Implemented | Implemented | Implemented |
+| Credential input | Implemented | Implemented | Implemented | Implemented |
+| Secure credential storage | Implemented | Implemented | Implemented | Implemented |
+| Connection validation | Implemented | Implemented | Implemented | Implemented |
+| Read-only client | Implemented | Implemented | Implemented | Implemented |
+| Manual sync queueing | Implemented | Implemented | Implemented | Implemented |
+| Scheduled sync | Implemented | Implemented | Implemented | Implemented |
+| Worker routing | Implemented | Implemented | Implemented | Implemented |
+| Sync cursors | Implemented | Implemented | Implemented | Implemented |
+| Sync status endpoint | Implemented | Implemented | Implemented | Implemented |
+| Audit events | Implemented | Implemented | Implemented | Implemented |
+| Normalized commerce persistence | Implemented | Implemented | Implemented | Implemented |
 
 ## Commerce Aggregation
 
-The following MVP modules aggregate normalized data across WooCommerce, Amazon Seller, and TikTok Shop by default, while preserving platform identity and business ownership:
+The following MVP modules aggregate normalized data across WooCommerce, Amazon Seller, TikTok Shop, and Shopify by default, while preserving platform identity and business ownership:
 
 - Today
 - Orders
@@ -79,7 +80,6 @@ Out of scope for this checkpoint:
 - roles
 - reports
 - forecasting
-- Shopify
 - marketplace write operations
 - live demo dependency on real marketplace credentials
 
@@ -87,20 +87,20 @@ Out of scope for this checkpoint:
 
 Current automated coverage includes:
 
-- provider registration for all three MVP platforms
+- provider registration for all four MVP platforms
 - DTO validation for supported platforms and credential shapes
 - secure credential encryption and safe response behavior
 - read-only REST client behavior
 - raw-to-normalized mapper behavior
 - sync service read, map, persist, cursor, and audit behavior
 - manual sync job queueing
-- scheduled sync creation for WooCommerce, Amazon Seller, and TikTok Shop
-- worker routing for all three platforms
+- scheduled sync creation for WooCommerce, Amazon Seller, TikTok Shop, and Shopify
+- worker routing for all four platforms
 - sync status safe response handling
 - commerce aggregation tests for multi-platform dashboard, orders, products, customers, and inventory paths
 
 ## Remaining Differences
 
-The MVP uses platform-specific credential forms and read clients rather than full production OAuth redirect flows for every marketplace. This is acceptable for the local MVP demo because seeded data demonstrates the complete multi-channel commerce story without requiring live WooCommerce, Amazon Seller, or TikTok Shop credentials.
+The MVP uses platform-specific credential forms and read clients rather than full production OAuth redirect flows for every marketplace. This is acceptable for the local MVP demo because seeded data demonstrates the complete multi-channel commerce story without requiring live WooCommerce, Amazon Seller, TikTok Shop, or Shopify credentials.
 
 Future production work should define official OAuth/authorization flows, token refresh policies, adaptive rate-limit handling, quota observability, user-facing retry controls, and notification policies for expired or failed integrations.

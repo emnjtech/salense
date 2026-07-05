@@ -5,6 +5,7 @@ import {
   INTEGRATION_REGISTRY,
   IntegrationFactory,
   IntegrationRegistry,
+  ShopifyIntegrationProvider,
   TikTokShopIntegrationProvider,
   WooCommerceIntegrationProvider,
 } from "@salense/integrations";
@@ -18,6 +19,7 @@ import {
           new WooCommerceIntegrationProvider(),
           new AmazonSellerIntegrationProvider(),
           new TikTokShopIntegrationProvider(),
+          new ShopifyIntegrationProvider(),
         ]),
     },
     {

@@ -3,6 +3,7 @@ import {
   WooCommerceApiVersion,
   createStoreIntegrationsApiClient,
   toAmazonSellerConnectionPayload,
+  toShopifyConnectionPayload,
   toTikTokShopConnectionPayload,
   toWooCommerceConnectionPayload,
 } from "../api/store-integrations-client";
@@ -96,6 +97,28 @@ describe("store integrations API client", () => {
         shopCipher: "shop-cipher",
         shopId: "shop-id",
       },
+    });
+    expect(JSON.stringify(payload).toLowerCase()).not.toContain("password");
+  });
+
+  it("builds Shopify connection payloads without marketplace password fields", () => {
+    const payload = toShopifyConnectionPayload({
+      accessToken: " shpat_test_access_token ",
+      apiVersion: " 2024-10 ",
+      shopDomain: " northstar-home.myshopify.com ",
+      storeName: " Shopify UK ",
+      storeUrl: " https://northstar-home.myshopify.com ",
+    });
+
+    expect(payload).toEqual({
+      platform: StorePlatform.Shopify,
+      shopifyCredentials: {
+        accessToken: "shpat_test_access_token",
+        apiVersion: "2024-10",
+        shopDomain: "northstar-home.myshopify.com",
+      },
+      storeName: "Shopify UK",
+      storeUrl: "https://northstar-home.myshopify.com",
     });
     expect(JSON.stringify(payload).toLowerCase()).not.toContain("password");
   });

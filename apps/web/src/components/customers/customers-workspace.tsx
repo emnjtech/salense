@@ -88,7 +88,7 @@ export function CustomersWorkspace() {
           <p className="eyebrow">Customer Intelligence</p>
           <h1>Understand customer value across every connected channel.</h1>
           <p>
-            Review normalized WooCommerce, Amazon Seller, and TikTok Shop customers with
+            Review normalized WooCommerce, Amazon Seller, TikTok Shop, and Shopify customers with
             deterministic purchase metrics and platform identity preserved.
           </p>
         </div>
@@ -143,6 +143,7 @@ export function CustomersWorkspace() {
             <option value={StorePlatform.WooCommerce}>WooCommerce</option>
             <option value={StorePlatform.AmazonSeller}>Amazon Seller</option>
             <option value={StorePlatform.TikTokShop}>TikTok Shop</option>
+            <option value={StorePlatform.Shopify}>Shopify</option>
           </select>
           <input
             aria-label="Country"
@@ -289,6 +290,8 @@ function formatPlatform(platform: StorePlatform): string {
       return "Amazon Seller";
     case StorePlatform.TikTokShop:
       return "TikTok Shop";
+    case StorePlatform.Shopify:
+      return "Shopify";
     case StorePlatform.WooCommerce:
       return "WooCommerce";
   }

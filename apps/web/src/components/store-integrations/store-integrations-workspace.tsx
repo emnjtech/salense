@@ -51,6 +51,14 @@ interface TikTokShopFormState {
   readonly storeName: string;
 }
 
+interface ShopifyFormState {
+  readonly accessToken: string;
+  readonly apiVersion: string;
+  readonly shopDomain: string;
+  readonly storeName: string;
+  readonly storeUrl: string;
+}
+
 const emptyWooCommerceForm: WooCommerceFormState = {
   consumerKey: "",
   consumerSecret: "",
@@ -76,6 +84,14 @@ const emptyTikTokShopForm: TikTokShopFormState = {
   storeName: "",
 };
 
+const emptyShopifyForm: ShopifyFormState = {
+  accessToken: "",
+  apiVersion: "2024-10",
+  shopDomain: "",
+  storeName: "",
+  storeUrl: "",
+};
+
 export function StoreIntegrationsWorkspace() {
   const [platforms, setPlatforms] = useState<readonly SupportedStorePlatform[]>([]);
   const [stores, setStores] = useState<readonly ConnectedStore[]>([]);
@@ -85,6 +101,7 @@ export function StoreIntegrationsWorkspace() {
     useState<AmazonSellerFormState>(emptyAmazonSellerForm);
   const [tikTokFormState, setTikTokFormState] =
     useState<TikTokShopFormState>(emptyTikTokShopForm);
+  const [shopifyFormState, setShopifyFormState] = useState<ShopifyFormState>(emptyShopifyForm);
   const [loading, setLoading] = useState(true);
   const [actionStoreId, setActionStoreId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -228,15 +245,40 @@ export function StoreIntegrationsWorkspace() {
     }
   }
 
+  async function handleShopifyConnect(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setActionStoreId("connect-shopify");
+    setError(null);
+    setNotice(null);
+
+    try {
+      const connectedStore = await apiClient.connectShopify({
+        accessToken: shopifyFormState.accessToken,
+        apiVersion: shopifyFormState.apiVersion,
+        shopDomain: shopifyFormState.shopDomain,
+        storeName: shopifyFormState.storeName,
+        storeUrl: shopifyFormState.storeUrl,
+      });
+
+      setNotice(`${connectedStore.storeName} was submitted for Shopify validation.`);
+      setShopifyFormState(emptyShopifyForm);
+      await loadWorkspace();
+    } catch (caughtError) {
+      setError(getFriendlyErrorMessage(caughtError));
+    } finally {
+      setActionStoreId(null);
+    }
+  }
+
   return (
     <main className="workspace">
       <header className="workspace-header">
         <div>
           <p className="eyebrow">Store Integrations</p>
-          <h1>Three connected channels, one read-only commerce layer.</h1>
+          <h1>Four connected channels, one read-only commerce layer.</h1>
           <p>
-            Review seeded WooCommerce, Amazon Seller, and TikTok Shop connections while preserving
-            marketplace data and credentials safely.
+            Review seeded WooCommerce, Amazon Seller, TikTok Shop, and Shopify connections while
+            preserving marketplace data and credentials safely.
           </p>
         </div>
         <button className="secondary-button" type="button" onClick={() => void loadWorkspace()}>
@@ -294,7 +336,10 @@ export function StoreIntegrationsWorkspace() {
           <div className="panel-heading">
             <div>
               <h2>Supported Platforms</h2>
-              <p>The MVP demo presents WooCommerce, Amazon Seller, and TikTok Shop side by side.</p>
+              <p>
+                The MVP demo presents WooCommerce, Amazon Seller, TikTok Shop, and Shopify side by
+                side.
+              </p>
             </div>
           </div>
 
@@ -630,6 +675,115 @@ export function StoreIntegrationsWorkspace() {
             </button>
           </form>
         </section>
+
+        <section className="panel">
+          <div className="panel-heading">
+            <div>
+              <h2>Connect Shopify</h2>
+              <p>
+                Optional Shopify setup for local testing; Admin API credentials are encrypted and
+                used read-only.
+              </p>
+            </div>
+          </div>
+
+          <form className="integration-form" onSubmit={(event) => void handleShopifyConnect(event)}>
+            <label>
+              Store name
+              <input
+                autoComplete="organization"
+                name="shopifyStoreName"
+                onChange={(event) =>
+                  setShopifyFormState((current) => ({
+                    ...current,
+                    storeName: event.target.value,
+                  }))
+                }
+                placeholder="Shopify UK"
+                required
+                value={shopifyFormState.storeName}
+              />
+            </label>
+            <label>
+              Store URL
+              <input
+                autoComplete="url"
+                inputMode="url"
+                name="shopifyStoreUrl"
+                onChange={(event) =>
+                  setShopifyFormState((current) => ({
+                    ...current,
+                    storeUrl: event.target.value,
+                  }))
+                }
+                placeholder="https://northstar.myshopify.com"
+                required
+                type="url"
+                value={shopifyFormState.storeUrl}
+              />
+            </label>
+            <label>
+              Shop domain
+              <input
+                autoComplete="off"
+                name="shopifyShopDomain"
+                onChange={(event) =>
+                  setShopifyFormState((current) => ({
+                    ...current,
+                    shopDomain: event.target.value,
+                  }))
+                }
+                placeholder="northstar.myshopify.com"
+                required
+                value={shopifyFormState.shopDomain}
+              />
+            </label>
+            <label>
+              Admin API access token
+              <input
+                autoComplete="off"
+                name="shopifyAccessToken"
+                onChange={(event) =>
+                  setShopifyFormState((current) => ({
+                    ...current,
+                    accessToken: event.target.value,
+                  }))
+                }
+                required
+                type="password"
+                value={shopifyFormState.accessToken}
+              />
+            </label>
+            <label>
+              API version
+              <input
+                autoComplete="off"
+                name="shopifyApiVersion"
+                onChange={(event) =>
+                  setShopifyFormState((current) => ({
+                    ...current,
+                    apiVersion: event.target.value,
+                  }))
+                }
+                placeholder="2024-10"
+                required
+                value={shopifyFormState.apiVersion}
+              />
+            </label>
+            <button
+              className="primary-button"
+              disabled={!hasAccessToken || actionStoreId === "connect-shopify"}
+              type="submit"
+            >
+              {actionStoreId === "connect-shopify" ? (
+                <Loader2 className="spin" size={16} aria-hidden="true" />
+              ) : (
+                <PlugZap size={16} aria-hidden="true" />
+              )}
+              Connect Shopify
+            </button>
+          </form>
+        </section>
       </div>
 
       <section className="panel stores-panel">
@@ -644,7 +798,7 @@ export function StoreIntegrationsWorkspace() {
         {!loading && stores.length === 0 ? (
           <EmptyState
             title="No connected stores"
-            body="Run the demo seed to create connected WooCommerce, Amazon Seller, and TikTok Shop stores."
+            body="Run the demo seed to create connected WooCommerce, Amazon Seller, TikTok Shop, and Shopify stores."
           />
         ) : null}
 
@@ -884,7 +1038,8 @@ function isSyncEnabledPlatform(platform: StorePlatform): boolean {
   return (
     platform === StorePlatform.WooCommerce ||
     platform === StorePlatform.AmazonSeller ||
-    platform === StorePlatform.TikTokShop
+    platform === StorePlatform.TikTokShop ||
+    platform === StorePlatform.Shopify
   );
 }
 
@@ -894,6 +1049,8 @@ function getPlatformLabel(platform: StorePlatform): string {
       return "Amazon Seller";
     case StorePlatform.TikTokShop:
       return "TikTok Shop";
+    case StorePlatform.Shopify:
+      return "Shopify";
     case StorePlatform.WooCommerce:
       return "WooCommerce";
   }

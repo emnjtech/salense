@@ -9,8 +9,8 @@ export function DemoModeBanner() {
       <div>
         <strong>Demo workspace: Northstar Home Goods</strong>
         <span>
-          Seeded WooCommerce, Amazon Seller, and TikTok Shop data for Today, Orders, Products,
-          Customers, and Inventory.
+          Seeded WooCommerce, Amazon Seller, TikTok Shop, and Shopify data for Today, Orders,
+          Products, Customers, and Inventory.
         </span>
       </div>
       <div className="demo-mode-pill">

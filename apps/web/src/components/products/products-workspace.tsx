@@ -141,6 +141,7 @@ export function ProductsWorkspace() {
             <option value={StorePlatform.WooCommerce}>WooCommerce</option>
             <option value={StorePlatform.AmazonSeller}>Amazon Seller</option>
             <option value={StorePlatform.TikTokShop}>TikTok Shop</option>
+            <option value={StorePlatform.Shopify}>Shopify</option>
           </select>
           <input
             aria-label="Stock status"
@@ -207,7 +208,7 @@ function ProductsLoadingState() {
   return (
     <section className="today-loading" aria-label="Loading products">
       <Loader2 className="spin" size={24} aria-hidden="true" />
-      <span>Loading seeded product performance across all three platforms...</span>
+      <span>Loading seeded product performance across all supported platforms...</span>
     </section>
   );
 }
@@ -289,6 +290,8 @@ function formatPlatform(platform: StorePlatform): string {
       return "Amazon Seller";
     case StorePlatform.TikTokShop:
       return "TikTok Shop";
+    case StorePlatform.Shopify:
+      return "Shopify";
     case StorePlatform.WooCommerce:
       return "WooCommerce";
   }

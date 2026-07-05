@@ -1,7 +1,7 @@
 import type { PrismaClient } from "../packages/database/src/index.js" with { "resolution-mode": "import" };
 
 type JsonObject = Record<string, unknown>;
-type StorePlatformType = "WOOCOMMERCE" | "AMAZON_SELLER" | "TIKTOK_SHOP";
+type StorePlatformType = "WOOCOMMERCE" | "AMAZON_SELLER" | "TIKTOK_SHOP" | "SHOPIFY";
 type StoreConnectionStatusType = "CONNECTED";
 type CommerceSyncCursorStatusType = "SUCCESS";
 type CommerceSyncResourceType =
@@ -14,6 +14,7 @@ type CommerceSyncResourceType =
 
 const StorePlatform = {
   AMAZON_SELLER: "AMAZON_SELLER",
+  SHOPIFY: "SHOPIFY",
   TIKTOK_SHOP: "TIKTOK_SHOP",
   WOOCOMMERCE: "WOOCOMMERCE",
 } as const satisfies Record<string, StorePlatformType>;
@@ -51,6 +52,7 @@ const demoBusiness = {
 
 const demoStoreIds = {
   amazon: "demo_store_amazon_seller",
+  shopify: "demo_store_shopify",
   tiktok: "demo_store_tiktok_shop",
   woo: "demo_store_woocommerce",
 } as const;
@@ -76,6 +78,13 @@ const stores = [
     storeName: "Northstar Amazon UK",
     storeUrl: null,
     region: "GB",
+  },
+  {
+    id: demoStoreIds.shopify,
+    platform: StorePlatform.SHOPIFY,
+    storeName: "Northstar Shopify",
+    storeUrl: "https://northstar-home.myshopify.com",
+    region: null,
   },
   {
     id: demoStoreIds.tiktok,
@@ -108,6 +117,28 @@ const products = [
     priceAmount: "42.00",
     sku: "GLOW-KIT-TT",
     stockStatus: "instock",
+  }),
+  product({
+    category: "Storage",
+    connectedStoreId: demoStoreIds.shopify,
+    currentStockQuantity: 9,
+    name: "Bamboo Drawer Divider",
+    platform: StorePlatform.SHOPIFY,
+    platformProductId: "SHOP-BAMBOO-DIVIDER",
+    priceAmount: "32.00",
+    sku: "BAMBOO-DIV-SHOP",
+    stockStatus: "instock",
+  }),
+  product({
+    category: "Accessories",
+    connectedStoreId: demoStoreIds.shopify,
+    currentStockQuantity: 1,
+    name: "Marble Soap Tray",
+    platform: StorePlatform.SHOPIFY,
+    platformProductId: "SHOP-MARBLE-TRAY",
+    priceAmount: "18.00",
+    sku: "MARBLE-TRAY-SHOP",
+    stockStatus: "lowstock",
   }),
   product({
     category: "Storage",
@@ -197,6 +228,26 @@ const customers = [
     "Leeds",
   ),
   customer(
+    "shop_cust_401",
+    demoStoreIds.shopify,
+    StorePlatform.SHOPIFY,
+    "isla.wilson@example.test",
+    "Isla",
+    "Wilson",
+    "GB",
+    "Edinburgh",
+  ),
+  customer(
+    "shop_cust_402",
+    demoStoreIds.shopify,
+    StorePlatform.SHOPIFY,
+    "arthur.hughes@example.test",
+    "Arthur",
+    "Hughes",
+    "GB",
+    "Cardiff",
+  ),
+  customer(
     "tt_cust_301",
     demoStoreIds.tiktok,
     StorePlatform.TIKTOK_SHOP,
@@ -245,6 +296,20 @@ const orders = [
     status: "processing",
   }),
   order({
+    connectedStoreId: demoStoreIds.shopify,
+    customerEmail: "isla.wilson@example.test",
+    customerName: "Isla Wilson",
+    items: [
+      item("1", "SHOP-BAMBOO-DIVIDER", "BAMBOO-DIV-SHOP", "Bamboo Drawer Divider", 3, "32.00"),
+      item("2", "SHOP-MARBLE-TRAY", "MARBLE-TRAY-SHOP", "Marble Soap Tray", 2, "18.00"),
+    ],
+    orderedAt: todayAfternoon,
+    platform: StorePlatform.SHOPIFY,
+    platformOrderId: "SHOP-1001",
+    platformOrderNumber: "#1001",
+    status: "paid",
+  }),
+  order({
     connectedStoreId: demoStoreIds.woo,
     customerEmail: "amelia.brooks@example.test",
     customerName: "Amelia Brooks",
@@ -281,6 +346,19 @@ const orders = [
     platformOrderId: "10044",
     platformOrderNumber: "#10044",
     status: "completed",
+  }),
+  order({
+    connectedStoreId: demoStoreIds.shopify,
+    customerEmail: "arthur.hughes@example.test",
+    customerName: "Arthur Hughes",
+    items: [
+      item("1", "SHOP-BAMBOO-DIVIDER", "BAMBOO-DIV-SHOP", "Bamboo Drawer Divider", 1, "32.00"),
+    ],
+    orderedAt: yesterday,
+    platform: StorePlatform.SHOPIFY,
+    platformOrderId: "SHOP-1000",
+    platformOrderNumber: "#1000",
+    status: "fulfilled",
   }),
   order({
     connectedStoreId: demoStoreIds.tiktok,
@@ -566,6 +644,34 @@ async function createRefund(prisma: PrismaClient): Promise<void> {
       refundedAt: todayAfternoon,
       refundStatus: "completed",
       sourceMetadata: sourceMetadata(StorePlatform.WOOCOMMERCE, { demoRefund: true }),
+    },
+  });
+
+  const shopifyOrder = await prisma.commerceOrder.findUnique({
+    where: {
+      connectedStoreId_platformOrderId: {
+        connectedStoreId: demoStoreIds.shopify,
+        platformOrderId: "SHOP-1001",
+      },
+    },
+    select: { id: true },
+  });
+
+  await prisma.commerceRefund.create({
+    data: {
+      amount: "18.00",
+      businessId: demoBusiness.id,
+      commerceOrderId: shopifyOrder?.id,
+      connectedStoreId: demoStoreIds.shopify,
+      currency: "GBP",
+      lastSyncedAt: syncTime,
+      platform: StorePlatform.SHOPIFY,
+      platformOrderId: "SHOP-1001",
+      platformRefundId: "SHOP-REF-1001-1",
+      reason: "Demo partial refund for one marble soap tray",
+      refundedAt: todayAfternoon,
+      refundStatus: "completed",
+      sourceMetadata: sourceMetadata(StorePlatform.SHOPIFY, { demoRefund: true }),
     },
   });
 }

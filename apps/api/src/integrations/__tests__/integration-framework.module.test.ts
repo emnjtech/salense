@@ -7,6 +7,7 @@ import {
   IntegrationPlatform,
   IntegrationRegistry,
   PlaceholderIntegrationProvider,
+  ShopifyIntegrationProvider,
   TikTokShopIntegrationProvider,
   UnsupportedIntegrationPlatformError,
   WooCommerceIntegrationProvider,
@@ -23,7 +24,7 @@ describe("IntegrationFrameworkModule", () => {
     expect(testingModule.get(INTEGRATION_REGISTRY)).toBeInstanceOf(IntegrationRegistry);
   });
 
-  it("resolves active WooCommerce, Amazon, and TikTok providers", async () => {
+  it("resolves active WooCommerce, Amazon, TikTok, and Shopify providers", async () => {
     const testingModule = await Test.createTestingModule({
       imports: [IntegrationFrameworkModule],
     }).compile();
@@ -32,6 +33,7 @@ describe("IntegrationFrameworkModule", () => {
     const wooCommerceProvider = factory.getProvider(IntegrationPlatform.WooCommerce);
     const amazonProvider = factory.getProvider(IntegrationPlatform.AmazonSeller);
     const tikTokProvider = factory.getProvider(IntegrationPlatform.TikTokShop);
+    const shopifyProvider = factory.getProvider(IntegrationPlatform.Shopify);
 
     expect(wooCommerceProvider).toBeInstanceOf(WooCommerceIntegrationProvider);
     expect(wooCommerceProvider).not.toBeInstanceOf(PlaceholderIntegrationProvider);
@@ -41,6 +43,9 @@ describe("IntegrationFrameworkModule", () => {
     expect(tikTokProvider).toBeInstanceOf(TikTokShopIntegrationProvider);
     expect(tikTokProvider).not.toBeInstanceOf(PlaceholderIntegrationProvider);
     expect(tikTokProvider.platform).toBe(IntegrationPlatform.TikTokShop);
+    expect(shopifyProvider).toBeInstanceOf(ShopifyIntegrationProvider);
+    expect(shopifyProvider).not.toBeInstanceOf(PlaceholderIntegrationProvider);
+    expect(shopifyProvider.platform).toBe(IntegrationPlatform.Shopify);
   });
 
   it("rejects unsupported platforms", async () => {
@@ -49,7 +54,7 @@ describe("IntegrationFrameworkModule", () => {
     }).compile();
     const factory = testingModule.get<IntegrationFactory>(INTEGRATION_FACTORY);
 
-    expect(() => factory.getProvider("SHOPIFY" as IntegrationPlatform)).toThrow(
+    expect(() => factory.getProvider("SHOPIFY_PLUS" as IntegrationPlatform)).toThrow(
       UnsupportedIntegrationPlatformError,
     );
   });

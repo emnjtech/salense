@@ -17,11 +17,11 @@ Use this checklist before and during an Innovator Founder demo.
 ## Demo Journey
 
 - [ ] Today shows Business Health Score and multi-platform metrics.
-- [ ] Orders shows seeded WooCommerce, Amazon Seller, and TikTok Shop orders.
+- [ ] Orders shows seeded WooCommerce, Amazon Seller, TikTok Shop, and Shopify orders.
 - [ ] Products shows seeded platform-scoped products.
 - [ ] Customers shows summary cards and seeded customer rows.
 - [ ] Inventory shows summary cards, stock insights, and seeded inventory rows.
-- [ ] Store Integrations shows WooCommerce, Amazon Seller, and TikTok Shop.
+- [ ] Store Integrations shows WooCommerce, Amazon Seller, TikTok Shop, and Shopify.
 
 ## Message Discipline
 
@@ -29,4 +29,4 @@ Use this checklist before and during an Innovator Founder demo.
 - [ ] Say platform identity is preserved.
 - [ ] Say products from different marketplaces are not automatically merged.
 - [ ] Say analytics are deterministic.
-- [ ] Do not claim AI, billing, roles, reports, or live Amazon/TikTok APIs are implemented in this MVP.
+- [ ] Do not claim AI, billing, roles, reports, or live marketplace APIs are implemented in this MVP.

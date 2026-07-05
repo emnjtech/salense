@@ -49,3 +49,19 @@ export const tikTokShopSyncJobNames = Object.values(TikTokShopSyncJobName);
 export function createTikTokShopRecurringSyncJobId(storeId: string): string {
   return `tiktok-shop:auto:full-sync:${storeId}`;
 }
+
+export enum ShopifySyncJobName {
+  ManualFullSync = "shopify.manual.full-sync",
+  OrdersSync = "shopify.orders.sync",
+  ProductsSync = "shopify.products.sync",
+  CustomersSync = "shopify.customers.sync",
+  InventorySync = "shopify.inventory.sync",
+  CategoriesSync = "shopify.categories.sync",
+  RefundsSync = "shopify.refunds.sync",
+}
+
+export const shopifySyncJobNames = Object.values(ShopifySyncJobName);
+
+export function createShopifyRecurringSyncJobId(storeId: string): string {
+  return `shopify:auto:full-sync:${storeId}`;
+}

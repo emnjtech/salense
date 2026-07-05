@@ -8,9 +8,11 @@ import type {
 import {
   AmazonSellerSyncJobName,
   createAmazonSellerRecurringSyncJobId,
+  createShopifyRecurringSyncJobId,
   createTikTokShopRecurringSyncJobId,
   createWooCommerceRecurringSyncJobId,
   SYNC_QUEUE,
+  ShopifySyncJobName,
   TikTokShopSyncJobName,
   WooCommerceSyncJobName,
   type RecurringSyncScheduleRemovalResult,
@@ -80,7 +82,7 @@ export class WooCommerceSyncSchedulingService {
 }
 
 const syncAvailabilityMessage =
-  "Scheduled sync is currently available for WooCommerce, Amazon Seller, and TikTok Shop stores only.";
+  "Scheduled sync is currently available for WooCommerce, Amazon Seller, TikTok Shop, and Shopify stores only.";
 
 function createRecurringSyncScheduleRequest(
   store: SchedulableConnectedStore,
@@ -116,6 +118,19 @@ function createRecurringSyncScheduleRequest(
         jobId,
         name: TikTokShopSyncJobName.ManualFullSync,
       };
+    case StorePlatform.Shopify:
+      return {
+        data: {
+          platform: StorePlatform.Shopify,
+          queuedAt: scheduledAt.toISOString(),
+          requestedByUserId,
+          resource: "all",
+          storeId: store.id,
+        },
+        everyMs: intervalMs,
+        jobId,
+        name: ShopifySyncJobName.ManualFullSync,
+      };
     case StorePlatform.WooCommerce:
       return {
         data: {
@@ -136,7 +151,8 @@ function isSchedulablePlatform(platform: StorePlatform): boolean {
   return (
     platform === StorePlatform.WooCommerce ||
     platform === StorePlatform.AmazonSeller ||
-    platform === StorePlatform.TikTokShop
+    platform === StorePlatform.TikTokShop ||
+    platform === StorePlatform.Shopify
   );
 }
 
@@ -146,6 +162,8 @@ function createRecurringSyncJobId(store: SchedulableConnectedStore): string {
       return createAmazonSellerRecurringSyncJobId(store.id);
     case StorePlatform.TikTokShop:
       return createTikTokShopRecurringSyncJobId(store.id);
+    case StorePlatform.Shopify:
+      return createShopifyRecurringSyncJobId(store.id);
     case StorePlatform.WooCommerce:
       return createWooCommerceRecurringSyncJobId(store.id);
   }

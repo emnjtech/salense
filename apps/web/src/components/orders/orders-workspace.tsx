@@ -88,8 +88,8 @@ export function OrdersWorkspace() {
           <p className="eyebrow">Unified Orders</p>
           <h1>Every channel’s orders, ready for the MVP walkthrough.</h1>
           <p>
-            Filter seeded WooCommerce, Amazon Seller, and TikTok Shop orders while preserving each
-            platform’s identity, customer context, and transaction values.
+            Filter seeded WooCommerce, Amazon Seller, TikTok Shop, and Shopify orders while
+            preserving each platform’s identity, customer context, and transaction values.
           </p>
         </div>
         <button className="secondary-button" onClick={() => void loadOrders()} type="button">
@@ -142,6 +142,7 @@ export function OrdersWorkspace() {
             <option value={StorePlatform.WooCommerce}>WooCommerce</option>
             <option value={StorePlatform.AmazonSeller}>Amazon Seller</option>
             <option value={StorePlatform.TikTokShop}>TikTok Shop</option>
+            <option value={StorePlatform.Shopify}>Shopify</option>
           </select>
           <input
             aria-label="Status"
@@ -218,7 +219,7 @@ function OrdersLoadingState() {
   return (
     <section className="today-loading" aria-label="Loading orders">
       <Loader2 className="spin" size={24} aria-hidden="true" />
-      <span>Loading seeded orders across WooCommerce, Amazon Seller, and TikTok Shop...</span>
+      <span>Loading seeded orders across all supported platforms...</span>
     </section>
   );
 }
@@ -328,6 +329,8 @@ function formatPlatform(platform: StorePlatform): string {
       return "Amazon Seller";
     case StorePlatform.TikTokShop:
       return "TikTok Shop";
+    case StorePlatform.Shopify:
+      return "Shopify";
     case StorePlatform.WooCommerce:
       return "WooCommerce";
   }

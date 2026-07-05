@@ -11,6 +11,7 @@ import {
 } from "class-validator";
 import { StorePlatform } from "../types/store-platform.enum.js";
 import { AmazonSellerConnectionCredentialsDto } from "./amazon-seller-connection-credentials.dto.js";
+import { ShopifyConnectionCredentialsDto } from "./shopify-connection-credentials.dto.js";
 import { TikTokShopConnectionCredentialsDto } from "./tiktok-shop-connection-credentials.dto.js";
 import { WooCommerceConnectionCredentialsDto } from "./woocommerce-connection-credentials.dto.js";
 
@@ -24,7 +25,9 @@ export class PrepareStoreConnectionRequestDto {
 
   @ValidateIf(
     (request: PrepareStoreConnectionRequestDto) =>
-      request.platform === StorePlatform.WooCommerce || request.storeUrl !== undefined,
+      request.platform === StorePlatform.Shopify ||
+      request.platform === StorePlatform.WooCommerce ||
+      request.storeUrl !== undefined,
   )
   @IsString()
   @IsNotEmpty()
@@ -62,4 +65,13 @@ export class PrepareStoreConnectionRequestDto {
   @ValidateNested()
   @Type(() => TikTokShopConnectionCredentialsDto)
   declare readonly tikTokShopCredentials?: TikTokShopConnectionCredentialsDto;
+
+  @ValidateIf(
+    (request: PrepareStoreConnectionRequestDto) =>
+      request.platform === StorePlatform.Shopify || request.shopifyCredentials !== undefined,
+  )
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => ShopifyConnectionCredentialsDto)
+  declare readonly shopifyCredentials?: ShopifyConnectionCredentialsDto;
 }

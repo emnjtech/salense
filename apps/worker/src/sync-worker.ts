@@ -1,10 +1,12 @@
 import { Worker, type Job, type WorkerOptions } from "bullmq";
 import {
   amazonSellerSyncJobNames,
+  shopifySyncJobNames,
   syncQueueName,
   tikTokShopSyncJobNames,
   wooCommerceSyncJobNames,
   type AmazonSellerSyncJobName,
+  type ShopifySyncJobName,
   type TikTokShopSyncJobName,
   type WooCommerceSyncJobName,
 } from "@salense/shared";
@@ -15,10 +17,18 @@ import type {
   WooCommerceSyncJobHandler,
   AmazonSellerSyncJobHandler,
   SyncJobData,
+  ShopifySyncJob,
+  ShopifySyncJobHandler,
   TikTokShopSyncJob,
   TikTokShopSyncJobHandler,
 } from "./api-handler-loader.js";
 import type { RedisConnectionOptions } from "./config.js";
+
+type WorkerSyncJobName =
+  | WooCommerceSyncJobName
+  | AmazonSellerSyncJobName
+  | TikTokShopSyncJobName
+  | ShopifySyncJobName;
 
 export interface SyncWorkerLike {
   close(): Promise<void>;
@@ -28,7 +38,7 @@ export interface SyncWorkerLike {
 export type SyncWorkerFactory = (
   queueName: string,
   processor: (
-    job: Job<SyncJobData, unknown, WooCommerceSyncJobName | AmazonSellerSyncJobName | TikTokShopSyncJobName>,
+    job: Job<SyncJobData, unknown, WorkerSyncJobName>,
   ) => Promise<unknown>,
   options: WorkerOptions,
 ) => SyncWorkerLike;
@@ -37,6 +47,7 @@ export interface CreateSyncWorkerOptions {
   readonly connection: RedisConnectionOptions;
   readonly amazonSellerHandler?: AmazonSellerSyncJobHandler;
   readonly handler: WooCommerceSyncJobHandler;
+  readonly shopifyHandler?: ShopifySyncJobHandler;
   readonly tikTokShopHandler?: TikTokShopSyncJobHandler;
   readonly workerFactory?: SyncWorkerFactory;
 }
@@ -44,6 +55,7 @@ export interface CreateSyncWorkerOptions {
 const supportedWooCommerceJobNames = new Set<string>(wooCommerceSyncJobNames);
 const supportedAmazonSellerJobNames = new Set<string>(amazonSellerSyncJobNames);
 const supportedTikTokShopJobNames = new Set<string>(tikTokShopSyncJobNames);
+const supportedShopifyJobNames = new Set<string>(shopifySyncJobNames);
 
 export function createSyncWorker(options: CreateSyncWorkerOptions): SyncWorkerLike {
   const workerFactory = options.workerFactory ?? createBullMqWorker;
@@ -51,17 +63,36 @@ export function createSyncWorker(options: CreateSyncWorkerOptions): SyncWorkerLi
   return workerFactory(
     syncQueueName,
     (job) =>
-      processSyncJob(job, options.handler, options.amazonSellerHandler, options.tikTokShopHandler),
+      processSyncJob(
+        job,
+        options.handler,
+        options.amazonSellerHandler,
+        options.tikTokShopHandler,
+        options.shopifyHandler,
+      ),
     { connection: options.connection },
   );
 }
 
 export async function processSyncJob(
-  job: Job<SyncJobData, unknown, WooCommerceSyncJobName | AmazonSellerSyncJobName | TikTokShopSyncJobName>,
+  job: Job<SyncJobData, unknown, WorkerSyncJobName>,
   wooCommerceHandler: WooCommerceSyncJobHandler,
   amazonSellerHandler?: AmazonSellerSyncJobHandler,
   tikTokShopHandler?: TikTokShopSyncJobHandler,
+  shopifyHandler?: ShopifySyncJobHandler,
 ): Promise<unknown> {
+  if (supportedShopifyJobNames.has(job.name)) {
+    if (!shopifyHandler) {
+      throw new Error("Shopify sync handler is not available.");
+    }
+
+    if (job.data.platform !== "SHOPIFY") {
+      throw new Error("Unsupported sync job platform.");
+    }
+
+    return shopifyHandler.handle(job as ShopifySyncJob);
+  }
+
   if (supportedTikTokShopJobNames.has(job.name)) {
     if (!tikTokShopHandler) {
       throw new Error("TikTok Shop sync handler is not available.");
@@ -110,11 +141,11 @@ export async function processWooCommerceSyncJob(
 function createBullMqWorker(
   queueName: string,
   processor: (
-    job: Job<SyncJobData, unknown, WooCommerceSyncJobName | AmazonSellerSyncJobName | TikTokShopSyncJobName>,
+    job: Job<SyncJobData, unknown, WorkerSyncJobName>,
   ) => Promise<unknown>,
   options: WorkerOptions,
 ): SyncWorkerLike {
-  return new Worker<SyncJobData, unknown, WooCommerceSyncJobName | AmazonSellerSyncJobName | TikTokShopSyncJobName>(
+  return new Worker<SyncJobData, unknown, WorkerSyncJobName>(
     queueName,
     processor,
     options,

@@ -198,6 +198,12 @@ describe("StoreIntegrationsService", () => {
         requiresStoreUrl: false,
         requiresRegion: true,
       },
+      {
+        platform: StorePlatform.Shopify,
+        label: "Shopify",
+        requiresStoreUrl: true,
+        requiresRegion: false,
+      },
     ]);
   });
 
@@ -248,7 +254,7 @@ describe("StoreIntegrationsService", () => {
 
     await expect(
       service.prepareStoreConnection("user_1", {
-        platform: "SHOPIFY" as StorePlatform,
+        platform: "SHOPIFY_PLUS" as StorePlatform,
         storeName: "Unsupported Store",
       }),
     ).rejects.toThrow(BadRequestException);

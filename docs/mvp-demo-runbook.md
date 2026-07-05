@@ -1,6 +1,6 @@
 # MVP Demo Runbook
 
-This runbook starts the local Salense MVP demo with deterministic seed data. The demo is read-only: Salense analyses normalized commerce records and never writes back to WooCommerce, Amazon Seller, or TikTok Shop.
+This runbook starts the local Salense MVP demo with deterministic seed data. The demo is read-only: Salense analyses normalized commerce records and never writes back to WooCommerce, Amazon Seller, TikTok Shop, or Shopify.
 
 ## Demo Accounts
 
@@ -29,6 +29,8 @@ JWT_ACCESS_TOKEN_EXPIRES_IN="15m"
 JWT_REFRESH_TOKEN_EXPIRES_IN="7d"
 CREDENTIAL_ENCRYPTION_KEY="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 ```
+
+No WooCommerce, Amazon Seller, TikTok Shop, or Shopify credentials are required for the seeded MVP demo. Live connection forms are available for local validation testing only.
 
 ## 2. Apply Prisma Schema
 
@@ -71,15 +73,19 @@ Open the web app at `http://localhost:3000` and log in with the demo account.
 
 1. Log in as `demo@salense.local`.
 2. Open Today and show the Business Health Score, multi-platform metrics, refund signal, top product, and deterministic business insights.
-3. Open Orders and show seeded WooCommerce, Amazon Seller, and TikTok Shop orders while preserving each platform's identity.
+3. Open Orders and show seeded WooCommerce, Amazon Seller, TikTok Shop, and Shopify orders while preserving each platform's identity.
 4. Open Products and show platform-scoped products without automatic marketplace merging.
 5. Open Customers and show new customers, returning customers, highest lifetime customer, and the searchable customer table.
 6. Open Inventory and show low stock, out of stock, inventory value, and deterministic stock insights.
-7. Open Store Integrations and show the seeded WooCommerce, Amazon Seller, and TikTok Shop connections. Avoid entering live marketplace credentials during the MVP demo.
+7. Open Store Integrations and show the seeded WooCommerce, Amazon Seller, TikTok Shop, and Shopify connections. Avoid entering live marketplace credentials during the MVP demo.
+
+## Optional Shopify Connection Test
+
+For local validation testing, Shopify requires a shop domain such as `northstar-home.myshopify.com`, a store URL, an Admin API access token, and an API version such as `2024-10`. Salense stores the token through the encrypted credential path and uses only read-only Admin API requests.
 
 ## Guardrails
 
 - Version 1 is read-only.
 - Marketplace platforms remain the source of truth.
 - Analytics calculate deterministic metrics; AI is not part of this MVP pass.
-- Do not demo billing, roles, reports, or live Amazon/TikTok API flows.
+- Do not demo billing, roles, reports, or live marketplace API flows.

@@ -145,9 +145,37 @@ describe("store integration DTO validation", () => {
     expect(JSON.stringify(errors)).toContain("accessToken");
   });
 
+  it("accepts a valid Shopify credential request without marketplace passwords", async () => {
+    const errors = await validatePrepareConnection({
+      platform: StorePlatform.Shopify,
+      shopifyCredentials: {
+        accessToken: "shpat_test_access_token",
+        apiVersion: "2024-10",
+        shopDomain: "northstar-home.myshopify.com",
+      },
+      storeName: "Shopify UK",
+      storeUrl: "https://northstar-home.myshopify.com",
+    });
+
+    expect(errors).toHaveLength(0);
+  });
+
+  it("rejects Shopify requests with missing token credentials", async () => {
+    const errors = await validatePrepareConnection({
+      platform: StorePlatform.Shopify,
+      shopifyCredentials: {
+        shopDomain: "northstar-home.myshopify.com",
+      },
+      storeName: "Shopify UK",
+      storeUrl: "https://northstar-home.myshopify.com",
+    });
+
+    expect(JSON.stringify(errors)).toContain("accessToken");
+  });
+
   it("rejects unsupported platforms", async () => {
     const errors = await validatePrepareConnection({
-      platform: "SHOPIFY",
+      platform: "SHOPIFY_PLUS",
       storeName: "Future Store",
     });
 

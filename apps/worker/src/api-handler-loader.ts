@@ -1,6 +1,7 @@
 import type { Job } from "bullmq";
 import type {
   AmazonSellerSyncJobName,
+  ShopifySyncJobName,
   TikTokShopSyncJobName,
   WooCommerceSyncJobName,
 } from "@salense/shared";
@@ -47,8 +48,30 @@ export type TikTokShopSyncJob = Job<
   TikTokShopSyncJobName
 >;
 
-export type SyncJobData = WooCommerceSyncJobData | AmazonSellerSyncJobData | TikTokShopSyncJobData;
-export type SyncJob = WooCommerceSyncJob | AmazonSellerSyncJob | TikTokShopSyncJob;
+export interface ShopifySyncJobData {
+  readonly platform: "SHOPIFY";
+  readonly queuedAt: string;
+  readonly requestedByUserId: string;
+  readonly resource: string;
+  readonly storeId: string;
+}
+
+export type ShopifySyncJob = Job<
+  ShopifySyncJobData,
+  unknown,
+  ShopifySyncJobName
+>;
+
+export type SyncJobData =
+  | WooCommerceSyncJobData
+  | AmazonSellerSyncJobData
+  | TikTokShopSyncJobData
+  | ShopifySyncJobData;
+export type SyncJob =
+  | WooCommerceSyncJob
+  | AmazonSellerSyncJob
+  | TikTokShopSyncJob
+  | ShopifySyncJob;
 
 export interface WooCommerceSyncJobHandler {
   handle(job: WooCommerceSyncJob): Promise<unknown>;
@@ -62,10 +85,15 @@ export interface TikTokShopSyncJobHandler {
   handle(job: TikTokShopSyncJob): Promise<unknown>;
 }
 
+export interface ShopifySyncJobHandler {
+  handle(job: ShopifySyncJob): Promise<unknown>;
+}
+
 export interface WooCommerceSyncJobHandlerContext {
   readonly close: () => Promise<void>;
   readonly amazonSellerHandler?: AmazonSellerSyncJobHandler;
   readonly handler: WooCommerceSyncJobHandler;
+  readonly shopifyHandler?: ShopifySyncJobHandler;
   readonly tikTokShopHandler?: TikTokShopSyncJobHandler;
 }
 

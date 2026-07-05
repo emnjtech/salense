@@ -9,12 +9,18 @@ import {
   createAmazonSellerRestClient,
 } from "./amazon-seller-sync.service.js";
 import { AesCredentialEncryptionService } from "./security/credential-encryption.service.js";
+import {
+  createShopifyRestClient,
+  SHOPIFY_REST_CLIENT,
+  ShopifySyncService,
+} from "./shopify-sync.service.js";
 import { StoreIntegrationsController } from "./store-integrations.controller.js";
 import { StoreIntegrationsService } from "./store-integrations.service.js";
 import { CommerceSyncCursorService } from "./sync-cursors/commerce-sync-cursor.service.js";
 import { AmazonSellerSyncWorkerHandler } from "./sync-queue/amazon-seller-sync-worker.handler.js";
 import { createBullMqSyncQueue } from "./sync-queue/bullmq-sync-queue.js";
 import { SYNC_QUEUE } from "./sync-queue/sync-queue.types.js";
+import { ShopifySyncWorkerHandler } from "./sync-queue/shopify-sync-worker.handler.js";
 import { TikTokShopSyncWorkerHandler } from "./sync-queue/tiktok-shop-sync-worker.handler.js";
 import { WooCommerceSyncSchedulingService } from "./sync-queue/woocommerce-sync-scheduling.service.js";
 import { WooCommerceSyncWorkerHandler } from "./sync-queue/woocommerce-sync-worker.handler.js";
@@ -41,6 +47,8 @@ import {
     CommerceSyncCursorService,
     AmazonSellerSyncService,
     AmazonSellerSyncWorkerHandler,
+    ShopifySyncService,
+    ShopifySyncWorkerHandler,
     StoreIntegrationsService,
     TikTokShopSyncService,
     TikTokShopSyncWorkerHandler,
@@ -50,12 +58,15 @@ import {
     WooCommerceSyncWorkerHandler,
     { provide: SYNC_QUEUE, useFactory: createBullMqSyncQueue },
     { provide: AMAZON_SELLER_REST_CLIENT, useFactory: createAmazonSellerRestClient },
+    { provide: SHOPIFY_REST_CLIENT, useFactory: createShopifyRestClient },
     { provide: TIKTOK_SHOP_REST_CLIENT, useFactory: createTikTokShopRestClient },
     { provide: WOOCOMMERCE_REST_CLIENT, useFactory: createWooCommerceRestClient },
   ],
   exports: [
     AmazonSellerSyncService,
     AmazonSellerSyncWorkerHandler,
+    ShopifySyncService,
+    ShopifySyncWorkerHandler,
     StoreIntegrationsService,
     TikTokShopSyncService,
     TikTokShopSyncWorkerHandler,

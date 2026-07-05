@@ -189,6 +189,50 @@ describe("WooCommerceSyncSchedulingService", () => {
     });
   });
 
+  it("creates a recurring sync schedule for a connected Shopify store", async () => {
+    const { service, getRecurringWooCommerceSyncJob, scheduleRecurringWooCommerceSyncJob } =
+      createSchedulingMocks();
+    const scheduledAt = new Date("2026-07-03T15:00:00.000Z");
+    getRecurringWooCommerceSyncJob.mockResolvedValue(null);
+    scheduleRecurringWooCommerceSyncJob.mockResolvedValue({
+      everyMs: 3_600_000,
+      jobId: "shopify:auto:full-sync:store_1",
+      platform: StorePlatform.Shopify,
+      scheduledAt,
+      status: "SCHEDULED",
+      storeId: "store_1",
+    });
+
+    await expect(
+      service.scheduleAutomaticSync(
+        {
+          id: "store_1",
+          connectionStatus: StoreConnectionStatus.Connected,
+          platform: StorePlatform.Shopify,
+        },
+        "user_1",
+      ),
+    ).resolves.toEqual({
+      everyMs: 3_600_000,
+      jobId: "shopify:auto:full-sync:store_1",
+      platform: StorePlatform.Shopify,
+      scheduledAt,
+      status: "SCHEDULED",
+      storeId: "store_1",
+    });
+    expect(scheduleRecurringWooCommerceSyncJob).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        platform: StorePlatform.Shopify,
+        requestedByUserId: "user_1",
+        resource: "all",
+        storeId: "store_1",
+      }),
+      everyMs: 3_600_000,
+      jobId: "shopify:auto:full-sync:store_1",
+      name: "shopify.manual.full-sync",
+    });
+  });
+
   it("prevents duplicate recurring schedules", async () => {
     const { service, getRecurringWooCommerceSyncJob, scheduleRecurringWooCommerceSyncJob } =
       createSchedulingMocks();

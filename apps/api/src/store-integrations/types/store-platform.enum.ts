@@ -2,6 +2,7 @@ export enum StorePlatform {
   WooCommerce = "WOOCOMMERCE",
   AmazonSeller = "AMAZON_SELLER",
   TikTokShop = "TIKTOK_SHOP",
+  Shopify = "SHOPIFY",
 }
 
 export interface SupportedStorePlatform {
@@ -29,6 +30,12 @@ export const SUPPORTED_STORE_PLATFORMS: readonly SupportedStorePlatform[] = [
     label: "TikTok Shop",
     requiresStoreUrl: false,
     requiresRegion: true,
+  },
+  {
+    platform: StorePlatform.Shopify,
+    label: "Shopify",
+    requiresStoreUrl: true,
+    requiresRegion: false,
   },
 ];
 

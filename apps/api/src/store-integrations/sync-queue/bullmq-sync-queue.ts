@@ -13,6 +13,8 @@ import {
   type SyncJobStatusResult,
   type SyncQueuePort,
   type StoreSyncJobStatusResult,
+  type ShopifySyncJobData,
+  type ShopifySyncJobName,
   type TikTokShopSyncJobData,
   type TikTokShopSyncJobName,
   type WooCommerceSyncJobData,
@@ -86,6 +88,21 @@ export class BullMqSyncQueue implements SyncQueuePort {
     };
   }
 
+  async enqueueShopifySyncJob(
+    name: ShopifySyncJobName,
+    data: ShopifySyncJobData,
+  ): Promise<SyncJobEnqueueResult> {
+    const job = await this.getQueue().add(name, data, defaultJobOptions);
+
+    return {
+      jobId: String(job.id),
+      platform: data.platform,
+      queuedAt: new Date(data.queuedAt),
+      status: "QUEUED",
+      storeId: data.storeId,
+    };
+  }
+
   async getJobStatus(jobId: string): Promise<SyncJobStatusResult | null> {
     const job = await this.getQueue().getJob(jobId);
 
@@ -122,6 +139,12 @@ export class BullMqSyncQueue implements SyncQueuePort {
     storeId: string,
   ): Promise<readonly StoreSyncJobStatusResult[]> {
     return this.getStoreJobStatuses(storeId, StorePlatform.TikTokShop);
+  }
+
+  async getShopifyStoreJobStatuses(
+    storeId: string,
+  ): Promise<readonly StoreSyncJobStatusResult[]> {
+    return this.getStoreJobStatuses(storeId, StorePlatform.Shopify);
   }
 
   private async getStoreJobStatuses(
@@ -238,6 +261,10 @@ function platformFromRecurringJobId(jobId: string): StorePlatform {
 
   if (jobId.startsWith("tiktok-shop:")) {
     return StorePlatform.TikTokShop;
+  }
+
+  if (jobId.startsWith("shopify:")) {
+    return StorePlatform.Shopify;
   }
 
   return StorePlatform.WooCommerce;

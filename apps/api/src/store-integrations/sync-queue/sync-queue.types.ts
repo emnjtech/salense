@@ -3,10 +3,13 @@ export {
   AmazonSellerSyncJobName,
   amazonSellerSyncJobNames,
   createAmazonSellerRecurringSyncJobId,
+  createShopifyRecurringSyncJobId,
   createTikTokShopRecurringSyncJobId,
   createWooCommerceRecurringSyncJobId,
   defaultSyncScheduleIntervalMs,
   syncQueueName,
+  ShopifySyncJobName,
+  shopifySyncJobNames,
   TikTokShopSyncJobName,
   tikTokShopSyncJobNames,
   WooCommerceSyncJobName,
@@ -14,11 +17,13 @@ export {
 } from "@salense/shared";
 import type {
   AmazonSellerSyncJobName,
+  ShopifySyncJobName,
   TikTokShopSyncJobName,
   WooCommerceSyncJobName,
 } from "@salense/shared";
 import type { StorePlatform } from "../types/store-platform.enum.js";
 import type { AmazonSellerSyncResource } from "../amazon-seller-sync.service.js";
+import type { ShopifySyncResource } from "../shopify-sync.service.js";
 import type { TikTokShopSyncResource } from "../tiktok-shop-sync.service.js";
 import type { WooCommerceSyncResource } from "../woocommerce-sync.service.js";
 
@@ -48,6 +53,14 @@ export interface TikTokShopSyncJobData {
   readonly storeId: string;
 }
 
+export interface ShopifySyncJobData {
+  readonly platform: StorePlatform.Shopify;
+  readonly queuedAt: string;
+  readonly requestedByUserId: string;
+  readonly resource: ShopifySyncResource | "all";
+  readonly storeId: string;
+}
+
 export type WooCommerceSyncJob = Job<
   WooCommerceSyncJobData,
   unknown,
@@ -66,13 +79,28 @@ export type TikTokShopSyncJob = Job<
   TikTokShopSyncJobName
 >;
 
-export type SyncJobData = WooCommerceSyncJobData | AmazonSellerSyncJobData | TikTokShopSyncJobData;
-export type SyncJobName = WooCommerceSyncJobName | AmazonSellerSyncJobName | TikTokShopSyncJobName;
+export type ShopifySyncJob = Job<
+  ShopifySyncJobData,
+  unknown,
+  ShopifySyncJobName
+>;
+
+export type SyncJobData =
+  | WooCommerceSyncJobData
+  | AmazonSellerSyncJobData
+  | TikTokShopSyncJobData
+  | ShopifySyncJobData;
+export type SyncJobName =
+  | WooCommerceSyncJobName
+  | AmazonSellerSyncJobName
+  | TikTokShopSyncJobName
+  | ShopifySyncJobName;
 
 type ActiveSyncPlatform =
   | StorePlatform.WooCommerce
   | StorePlatform.AmazonSeller
-  | StorePlatform.TikTokShop;
+  | StorePlatform.TikTokShop
+  | StorePlatform.Shopify;
 
 export interface SyncJobEnqueueResult {
   readonly jobId: string;
@@ -146,6 +174,10 @@ export interface SyncQueuePort {
     name: TikTokShopSyncJobName,
     data: TikTokShopSyncJobData,
   ): Promise<SyncJobEnqueueResult>;
+  enqueueShopifySyncJob(
+    name: ShopifySyncJobName,
+    data: ShopifySyncJobData,
+  ): Promise<SyncJobEnqueueResult>;
   getJobStatus(jobId: string): Promise<SyncJobStatusResult | null>;
   getWooCommerceStoreJobStatuses(
     storeId: string,
@@ -154,6 +186,9 @@ export interface SyncQueuePort {
     storeId: string,
   ): Promise<readonly StoreSyncJobStatusResult[]>;
   getTikTokShopStoreJobStatuses(
+    storeId: string,
+  ): Promise<readonly StoreSyncJobStatusResult[]>;
+  getShopifyStoreJobStatuses(
     storeId: string,
   ): Promise<readonly StoreSyncJobStatusResult[]>;
   getRecurringWooCommerceSyncJob(

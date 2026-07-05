@@ -17,7 +17,11 @@ export interface StoreSyncJobStatusResponse {
   readonly failedReason?: string;
   readonly finishedAt?: Date;
   readonly jobId: string;
-  readonly platform: StorePlatform.WooCommerce | StorePlatform.AmazonSeller | StorePlatform.TikTokShop;
+  readonly platform:
+    | StorePlatform.WooCommerce
+    | StorePlatform.AmazonSeller
+    | StorePlatform.TikTokShop
+    | StorePlatform.Shopify;
   readonly queuedAt: Date;
   readonly status: "QUEUED" | "ACTIVE" | "COMPLETED" | "FAILED" | "UNKNOWN";
   readonly storeId: string;

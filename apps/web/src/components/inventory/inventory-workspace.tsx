@@ -144,6 +144,7 @@ export function InventoryWorkspace() {
             <option value={StorePlatform.WooCommerce}>WooCommerce</option>
             <option value={StorePlatform.AmazonSeller}>Amazon Seller</option>
             <option value={StorePlatform.TikTokShop}>TikTok Shop</option>
+            <option value={StorePlatform.Shopify}>Shopify</option>
           </select>
           <input
             aria-label="Stock status"
@@ -324,6 +325,8 @@ function formatPlatform(platform: StorePlatform): string {
       return "Amazon Seller";
     case StorePlatform.TikTokShop:
       return "TikTok Shop";
+    case StorePlatform.Shopify:
+      return "Shopify";
     case StorePlatform.WooCommerce:
       return "WooCommerce";
   }

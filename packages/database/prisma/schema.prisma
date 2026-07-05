@@ -70,6 +70,7 @@ enum StorePlatform {
   WOOCOMMERCE
   AMAZON_SELLER
   TIKTOK_SHOP
+  SHOPIFY
 }
 
 /// Store connection lifecycle shown to users in the Store Integration Module.
