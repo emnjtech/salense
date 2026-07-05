@@ -61,7 +61,7 @@ button:disabled {
   color: #f9fbf6;
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: 24px;
   padding: 24px 18px;
 }
 
@@ -89,7 +89,7 @@ button:disabled {
 
 .brand-mark {
   align-items: center;
-  background: #d9f99d;
+  background: #c9f26d;
   border-radius: 8px;
   color: #17211b;
   display: inline-flex;
@@ -97,6 +97,28 @@ button:disabled {
   height: 38px;
   justify-content: center;
   width: 38px;
+}
+
+.sidebar-demo-card {
+  background: #223129;
+  border: 1px solid #35463d;
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  padding: 13px;
+}
+
+.sidebar-demo-card span {
+  color: #c9f26d;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.sidebar-demo-card strong {
+  color: #f5faf3;
+  font-size: 13px;
+  line-height: 1.4;
 }
 
 .sidebar-nav {
@@ -116,7 +138,13 @@ button:disabled {
 }
 
 .sidebar-nav a[aria-current="page"] {
-  background: #26342c;
+  background: #f5faf3;
+  color: #17211b;
+  font-weight: 760;
+}
+
+.sidebar-nav a:not([aria-current="page"]):hover {
+  background: #223129;
   color: #ffffff;
 }
 
@@ -138,6 +166,14 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 
+.sidebar-trust {
+  align-items: center;
+  color: #c9f26d !important;
+  display: inline-flex !important;
+  gap: 7px;
+  line-height: 1.35;
+}
+
 .sidebar-session button {
   background: #26342c;
   border-radius: 8px;
@@ -152,7 +188,7 @@ button:disabled {
 
 .workspace {
   display: grid;
-  gap: 22px;
+  gap: 24px;
   margin: 0 auto;
   max-width: 1240px;
   padding: 32px;
@@ -246,7 +282,7 @@ button:disabled {
   border-radius: 8px;
   display: grid;
   gap: 12px;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   min-height: 66px;
   padding: 14px 16px;
 }
@@ -293,6 +329,11 @@ button:disabled {
   white-space: nowrap;
 }
 
+.demo-mode-pill.secondary {
+  background: #eef5f0;
+  color: #1f6f55;
+}
+
 .overview-grid {
   display: grid;
   gap: 14px;
@@ -304,6 +345,7 @@ button:disabled {
   background: #ffffff;
   border: 1px solid #dfe4df;
   border-radius: 8px;
+  box-shadow: 0 10px 30px rgb(23 33 27 / 5%);
 }
 
 .metric-tile {
@@ -344,13 +386,15 @@ button:disabled {
 
 .health-card {
   align-items: center;
-  background: #17211b;
+  background:
+    linear-gradient(135deg, #17211b 0%, #22342a 62%, #33513f 100%);
   border-radius: 8px;
+  box-shadow: 0 18px 44px rgb(23 33 27 / 16%);
   color: #ffffff;
   display: grid;
   gap: 16px;
   grid-template-columns: minmax(0, 1fr) auto;
-  min-height: 222px;
+  min-height: 254px;
   padding: 24px;
 }
 
@@ -371,9 +415,38 @@ button:disabled {
   margin: 0;
 }
 
+.health-proof-list {
+  display: grid;
+  gap: 8px;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 2px 0 0;
+}
+
+.health-proof-list div {
+  background: rgb(255 255 255 / 8%);
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.health-proof-list dt {
+  color: #cbd7cf;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.health-proof-list dd {
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 800;
+  margin: 4px 0 0;
+}
+
 .health-ring {
   align-items: center;
-  background: conic-gradient(#d9f99d var(--score), #35463d 0);
+  background: conic-gradient(#c9f26d var(--score), #35463d 0);
   border-radius: 999px;
   color: #17211b;
   display: flex;
@@ -394,6 +467,45 @@ button:disabled {
 .health-ring svg {
   position: relative;
   z-index: 1;
+}
+
+.today-briefing {
+  align-items: flex-start;
+  background: #ffffff;
+  border: 1px solid #dfe4df;
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: 18px;
+}
+
+.briefing-icon {
+  align-items: center;
+  background: #17211b;
+  border-radius: 8px;
+  color: #c9f26d;
+  display: flex;
+  height: 40px;
+  justify-content: center;
+  width: 40px;
+}
+
+.today-briefing strong,
+.today-briefing span {
+  display: block;
+}
+
+.today-briefing strong {
+  font-size: 18px;
+  line-height: 1.35;
+}
+
+.today-briefing span {
+  color: #647067;
+  font-size: 14px;
+  line-height: 1.55;
+  margin-top: 5px;
 }
 
 .today-hero-metrics {
@@ -444,6 +556,19 @@ button:disabled {
   justify-content: space-between;
 }
 
+.platform-breakdown-row strong {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+}
+
+.platform-dot {
+  border-radius: 999px;
+  display: inline-block;
+  height: 10px;
+  width: 10px;
+}
+
 .platform-breakdown-row span {
   color: #647067;
   font-weight: 700;
@@ -462,6 +587,26 @@ button:disabled {
   display: block;
   height: 100%;
   min-width: 4px;
+}
+
+.platform-breakdown-row.platform-amazon .platform-bar span,
+.platform-dot.platform-amazon {
+  background: #f59e0b;
+}
+
+.platform-breakdown-row.platform-shopify .platform-bar span,
+.platform-dot.platform-shopify {
+  background: #1f9d55;
+}
+
+.platform-breakdown-row.platform-tiktok .platform-bar span,
+.platform-dot.platform-tiktok {
+  background: #111827;
+}
+
+.platform-breakdown-row.platform-woocommerce .platform-bar span,
+.platform-dot.platform-woocommerce {
+  background: #7c3aed;
 }
 
 .focus-list,
@@ -538,7 +683,8 @@ button:disabled {
 
 .today-loading {
   align-items: center;
-  background: #ffffff;
+  background:
+    linear-gradient(90deg, #ffffff 0%, #f7faf8 100%);
   border: 1px solid #dfe4df;
   border-radius: 8px;
   color: #526059;
@@ -747,6 +893,26 @@ button:disabled {
   width: 40px;
 }
 
+.platform-row.platform-amazon .platform-icon {
+  background: #fff7e8;
+  color: #b45309;
+}
+
+.platform-row.platform-shopify .platform-icon {
+  background: #eaf8ef;
+  color: #1f7a43;
+}
+
+.platform-row.platform-tiktok .platform-icon {
+  background: #f1f3f5;
+  color: #111827;
+}
+
+.platform-row.platform-woocommerce .platform-icon {
+  background: #f3edff;
+  color: #6d28d9;
+}
+
 .platform-row h3,
 .store-row h3 {
   font-size: 15px;
@@ -886,6 +1052,7 @@ button:disabled {
 
 .empty-state {
   align-items: center;
+  background: #fbfcfb;
   border: 1px dashed #cbd4cd;
   border-radius: 8px;
   color: #526059;
@@ -904,7 +1071,7 @@ button:disabled {
 
 .loading-block span {
   animation: pulse 1.2s ease-in-out infinite;
-  background: #edf1ed;
+  background: linear-gradient(90deg, #edf1ed 0%, #f8faf8 50%, #edf1ed 100%);
   border-radius: 8px;
   display: block;
   height: 54px;
@@ -1135,7 +1302,8 @@ button:disabled {
     grid-template-columns: auto minmax(0, 1fr);
   }
 
-  .demo-mode-pill {
+  .demo-mode-pill,
+  .demo-mode-pill.secondary {
     grid-column: 1 / -1;
     width: max-content;
   }
@@ -1145,6 +1313,7 @@ button:disabled {
   }
 
   .overview-grid,
+  .health-proof-list,
   .today-hero-metrics,
   .store-actions,
   .store-meta,

@@ -11,6 +11,7 @@ import {
   Loader2,
   PackageSearch,
   RefreshCcw,
+  Sparkles,
   ShoppingBag,
   Store,
 } from "lucide-react";
@@ -65,10 +66,10 @@ export function TodayDashboard() {
       <header className="workspace-header today-header">
         <div>
           <p className="eyebrow">Unified Today</p>
-          <h1>Multi-channel commerce intelligence in one daily view.</h1>
+          <h1>Know the business in 60 seconds.</h1>
           <p>
-            Compare WooCommerce, Amazon Seller, TikTok Shop, and Shopify revenue, orders, product
-            momentum, stock risk, and Business Health Score without changing source records.
+            Salense turns WooCommerce, Amazon Seller, Shopify, and TikTok Shop data into one
+            read-only operating view for revenue, channel performance, stock risk, and next actions.
           </p>
         </div>
         <button className="secondary-button" onClick={() => void loadDashboard()} type="button">
@@ -99,7 +100,7 @@ function TodayDashboardContent({ dashboard }: { readonly dashboard: TodayDashboa
       ) : null}
 
       <section className="today-hero-grid" aria-label="Today dashboard headline">
-        <HealthScoreCard score={dashboard.basicBusinessHealthScore} />
+        <HealthScoreCard dashboard={dashboard} />
         <div className="today-hero-metrics">
           <MetricTile
             label="Today revenue"
@@ -119,6 +120,8 @@ function TodayDashboardContent({ dashboard }: { readonly dashboard: TodayDashboa
           />
         </div>
       </section>
+
+      <TodayBriefing dashboard={dashboard} />
 
       <section className="overview-grid" aria-label="Today metrics">
         <MetricTile
@@ -148,7 +151,7 @@ function TodayDashboardContent({ dashboard }: { readonly dashboard: TodayDashboa
           <div className="panel-heading">
             <div>
               <h2>Revenue by Platform</h2>
-              <p>Amazon, TikTok, and WooCommerce stay separate so channel performance is clear.</p>
+              <p>Each channel stays separate so performance is clear without product matching.</p>
             </div>
           </div>
           <PlatformBreakdown
@@ -161,7 +164,7 @@ function TodayDashboardContent({ dashboard }: { readonly dashboard: TodayDashboa
           <div className="panel-heading">
             <div>
               <h2>Orders by Platform</h2>
-              <p>Today’s source-channel order count for quick comparison.</p>
+              <p>Today's source-channel order count for quick comparison.</p>
             </div>
           </div>
           <PlatformBreakdown
@@ -175,7 +178,7 @@ function TodayDashboardContent({ dashboard }: { readonly dashboard: TodayDashboa
         <section className="panel today-focus-panel">
           <div className="panel-heading">
             <div>
-              <h2>Today’s Focus</h2>
+              <h2>Today's Focus</h2>
               <p>Best platform, top product, and inventory signal from the seeded commerce data.</p>
             </div>
           </div>
@@ -195,7 +198,7 @@ function TodayDashboardContent({ dashboard }: { readonly dashboard: TodayDashboa
               value={dashboard.topProductToday?.name ?? "No products sold yet"}
               {...(dashboard.topProductToday
                 ? {
-                    supporting: `${dashboard.topProductToday.quantitySold} sold · ${formatCurrency(
+                    supporting: `${dashboard.topProductToday.quantitySold} sold - ${formatCurrency(
                       dashboard.topProductToday.revenue,
                     )}`,
                   }
@@ -224,7 +227,9 @@ function TodayDashboardContent({ dashboard }: { readonly dashboard: TodayDashboa
   );
 }
 
-function HealthScoreCard({ score }: { readonly score: number }) {
+function HealthScoreCard({ dashboard }: { readonly dashboard: TodayDashboardResponse }) {
+  const score = dashboard.basicBusinessHealthScore;
+
   return (
     <section className="health-card" aria-label="Business Health Score">
       <div>
@@ -236,6 +241,53 @@ function HealthScoreCard({ score }: { readonly score: number }) {
         <HeartPulse size={30} aria-hidden="true" />
       </div>
       <p>{getHealthSummary(score)}</p>
+      <dl className="health-proof-list">
+        <div>
+          <dt>Channels</dt>
+          <dd>{dashboard.connectedPlatforms.length}/4</dd>
+        </div>
+        <div>
+          <dt>Orders</dt>
+          <dd>{dashboard.ordersToday}</dd>
+        </div>
+        <div>
+          <dt>Risk flags</dt>
+          <dd>{dashboard.lowStockCount}</dd>
+        </div>
+      </dl>
+    </section>
+  );
+}
+
+function TodayBriefing({ dashboard }: { readonly dashboard: TodayDashboardResponse }) {
+  const bestPlatform = dashboard.bestPlatformToday
+    ? formatPlatform(dashboard.bestPlatformToday)
+    : "no leading channel yet";
+  const topProduct = dashboard.topProductToday?.name ?? "no top product yet";
+  const revenueTrend =
+    dashboard.revenueChangePercent === null
+      ? "has no baseline yet"
+      : dashboard.revenueChangePercent >= 0
+        ? `is ${dashboard.revenueChangePercent}% ahead of yesterday`
+        : `is ${Math.abs(dashboard.revenueChangePercent)}% behind yesterday`;
+
+  return (
+    <section className="today-briefing" aria-label="Today Briefing">
+      <div className="briefing-icon">
+        <Sparkles size={18} aria-hidden="true" />
+      </div>
+      <div>
+        <p className="eyebrow">Today Briefing</p>
+        <strong>
+          {formatCurrency(dashboard.todayRevenue)} today across {dashboard.activeStores} stores,
+          with {bestPlatform} leading.
+        </strong>
+        <span>
+          Revenue {revenueTrend}; {topProduct} is the product to mention, and{" "}
+          {dashboard.lowStockCount} stock signal{dashboard.lowStockCount === 1 ? "" : "s"} need a
+          quick look.
+        </span>
+      </div>
     </section>
   );
 }
@@ -297,9 +349,12 @@ function PlatformBreakdown({
   return (
     <div className="platform-breakdown">
       {metrics.map((metric) => (
-        <div className="platform-breakdown-row" key={metric.platform}>
+        <div className={`platform-breakdown-row ${getPlatformClass(metric.platform)}`} key={metric.platform}>
           <div>
-            <strong>{formatPlatform(metric.platform)}</strong>
+            <strong>
+              <PlatformDot platform={metric.platform} />
+              {formatPlatform(metric.platform)}
+            </strong>
             <span>{valueFormatter(metric.value)}</span>
           </div>
           <div className="platform-bar" aria-hidden="true">
@@ -309,6 +364,10 @@ function PlatformBreakdown({
       ))}
     </div>
   );
+}
+
+function PlatformDot({ platform }: { readonly platform: StorePlatform }) {
+  return <span className={`platform-dot ${getPlatformClass(platform)}`} aria-hidden="true" />;
 }
 
 function FocusItem({
@@ -368,7 +427,7 @@ function TodayLoadingState() {
   return (
     <section className="today-loading" aria-label="Loading Today dashboard">
       <Loader2 className="spin" size={24} aria-hidden="true" />
-      <span>Loading today’s multi-channel commerce view...</span>
+      <span>Preparing the read-only multi-channel briefing...</span>
     </section>
   );
 }
@@ -420,6 +479,19 @@ function formatPlatform(platform: StorePlatform): string {
       return "Shopify";
     case StorePlatform.WooCommerce:
       return "WooCommerce";
+  }
+}
+
+function getPlatformClass(platform: StorePlatform): string {
+  switch (platform) {
+    case StorePlatform.AmazonSeller:
+      return "platform-amazon";
+    case StorePlatform.TikTokShop:
+      return "platform-tiktok";
+    case StorePlatform.Shopify:
+      return "platform-shopify";
+    case StorePlatform.WooCommerce:
+      return "platform-woocommerce";
   }
 }
 

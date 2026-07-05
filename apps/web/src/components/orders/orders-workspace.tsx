@@ -219,7 +219,7 @@ function OrdersLoadingState() {
   return (
     <section className="today-loading" aria-label="Loading orders">
       <Loader2 className="spin" size={24} aria-hidden="true" />
-      <span>Loading seeded orders across all supported platforms...</span>
+      <span>Preparing read-only orders from all four commerce channels...</span>
     </section>
   );
 }
@@ -230,7 +230,8 @@ function OrdersEmptyState() {
       <ShoppingCart size={22} aria-hidden="true" />
       <strong>No orders match this view</strong>
       <span>
-        Clear filters, run the demo seed, or sync stores to see normalized commerce orders.
+        Clear filters to return to the full demo journey, or sync stores to refresh normalized
+        orders.
       </span>
     </div>
   );

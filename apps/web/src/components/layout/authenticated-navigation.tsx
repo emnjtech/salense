@@ -8,6 +8,7 @@ import {
   ListOrdered,
   LogOut,
   PackageSearch,
+  ShieldCheck,
   Settings,
   Users,
 } from "lucide-react";
@@ -53,8 +54,13 @@ export function AuthenticatedNavigation() {
         <span className="brand-mark">S</span>
         <div>
           <strong>Salense</strong>
-          <span>Commerce intelligence</span>
+          <span>Read-only commerce intelligence</span>
         </div>
+      </div>
+
+      <div className="sidebar-demo-card">
+        <span>Endorsement MVP</span>
+        <strong>Four channels unified for a 60-second business read.</strong>
       </div>
 
       <nav className="sidebar-nav">
@@ -94,6 +100,10 @@ export function AuthenticatedNavigation() {
       </nav>
 
       <div className="sidebar-session">
+        <span className="sidebar-trust">
+          <ShieldCheck size={14} aria-hidden="true" />
+          Marketplace data stays read-only
+        </span>
         <span>{session?.userEmail ?? "Demo session not loaded"}</span>
         <button onClick={() => void handleLogout()} type="button">
           <LogOut size={16} aria-hidden="true" />

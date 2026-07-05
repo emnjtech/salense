@@ -208,7 +208,7 @@ function CustomersLoadingState() {
   return (
     <section className="today-loading" aria-label="Loading customers">
       <Loader2 className="spin" size={24} aria-hidden="true" />
-      <span>Loading customer intelligence across connected platforms...</span>
+      <span>Preparing deterministic customer value across connected platforms...</span>
     </section>
   );
 }
@@ -218,7 +218,7 @@ function CustomersEmptyState() {
     <div className="empty-state orders-empty-state">
       <Users size={22} aria-hidden="true" />
       <strong>No customers match this view</strong>
-      <span>Clear filters, run the demo seed, or sync stores to see customer intelligence.</span>
+      <span>Clear filters to return to the full customer view, or sync stores to refresh data.</span>
     </div>
   );
 }

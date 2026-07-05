@@ -1,4 +1,4 @@
-import { Database, Store } from "lucide-react";
+import { Database, ShieldCheck, Store } from "lucide-react";
 
 export function DemoModeBanner() {
   return (
@@ -9,11 +9,15 @@ export function DemoModeBanner() {
       <div>
         <strong>Demo workspace: Northstar Home Goods</strong>
         <span>
-          Seeded WooCommerce, Amazon Seller, TikTok Shop, and Shopify data for Today, Orders,
-          Products, Customers, and Inventory.
+          Seeded four-platform commerce data designed to show business health, platform comparison,
+          customers, and inventory risk in under a minute.
         </span>
       </div>
       <div className="demo-mode-pill">
+        <ShieldCheck size={14} aria-hidden="true" />
+        Read-only MVP
+      </div>
+      <div className="demo-mode-pill secondary">
         <Store size={14} aria-hidden="true" />
         demo@salense.local
       </div>

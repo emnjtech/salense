@@ -254,7 +254,7 @@ function InventoryLoadingState() {
   return (
     <section className="today-loading" aria-label="Loading inventory">
       <Loader2 className="spin" size={24} aria-hidden="true" />
-      <span>Loading inventory intelligence across connected platforms...</span>
+      <span>Preparing stock risk and inventory value across connected platforms...</span>
     </section>
   );
 }
@@ -264,7 +264,7 @@ function InventoryEmptyState() {
     <div className="empty-state orders-empty-state">
       <Boxes size={22} aria-hidden="true" />
       <strong>No inventory matches this view</strong>
-      <span>Clear filters, run the demo seed, or sync stores to see inventory intelligence.</span>
+      <span>Clear filters to return to the full stock picture, or sync stores to refresh inventory.</span>
     </div>
   );
 }

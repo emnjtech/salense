@@ -208,7 +208,7 @@ function ProductsLoadingState() {
   return (
     <section className="today-loading" aria-label="Loading products">
       <Loader2 className="spin" size={24} aria-hidden="true" />
-      <span>Loading seeded product performance across all supported platforms...</span>
+      <span>Preparing platform-scoped product performance without cross-channel matching...</span>
     </section>
   );
 }
@@ -219,7 +219,8 @@ function ProductsEmptyState() {
       <PackageSearch size={22} aria-hidden="true" />
       <strong>No products match this view</strong>
       <span>
-        Clear filters, run the demo seed, or sync stores to see normalized product performance.
+        Clear filters to return to the full demo product set, or sync stores to refresh normalized
+        products.
       </span>
     </div>
   );

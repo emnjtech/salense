@@ -966,7 +966,7 @@ function PlatformRow({ platform }: { readonly platform: SupportedStorePlatform }
   const isSyncEnabled = isSyncEnabledPlatform(platform.platform);
 
   return (
-    <article className="platform-row">
+    <article className={`platform-row ${getPlatformClass(platform.platform)}`}>
       <div className="platform-icon">
         <Link2 size={18} aria-hidden="true" />
       </div>
@@ -1053,6 +1053,19 @@ function getPlatformLabel(platform: StorePlatform): string {
       return "Shopify";
     case StorePlatform.WooCommerce:
       return "WooCommerce";
+  }
+}
+
+function getPlatformClass(platform: StorePlatform): string {
+  switch (platform) {
+    case StorePlatform.AmazonSeller:
+      return "platform-amazon";
+    case StorePlatform.TikTokShop:
+      return "platform-tiktok";
+    case StorePlatform.Shopify:
+      return "platform-shopify";
+    case StorePlatform.WooCommerce:
+      return "platform-woocommerce";
   }
 }
 
