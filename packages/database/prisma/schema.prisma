@@ -431,6 +431,29 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+/// Public early-access subscription interest request.
+/// This captures commercial intent only; payment processing is intentionally not implemented.
+model SubscriptionInvitation {
+  id            String   @id @default(cuid())
+  fullName      String
+  businessName  String
+  workEmail     String
+  phoneNumber   String?
+  websiteUrl    String?
+  preferredPlan String
+  platforms     Json
+  message       String?
+  status        String   @default("REQUESTED")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([workEmail])
+  @@index([preferredPlan])
+  @@index([status])
+  @@index([createdAt])
+  @@map("subscription_invitations")
+}
+
 /// Hashed email verification token generated after registration.
 /// Stores lookup and expiry state only; email delivery is intentionally not implemented yet.
 model EmailVerificationToken {

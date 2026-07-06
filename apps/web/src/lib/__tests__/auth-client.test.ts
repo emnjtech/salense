@@ -158,6 +158,48 @@ describe("auth API client", () => {
     expect(getAuthorization(fetchImpl.mock.calls[0]?.[1])).toBe("Bearer access-token");
   });
 
+  it("submits company profile updates with uploaded or removed logos", async () => {
+    const fetchImpl = jest
+      .fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>()
+      .mockResolvedValue(
+        jsonResponse({
+          businessLogoUrl: null,
+          businessName: "Northstar Home Goods",
+          country: "GB",
+          currency: "GBP",
+          id: "business_1",
+          industry: "Homeware",
+          taxPreference: "VAT_REGISTERED",
+          timeZone: "Europe/London",
+        }),
+      );
+    const client = createAuthApiClient({ baseUrl: "https://api.salense.test", fetchImpl });
+
+    await client.updateCompanyProfile("access-token", {
+      businessLogoUrl: "data:image/png;base64,ZmFrZS1sb2dv",
+      businessName: "Northstar Home Goods",
+      country: "gb",
+      currency: "gbp",
+      industry: "Homeware",
+      taxPreference: "VAT_REGISTERED",
+      timeZone: "Europe/London",
+    });
+    await client.updateCompanyProfile("access-token", {
+      businessLogoUrl: null,
+      businessName: "Northstar Home Goods",
+      country: "gb",
+      currency: "gbp",
+      industry: "Homeware",
+      taxPreference: "VAT_REGISTERED",
+      timeZone: "Europe/London",
+    });
+
+    expect(fetchImpl.mock.calls[0]?.[1]?.body).toContain(
+      '"businessLogoUrl":"data:image/png;base64,ZmFrZS1sb2dv"',
+    );
+    expect(fetchImpl.mock.calls[1]?.[1]?.body).toContain('"businessLogoUrl":null');
+  });
+
   it("submits password changes to the existing authenticated endpoint", async () => {
     const fetchImpl = jest
       .fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>()

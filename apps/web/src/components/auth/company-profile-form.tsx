@@ -1,16 +1,25 @@
 "use client";
 
+import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { type FormEvent, useMemo, useState } from "react";
+import { type ChangeEvent, type FormEvent, useMemo, useRef, useState } from "react";
 import { createAuthApiClient } from "../../lib/api/auth-client";
 import { readDemoSession } from "../../lib/auth-session";
+import {
+  acceptedCompanyLogoInputTypes,
+  CompanyLogoUploadError,
+  storeCompanyLogoForLocalProfile,
+  validateCompanyLogoFile,
+  type StoredCompanyLogo,
+} from "../../lib/company-logo-upload";
 import { FormMessage } from "./auth-page-shell";
 
 export function CompanyProfileForm() {
   const router = useRouter();
   const authClient = useMemo(() => createAuthApiClient(), []);
+  const logoInputRef = useRef<HTMLInputElement | null>(null);
   const [form, setForm] = useState({
-    businessLogoUrl: "",
+    businessLogoUrl: null as string | null,
     businessName: "",
     country: "GB",
     currency: "GBP",
@@ -18,9 +27,54 @@ export function CompanyProfileForm() {
     taxPreference: "Standard",
     timeZone: "Europe/London",
   });
+  const [logoPreview, setLogoPreview] = useState<StoredCompanyLogo | null>(null);
+  const [logoError, setLogoError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  function resetLogoInput() {
+    if (logoInputRef.current) {
+      logoInputRef.current.value = "";
+    }
+  }
+
+  async function handleLogoChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    const validation = validateCompanyLogoFile(file);
+
+    if (!validation.ok) {
+      setLogoError(validation.message);
+      resetLogoInput();
+      return;
+    }
+
+    try {
+      const storedLogo = await storeCompanyLogoForLocalProfile(file);
+      setLogoPreview(storedLogo);
+      setLogoError(null);
+      setForm((current) => ({ ...current, businessLogoUrl: storedLogo.dataUrl }));
+    } catch (caughtError) {
+      setLogoError(
+        caughtError instanceof CompanyLogoUploadError
+          ? caughtError.message
+          : "We could not upload that logo. Try another image.",
+      );
+      resetLogoInput();
+    }
+  }
+
+  function handleRemoveLogo() {
+    setLogoPreview(null);
+    setLogoError(null);
+    setForm((current) => ({ ...current, businessLogoUrl: null }));
+    resetLogoInput();
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -39,14 +93,11 @@ export function CompanyProfileForm() {
     try {
       const profile = await authClient.updateCompanyProfile(session.accessToken, {
         ...form,
-        ...(form.businessLogoUrl.trim() ? { businessLogoUrl: form.businessLogoUrl.trim() } : {}),
       });
       setSuccess(`${profile.businessName} is ready for store integrations.`);
       router.refresh();
     } catch (caughtError) {
-      setError(
-        caughtError instanceof Error ? caughtError.message : "Unable to save company profile.",
-      );
+      setError(getFriendlyCompanyProfileError(caughtError));
     } finally {
       setLoading(false);
     }
@@ -58,7 +109,7 @@ export function CompanyProfileForm() {
         <div>
           <p className="eyebrow">Company setup</p>
           <h1>Give Salense the business context it needs.</h1>
-          <p>Complete the Version 1 company profile before connecting commerce stores.</p>
+          <p>Complete the company profile before connecting commerce stores.</p>
         </div>
       </header>
 
@@ -77,18 +128,52 @@ export function CompanyProfileForm() {
               value={form.businessName}
             />
           </label>
-          <label className="span-two">
-            Business logo URL
-            <input
-              inputMode="url"
-              onChange={(event) =>
-                setForm((current) => ({ ...current, businessLogoUrl: event.target.value }))
-              }
-              placeholder="https://example.com/logo.png"
-              type="url"
-              value={form.businessLogoUrl}
-            />
-          </label>
+          <section className="span-two company-logo-upload" aria-labelledby="company-logo-title">
+            <div>
+              <h2 id="company-logo-title">Business logo</h2>
+              <p>Upload a PNG, JPG, SVG, or WebP logo up to 2MB.</p>
+            </div>
+            <div className="company-logo-upload-body">
+              {logoPreview ? (
+                <div className="company-logo-preview">
+                  <Image
+                    alt="Business logo preview"
+                    height={84}
+                    src={logoPreview.dataUrl}
+                    unoptimized
+                    width={84}
+                  />
+                  <div>
+                    <strong>{logoPreview.fileName}</strong>
+                    <span>{formatFileSize(logoPreview.size)}</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="company-logo-placeholder" aria-hidden="true">
+                  Logo
+                </div>
+              )}
+              <div className="company-logo-actions">
+                <label className="secondary-button company-logo-file-button">
+                  {logoPreview ? "Replace logo" : "Upload logo"}
+                  <input
+                    ref={logoInputRef}
+                    accept={acceptedCompanyLogoInputTypes}
+                    onChange={(event) => void handleLogoChange(event)}
+                    type="file"
+                  />
+                </label>
+                {logoPreview ? (
+                  <button className="ghost-button" onClick={handleRemoveLogo} type="button">
+                    Remove
+                  </button>
+                ) : null}
+              </div>
+            </div>
+            {logoError ? (
+              <FormMessage tone="error">{logoError}</FormMessage>
+            ) : null}
+          </section>
           <label>
             Country
             <input
@@ -150,4 +235,20 @@ export function CompanyProfileForm() {
       </section>
     </main>
   );
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+
+  return `${Math.round(bytes / 1024)} KB`;
+}
+
+function getFriendlyCompanyProfileError(error: unknown): string {
+  if (error instanceof Error && /businessLogoUrl|logo/i.test(error.message)) {
+    return "Upload a PNG, JPG, SVG, or WebP logo up to 2MB.";
+  }
+
+  return error instanceof Error ? error.message : "Unable to save company profile.";
 }

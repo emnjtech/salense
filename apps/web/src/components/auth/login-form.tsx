@@ -24,7 +24,7 @@ export function LoginForm() {
     try {
       const session = await authClient.login({ email, password });
       saveDemoSession(session);
-      router.push(searchParams.get("next") ?? "/today");
+      router.push(searchParams?.get("next") ?? "/today");
     } catch (caughtError) {
       setError(getMessage(caughtError));
     } finally {
@@ -45,10 +45,10 @@ export function LoginForm() {
       summary="Login to continue to the authenticated workspace. Email verification is required before access."
       title="Sign in to Salense"
     >
-      {searchParams.get("verified") === "true" ? (
+      {searchParams?.get("verified") === "true" ? (
         <FormMessage tone="success">Email verified. You can sign in now.</FormMessage>
       ) : null}
-      {searchParams.get("reason") === "session-expired" ? (
+      {searchParams?.get("reason") === "session-expired" ? (
         <FormMessage tone="info">Your session expired. Please sign in again.</FormMessage>
       ) : null}
       {error ? <FormMessage tone="error">{error}</FormMessage> : null}

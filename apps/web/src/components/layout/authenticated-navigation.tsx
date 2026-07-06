@@ -22,7 +22,7 @@ import { createAuthApiClient } from "../../lib/api/auth-client";
 import { clearDemoSession, readDemoSession, type DemoSession } from "../../lib/auth-session";
 
 export function AuthenticatedNavigation() {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
   const router = useRouter();
   const authClient = useMemo(() => createAuthApiClient(), []);
   const [session, setSession] = useState<DemoSession | null>(null);

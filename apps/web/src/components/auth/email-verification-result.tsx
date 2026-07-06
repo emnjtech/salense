@@ -7,7 +7,7 @@ import { createAuthApiClient } from "../../lib/api/auth-client";
 import { AuthPageShell, FormMessage } from "./auth-page-shell";
 
 export function EmailVerificationResult() {
-  const token = useSearchParams().get("token");
+  const token = useSearchParams()?.get("token");
   const authClient = useMemo(() => createAuthApiClient(), []);
   const [status, setStatus] = useState<"loading" | "success" | "error" | "missing">(
     token ? "loading" : "missing",

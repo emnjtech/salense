@@ -12,10 +12,12 @@ describe("SettingsWorkspace", () => {
     expect(html).toContain("Business profile");
     expect(html).toContain("Security");
     expect(html).toContain("Store connections");
+    expect(html).toContain("Subscription");
     expect(html).toContain("Notifications");
     expect(html).toContain("Data &amp; privacy");
     expect(html).toContain("/settings/account");
     expect(html).toContain("/settings/security");
+    expect(html).toContain("/settings/subscription");
     expect(html).toContain("/store-integrations");
     expect(html).not.toContain("Demo");
     expect(html).not.toContain("MVP");

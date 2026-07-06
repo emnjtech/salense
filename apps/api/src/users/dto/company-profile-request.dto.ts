@@ -1,4 +1,7 @@
-import { IsNotEmpty, IsOptional, IsString, IsUrl, Length } from "class-validator";
+import { IsNotEmpty, IsOptional, IsString, Length, Matches, MaxLength } from "class-validator";
+
+const companyLogoReferencePattern =
+  /^(https?:\/\/.+|data:image\/(?:png|jpeg|jpg|webp|svg\+xml);base64,[A-Za-z0-9+/=]+)$/u;
 
 export class CompanyProfileRequestDto {
   @IsString()
@@ -6,8 +9,12 @@ export class CompanyProfileRequestDto {
   declare readonly businessName: string;
 
   @IsOptional()
-  @IsUrl({ require_tld: false })
-  declare readonly businessLogoUrl?: string;
+  @IsString()
+  @MaxLength(3_000_000)
+  @Matches(companyLogoReferencePattern, {
+    message: "Business logo must be an uploaded PNG, JPG, SVG, or WebP image up to 2MB.",
+  })
+  declare readonly businessLogoUrl?: string | null;
 
   @IsString()
   @Length(2, 2)

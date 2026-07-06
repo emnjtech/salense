@@ -50,7 +50,7 @@ export interface CurrentUserResponse {
 
 export interface CompanyProfileInput {
   readonly businessName: string;
-  readonly businessLogoUrl?: string;
+  readonly businessLogoUrl?: string | null;
   readonly country: string;
   readonly timeZone: string;
   readonly currency: string;

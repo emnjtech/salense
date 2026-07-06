@@ -7,7 +7,7 @@ import { createAuthApiClient } from "../../lib/api/auth-client";
 import { AuthPageShell, FormMessage } from "./auth-page-shell";
 
 export function ResetPasswordForm() {
-  const tokenFromUrl = useSearchParams().get("token") ?? "";
+  const tokenFromUrl = useSearchParams()?.get("token") ?? "";
   const authClient = useMemo(() => createAuthApiClient(), []);
   const [token, setToken] = useState(tokenFromUrl);
   const [password, setPassword] = useState("");

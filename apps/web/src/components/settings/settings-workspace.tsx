@@ -1,4 +1,12 @@
-import { Bell, Building2, LockKeyhole, PlugZap, ShieldCheck, UserCircle } from "lucide-react";
+import {
+  Bell,
+  Building2,
+  CreditCard,
+  LockKeyhole,
+  PlugZap,
+  ShieldCheck,
+  UserCircle,
+} from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -33,6 +41,14 @@ const settingsSections = [
     icon: <PlugZap size={20} aria-hidden="true" />,
     label: "Store connections",
     status: "Manage stores",
+  },
+  {
+    description:
+      "Review early-access plan status, trial options, store usage, and subscription requests.",
+    href: "/settings/subscription",
+    icon: <CreditCard size={20} aria-hidden="true" />,
+    label: "Subscription",
+    status: "Plan status",
   },
   {
     description:

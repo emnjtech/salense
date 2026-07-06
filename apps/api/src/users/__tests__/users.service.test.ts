@@ -119,6 +119,38 @@ describe("UsersService", () => {
     );
   });
 
+  it("clears the company logo when the profile sends null", async () => {
+    const { service, findUser, upsertBusiness } = createUsersServiceMocks();
+    findUser.mockResolvedValue({ id: "user_1" });
+    upsertBusiness.mockResolvedValue({
+      id: "business_1",
+      name: "Example Company",
+      businessLogoUrl: null,
+      country: "GB",
+      timeZone: "Europe/London",
+      currency: "GBP",
+      taxPreference: "standard",
+      industry: "E-commerce",
+    });
+
+    await service.updateCompanyProfile("user_1", {
+      businessName: "Example Company",
+      businessLogoUrl: null,
+      country: "GB",
+      timeZone: "Europe/London",
+      currency: "GBP",
+      taxPreference: "standard",
+      industry: "E-commerce",
+    });
+
+    expect(upsertBusiness).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ businessLogoUrl: null }),
+        update: expect.objectContaining({ businessLogoUrl: null }),
+      }),
+    );
+  });
+
   it("rejects company profile updates for a missing user", async () => {
     const { service, findUser, upsertBusiness } = createUsersServiceMocks();
     findUser.mockResolvedValue(null);

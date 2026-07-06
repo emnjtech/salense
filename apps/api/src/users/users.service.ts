@@ -38,7 +38,7 @@ interface CompanyProfilePrismaClient {
       readonly create: {
         readonly ownerId: string;
         readonly name: string;
-        readonly businessLogoUrl?: string;
+        readonly businessLogoUrl?: string | null;
         readonly country: string;
         readonly timeZone: string;
         readonly currency: string;
@@ -47,7 +47,7 @@ interface CompanyProfilePrismaClient {
       };
       readonly update: {
         readonly name: string;
-        readonly businessLogoUrl?: string;
+        readonly businessLogoUrl?: string | null;
         readonly country: string;
         readonly timeZone: string;
         readonly currency: string;
@@ -129,8 +129,8 @@ export class UsersService {
 
     const profileData = {
       name: companyProfileRequest.businessName.trim(),
-      ...(companyProfileRequest.businessLogoUrl
-        ? { businessLogoUrl: companyProfileRequest.businessLogoUrl.trim() }
+      ...(Object.prototype.hasOwnProperty.call(companyProfileRequest, "businessLogoUrl")
+        ? { businessLogoUrl: normaliseLogoReference(companyProfileRequest.businessLogoUrl) }
         : {}),
       country: companyProfileRequest.country.trim().toUpperCase(),
       timeZone: companyProfileRequest.timeZone.trim(),
@@ -169,4 +169,14 @@ export class UsersService {
       industry: business.industry ?? profileData.industry,
     };
   }
+}
+
+function normaliseLogoReference(value: string | null | undefined): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const trimmedValue = value.trim();
+
+  return trimmedValue ? trimmedValue : null;
 }

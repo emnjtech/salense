@@ -252,6 +252,18 @@ button:disabled {
   color: #243027;
 }
 
+.ghost-button {
+  background: transparent;
+  color: #647067;
+  font-weight: 750;
+  min-height: 40px;
+  padding: 0 4px;
+}
+
+.ghost-button:hover {
+  color: #17211b;
+}
+
 .state-banner {
   align-items: center;
   border-radius: 8px;
@@ -1994,6 +2006,25 @@ button:disabled {
   width: max-content;
 }
 
+.auth-public-nav {
+  display: flex;
+  gap: 14px;
+}
+
+.auth-public-nav a {
+  border: 1px solid #425249;
+  border-radius: 8px;
+  color: #f5faf3;
+  font-size: 13px;
+  font-weight: 760;
+  padding: 8px 12px;
+  width: max-content;
+}
+
+.auth-public-nav a:hover {
+  background: #223129;
+}
+
 .auth-logo {
   display: block;
   height: auto;
@@ -2080,7 +2111,10 @@ button:disabled {
   gap: 7px;
 }
 
-.auth-form input {
+.auth-form input,
+.invitation-form input,
+.invitation-form select,
+.invitation-form textarea {
   border: 1px solid #cfd7d0;
   border-radius: 8px;
   min-height: 42px;
@@ -2088,7 +2122,15 @@ button:disabled {
   width: 100%;
 }
 
-.auth-form input:focus {
+.invitation-form textarea {
+  padding: 10px 12px;
+  resize: vertical;
+}
+
+.auth-form input:focus,
+.invitation-form input:focus,
+.invitation-form select:focus,
+.invitation-form textarea:focus {
   border-color: #1f6f55;
   box-shadow: 0 0 0 3px #d8f0e4;
   outline: 0;
@@ -2147,6 +2189,422 @@ button:disabled {
 .setup-panel {
   display: grid;
   gap: 16px;
+}
+
+.company-logo-upload {
+  border: 1px solid #dfe4df;
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.company-logo-upload h2 {
+  font-size: 15px;
+  margin: 0;
+}
+
+.company-logo-upload p {
+  color: #647067;
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 5px 0 0;
+}
+
+.company-logo-upload-body {
+  align-items: center;
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+}
+
+.company-logo-preview {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  min-width: 0;
+}
+
+.company-logo-preview img,
+.company-logo-placeholder {
+  background: #f4f7f1;
+  border: 1px solid #dfe4df;
+  border-radius: 8px;
+  flex: 0 0 auto;
+  height: 84px;
+  object-fit: contain;
+  width: 84px;
+}
+
+.company-logo-placeholder {
+  align-items: center;
+  color: #7a877e;
+  display: flex;
+  font-size: 13px;
+  font-weight: 800;
+  justify-content: center;
+}
+
+.company-logo-preview strong,
+.company-logo-preview span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.company-logo-preview span {
+  color: #647067;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.company-logo-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.company-logo-file-button {
+  cursor: pointer;
+  display: inline-flex;
+  position: relative;
+}
+
+.company-logo-file-button input {
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+.public-page {
+  display: grid;
+  gap: 36px;
+  margin: 0 auto;
+  max-width: 1180px;
+  min-height: 100vh;
+  padding: 28px;
+}
+
+.public-nav {
+  align-items: center;
+  display: flex;
+  gap: 20px;
+  justify-content: space-between;
+}
+
+.public-brand {
+  display: inline-flex;
+}
+
+.public-nav-actions {
+  align-items: center;
+  display: flex;
+  gap: 14px;
+}
+
+.public-nav-actions > a:not(.primary-button) {
+  color: #415044;
+  font-size: 14px;
+  font-weight: 760;
+}
+
+.pricing-hero {
+  display: grid;
+  gap: 14px;
+  max-width: 780px;
+  padding-top: 24px;
+}
+
+.pricing-hero h1,
+.invitation-copy h1,
+.invitation-confirmation h1 {
+  font-size: 42px;
+  line-height: 1.08;
+  margin: 0;
+}
+
+.pricing-hero p:not(.eyebrow),
+.invitation-copy p:not(.eyebrow),
+.invitation-confirmation p:not(.eyebrow) {
+  color: #5b675e;
+  font-size: 16px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.pricing-grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.pricing-card {
+  align-content: start;
+  display: grid;
+  gap: 22px;
+  padding: 24px;
+}
+
+.pricing-card h2 {
+  font-size: 24px;
+  margin: 10px 0 0;
+}
+
+.pricing-card p:not(.eyebrow) {
+  color: #5b675e;
+  line-height: 1.55;
+  margin: 8px 0 0;
+}
+
+.pricing-price {
+  align-items: baseline;
+  display: flex;
+  gap: 6px;
+}
+
+.pricing-price strong {
+  font-size: 38px;
+  letter-spacing: 0;
+}
+
+.pricing-price span,
+.pricing-limits dt {
+  color: #647067;
+  font-size: 13px;
+}
+
+.pricing-limits {
+  border-bottom: 1px solid #e1e6e0;
+  border-top: 1px solid #e1e6e0;
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 16px 0;
+}
+
+.pricing-limits div {
+  display: flex;
+  justify-content: space-between;
+}
+
+.pricing-limits dd {
+  color: #17211b;
+  font-weight: 760;
+  margin: 0;
+}
+
+.pricing-features {
+  display: grid;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.pricing-features li {
+  align-items: center;
+  color: #334139;
+  display: flex;
+  font-size: 14px;
+  gap: 9px;
+}
+
+.pricing-features svg {
+  color: #1f8a4c;
+  flex: 0 0 auto;
+}
+
+.pricing-action {
+  margin-top: 6px;
+}
+
+.invitation-layout {
+  align-items: start;
+  display: grid;
+  gap: 28px;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+}
+
+.invitation-copy {
+  display: grid;
+  gap: 16px;
+  padding-top: 36px;
+}
+
+.invitation-plan-summary {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 20px;
+}
+
+.invitation-plan-summary span,
+.subscription-status-card span {
+  color: #647067;
+  font-size: 13px;
+  font-weight: 760;
+}
+
+.invitation-plan-summary strong {
+  font-size: 22px;
+}
+
+.invitation-form {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 24px;
+}
+
+.invitation-form label {
+  color: #2d3930;
+  display: grid;
+  font-size: 13px;
+  font-weight: 720;
+  gap: 7px;
+}
+
+.invitation-form label span {
+  color: #738077;
+  font-weight: 650;
+}
+
+.platform-checkboxes {
+  border: 1px solid #dfe4df;
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 14px;
+}
+
+.platform-checkboxes legend {
+  color: #2d3930;
+  font-size: 13px;
+  font-weight: 760;
+  padding: 0 4px;
+}
+
+.platform-checkboxes label {
+  align-items: center;
+  display: flex;
+  gap: 9px;
+}
+
+.platform-checkboxes input {
+  min-height: auto;
+  width: auto;
+}
+
+.invitation-confirmation {
+  align-content: center;
+  display: grid;
+  gap: 16px;
+  justify-self: center;
+  margin-top: 40px;
+  max-width: 680px;
+  min-height: 420px;
+  padding: 34px;
+}
+
+.invitation-confirmation > svg {
+  color: #1f8a4c;
+}
+
+.invitation-confirmation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.subscription-status-grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: 1.35fr repeat(2, minmax(0, 0.8fr));
+}
+
+.subscription-status-card {
+  align-content: start;
+  display: grid;
+  gap: 12px;
+  padding: 22px;
+}
+
+.subscription-status-card.highlight {
+  background: linear-gradient(135deg, #ffffff 0%, #eef8f1 100%);
+}
+
+.subscription-status-card h2 {
+  font-size: 26px;
+  margin: 0;
+}
+
+.subscription-status-card p {
+  color: #5b675e;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.subscription-status-card strong {
+  font-size: 22px;
+}
+
+.subscription-status-card a:not(.primary-button) {
+  color: #1f6f55;
+  font-size: 13px;
+  font-weight: 760;
+}
+
+.subscription-usage-loading {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.subscription-plan-panel {
+  display: grid;
+  gap: 16px;
+  padding: 22px;
+}
+
+.subscription-plan-list {
+  display: grid;
+  gap: 10px;
+}
+
+.subscription-plan-row {
+  align-items: center;
+  border: 1px solid #dfe4df;
+  border-radius: 8px;
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  padding: 14px;
+}
+
+.subscription-plan-row:hover {
+  background: #f7faf5;
+  border-color: #bfd5c5;
+}
+
+.subscription-plan-row span:first-child {
+  color: #647067;
+  display: grid;
+  font-size: 13px;
+  gap: 4px;
+}
+
+.subscription-plan-row strong {
+  color: #17211b;
+  font-size: 15px;
 }
 
 @keyframes pulse {
@@ -2216,6 +2674,12 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 
+  .invitation-layout,
+  .pricing-grid,
+  .subscription-status-grid {
+    grid-template-columns: 1fr;
+  }
+
   .auth-page {
     grid-template-columns: 1fr;
   }
@@ -2251,6 +2715,7 @@ button:disabled {
 
   .overview-grid,
   .health-proof-list,
+  .invitation-form,
   .reports-kpi-grid,
   .reports-inventory-grid,
   .today-top-grid,
@@ -2260,6 +2725,27 @@ button:disabled {
   .sidebar-nav,
   .auth-form.two-column {
     grid-template-columns: 1fr;
+  }
+
+  .public-nav,
+  .subscription-plan-row {
+    align-items: flex-start;
+    display: grid;
+  }
+
+  .public-nav-actions {
+    flex-wrap: wrap;
+  }
+
+  .company-logo-upload-body {
+    align-items: flex-start;
+    display: grid;
+  }
+
+  .pricing-hero h1,
+  .invitation-copy h1,
+  .invitation-confirmation h1 {
+    font-size: 32px;
   }
 
   .auth-story,

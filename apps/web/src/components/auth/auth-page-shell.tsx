@@ -24,6 +24,9 @@ export function AuthPageShell({ children, eyebrow, footer, title, summary }: Aut
             width={150}
           />
         </Link>
+        <nav className="auth-public-nav" aria-label="Public navigation">
+          <Link href="/pricing">Pricing</Link>
+        </nav>
         <div className="auth-illustration-wrap">
           <Image
             alt=""
