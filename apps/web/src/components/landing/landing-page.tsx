@@ -4,7 +4,6 @@ import {
   ArrowRight,
   BarChart3,
   Check,
-  ChevronDown,
   CirclePlay,
   RefreshCw,
   ShieldCheck,
@@ -24,11 +23,9 @@ export function LandingPage() {
           <Image alt="Salense" height={42} priority src="/brand/salense-logo-dark.svg" width={148} />
         </Link>
         <nav className="landing-nav-links" aria-label="Primary navigation">
-          <Link href="/pricing">Product <ChevronDown size={14} aria-hidden="true" /></Link>
-          <Link href="/pricing">Integrations</Link>
+          <Link href="/integrations">Integrations</Link>
           <Link href="/pricing">Pricing</Link>
-          <Link href="/how-it-works">Resources <ChevronDown size={14} aria-hidden="true" /></Link>
-          <Link href="/pricing">About</Link>
+          <Link href="/about">About</Link>
         </nav>
         <div className="landing-nav-actions">
           <Link href="/login">Login</Link>

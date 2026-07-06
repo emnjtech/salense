@@ -2515,6 +2515,136 @@ button:disabled {
   margin: 0;
 }
 
+.public-content-page {
+  gap: 48px;
+}
+
+.public-story-hero {
+  display: grid;
+  gap: 16px;
+  max-width: 820px;
+  padding-top: 24px;
+}
+
+.public-story-hero h1 {
+  font-size: 46px;
+  line-height: 1.08;
+  margin: 0;
+}
+
+.public-story-hero p:not(.eyebrow) {
+  color: #5b675e;
+  font-size: 17px;
+  line-height: 1.65;
+  margin: 0;
+  max-width: 720px;
+}
+
+.public-story-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.public-story-grid,
+.integration-grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.public-story-card {
+  display: grid;
+  gap: 12px;
+  padding: 26px;
+}
+
+.public-story-card h2,
+.public-philosophy h2,
+.planned-integrations h2,
+.integration-card h2 {
+  font-size: 24px;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.public-story-card p:not(.eyebrow),
+.public-philosophy p:not(.eyebrow),
+.planned-integrations p:not(.eyebrow),
+.integration-card p {
+  color: #5b675e;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.public-philosophy,
+.planned-integrations {
+  display: grid;
+  gap: 28px;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  padding: 30px;
+}
+
+.public-philosophy > div,
+.planned-integrations > div {
+  display: grid;
+  gap: 12px;
+}
+
+.public-philosophy ul,
+.planned-integrations ul,
+.integration-card ul {
+  display: grid;
+  gap: 12px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.public-philosophy li,
+.planned-integrations li,
+.integration-card li {
+  align-items: center;
+  color: #243229;
+  display: flex;
+  gap: 9px;
+  line-height: 1.45;
+}
+
+.public-philosophy li svg,
+.integration-card li svg {
+  color: #12824d;
+  flex: 0 0 auto;
+}
+
+.planned-integrations li svg {
+  color: #607066;
+  flex: 0 0 auto;
+}
+
+.integration-card {
+  display: grid;
+  gap: 22px;
+  padding: 26px;
+}
+
+.integration-card-heading {
+  align-items: flex-start;
+  display: flex;
+  gap: 14px;
+}
+
+.integration-card-heading img {
+  flex: 0 0 auto;
+}
+
+.integration-card-heading div {
+  display: grid;
+  gap: 8px;
+}
+
 .pricing-grid {
   align-items: stretch;
   display: grid;
@@ -3316,6 +3446,10 @@ button:disabled {
   .landing-hero,
   .landing-feature-band,
   .pricing-grid,
+  .public-philosophy,
+  .public-story-grid,
+  .integration-grid,
+  .planned-integrations,
   .subscription-status-grid {
     grid-template-columns: 1fr;
   }
