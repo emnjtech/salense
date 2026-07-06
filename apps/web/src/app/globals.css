@@ -233,9 +233,23 @@ button:disabled {
 .primary-button,
 .secondary-button,
 .store-actions button {
+  align-items: center;
   border-radius: 8px;
-  min-height: 40px;
-  padding: 0 14px;
+  display: inline-flex;
+  font-size: 14px;
+  font-weight: 760;
+  gap: 8px;
+  justify-content: center;
+  letter-spacing: 0;
+  line-height: 1;
+  min-height: 44px;
+  padding: 0 18px;
+  text-align: center;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    color 160ms ease;
   white-space: nowrap;
 }
 
@@ -252,12 +266,67 @@ button:disabled {
   color: #243027;
 }
 
+.primary-button:hover:not(:disabled),
+.secondary-button:hover:not(:disabled),
+.store-actions button:hover:not(:disabled) {
+  box-shadow: 0 8px 20px rgb(23 33 27 / 8%);
+}
+
+.primary-button:hover:not(:disabled) {
+  background: #185e48;
+}
+
+.secondary-button:hover:not(:disabled),
+.store-actions button:hover:not(:disabled) {
+  border-color: #c9d1ca;
+  color: #17211b;
+}
+
+.primary-button:focus-visible,
+.secondary-button:focus-visible,
+.ghost-button:focus-visible,
+.store-actions button:focus-visible,
+.icon-button:focus-visible {
+  outline: 3px solid rgb(31 111 85 / 24%);
+  outline-offset: 3px;
+}
+
+.primary-button > svg,
+.secondary-button > svg,
+.ghost-button > svg,
+.store-actions button > svg {
+  flex: 0 0 auto;
+}
+
+.primary-button:has(> svg:first-child:not(:last-child))::after,
+.secondary-button:has(> svg:first-child:not(:last-child))::after,
+.ghost-button:has(> svg:first-child:not(:last-child))::after,
+.store-actions button:has(> svg:first-child:not(:last-child))::after {
+  content: "";
+  flex: 0 0 16px;
+  width: 16px;
+}
+
+.primary-button:has(> svg:last-child:not(:first-child))::before,
+.secondary-button:has(> svg:last-child:not(:first-child))::before,
+.ghost-button:has(> svg:last-child:not(:first-child))::before,
+.store-actions button:has(> svg:last-child:not(:first-child))::before {
+  content: "";
+  flex: 0 0 16px;
+  width: 16px;
+}
+
 .ghost-button {
+  align-items: center;
   background: transparent;
   color: #647067;
+  display: inline-flex;
   font-weight: 750;
-  min-height: 40px;
-  padding: 0 4px;
+  gap: 8px;
+  justify-content: center;
+  line-height: 1;
+  min-height: 44px;
+  padding: 0 8px;
 }
 
 .ghost-button:hover {
@@ -415,7 +484,7 @@ button:disabled {
   border: 1px solid #d9ded8;
   border-radius: 8px;
   color: #243027;
-  min-height: 42px;
+  min-height: 44px;
 }
 
 .date-chip {
@@ -427,8 +496,11 @@ button:disabled {
 }
 
 .icon-button {
+  align-items: center;
+  display: inline-flex;
+  justify-content: center;
   padding: 0;
-  width: 42px;
+  width: 44px;
 }
 
 .today-top-grid {
@@ -2265,8 +2337,10 @@ button:disabled {
 }
 
 .company-logo-file-button {
+  align-items: center;
   cursor: pointer;
   display: inline-flex;
+  justify-content: center;
   position: relative;
 }
 
@@ -2732,8 +2806,8 @@ button:disabled {
 
 .landing-primary-action,
 .landing-video-action {
-  min-height: 64px;
-  padding: 0 24px;
+  min-height: 52px;
+  padding: 0 22px;
 }
 
 .landing-primary-action {
