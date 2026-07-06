@@ -1,13 +1,16 @@
 "use client";
 
 import { Archive, CheckCircle2, Copy, Loader2, XCircle } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
   createSubscriptionApiClient,
   type AdminInvitation,
 } from "../../lib/api/subscription-client";
+import { readDemoSession } from "../../lib/auth-session";
 
 export function AdminInvitationsWorkspace() {
+  const router = useRouter();
   const client = useMemo(() => createSubscriptionApiClient(), []);
   const [invitations, setInvitations] = useState<readonly AdminInvitation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -19,6 +22,11 @@ export function AdminInvitationsWorkspace() {
     let mounted = true;
 
     async function loadInvitations() {
+      if (!readDemoSession()) {
+        router.replace("/login?next=/admin");
+        return;
+      }
+
       try {
         const response = await client.listInvitations();
 
@@ -42,7 +50,7 @@ export function AdminInvitationsWorkspace() {
     return () => {
       mounted = false;
     };
-  }, [client]);
+  }, [client, router]);
 
   async function approveInvitation(invitationId: string) {
     setActionId(invitationId);

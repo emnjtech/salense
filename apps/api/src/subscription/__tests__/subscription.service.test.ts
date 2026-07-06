@@ -215,6 +215,16 @@ describe("SubscriptionService", () => {
     });
   });
 
+  it("prevents archiving pending invitation requests", async () => {
+    const mocks = createService();
+    mocks.findInvitationUnique.mockResolvedValue(baseInvitation);
+
+    await expect(mocks.service.archiveInvitation("invitation_1")).rejects.toThrow(
+      BadRequestException,
+    );
+    expect(mocks.updateInvitation).not.toHaveBeenCalled();
+  });
+
   it("creates a verified account from a valid invitation and marks the token used", async () => {
     const mocks = createService();
     mocks.findInvitationUnique.mockResolvedValue({

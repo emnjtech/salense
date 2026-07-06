@@ -9,9 +9,7 @@ import {
   Query,
   UseGuards,
 } from "@nestjs/common";
-import {
-  JwtAccessTokenGuard,
-} from "../auth/guards/jwt-access-token.guard.js";
+import { JwtAccessTokenGuard } from "../auth/guards/jwt-access-token.guard.js";
 import { PlatformAdminGuard } from "../auth/guards/platform-admin.guard.js";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- Nest validation requires runtime DTO metadata.
 import { AcceptInvitationRequestDto } from "./dto/accept-invitation-request.dto.js";

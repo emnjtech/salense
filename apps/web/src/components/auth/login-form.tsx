@@ -51,6 +51,11 @@ export function LoginForm() {
       {searchParams?.get("reason") === "session-expired" ? (
         <FormMessage tone="info">Your session expired. Please sign in again.</FormMessage>
       ) : null}
+      {searchParams?.get("reason") === "invitation-accepted" ? (
+        <FormMessage tone="success">
+          Your account is ready. Sign in to continue to Salense.
+        </FormMessage>
+      ) : null}
       {error ? <FormMessage tone="error">{error}</FormMessage> : null}
       <form className="auth-form" onSubmit={(event) => void handleSubmit(event)}>
         <label>

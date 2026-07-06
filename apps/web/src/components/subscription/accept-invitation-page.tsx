@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -25,7 +25,6 @@ export function AcceptInvitationPage({ token }: AcceptInvitationPageProps) {
   const [loadingContext, setLoadingContext] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [createdEmail, setCreatedEmail] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -74,14 +73,14 @@ export function AcceptInvitationPage({ token }: AcceptInvitationPageProps) {
     setError(null);
 
     try {
-      const response = await client.acceptInvitation({
+      await client.acceptInvitation({
         confirmPassword,
         firstName,
         lastName,
         password,
         token,
       });
-      setCreatedEmail(response.email);
+      router.push("/login?reason=invitation-accepted");
     } catch (caughtError) {
       setError(
         caughtError instanceof Error
@@ -127,21 +126,7 @@ export function AcceptInvitationPage({ token }: AcceptInvitationPageProps) {
           ) : null}
         </div>
 
-        {createdEmail ? (
-          <section className="panel invitation-confirmation" role="status">
-            <CheckCircle2 size={34} aria-hidden="true" />
-            <p className="eyebrow">Account created</p>
-            <h1>Your Salense account is ready.</h1>
-            <p>
-              The account for {createdEmail} has been created and verified through private access.
-              You can now sign in.
-            </p>
-            <button className="primary-button" onClick={() => router.push("/login")} type="button">
-              Continue to login
-            </button>
-          </section>
-        ) : (
-          <form className="panel auth-form accept-invitation-form" onSubmit={handleSubmit}>
+        <form className="panel auth-form accept-invitation-form" onSubmit={handleSubmit}>
             {loadingContext ? (
               <div className="today-loading">
                 <Loader2 className="spin" size={18} aria-hidden="true" />
@@ -205,8 +190,7 @@ export function AcceptInvitationPage({ token }: AcceptInvitationPageProps) {
               {submitting ? <Loader2 className="spin" size={16} aria-hidden="true" /> : null}
               Create account
             </button>
-          </form>
-        )}
+        </form>
       </section>
     </main>
   );

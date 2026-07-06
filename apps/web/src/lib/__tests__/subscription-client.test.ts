@@ -127,6 +127,45 @@ describe("subscription API client", () => {
       "https://api.salense.test/subscription/invitations/accept",
     );
   });
+
+  it("archives invitation requests through the protected endpoint", async () => {
+    const fetchImpl = jest
+      .fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>()
+      .mockResolvedValue(
+        jsonResponse({
+          invitation: {
+            approvedAt: null,
+            archivedAt: "2026-07-06T12:00:00.000Z",
+            businessName: "Northstar Home Goods",
+            createdAt: "2026-07-06T10:00:00.000Z",
+            fullName: "Mia Lewis",
+            id: "invitation_1",
+            invitationTokenExpiresAt: null,
+            invitationTokenUsedAt: null,
+            message: null,
+            phoneNumber: null,
+            platforms: [SubscriptionPlatform.Shopify],
+            preferredPlan: SubscriptionPlan.Professional,
+            rejectedAt: null,
+            status: "ARCHIVED",
+            updatedAt: "2026-07-06T12:00:00.000Z",
+            websiteUrl: null,
+            workEmail: "mia@northstar.example",
+          },
+        }),
+      );
+    const client = createSubscriptionApiClient({ baseUrl: "https://api.salense.test", fetchImpl });
+
+    await expect(client.archiveInvitation("invitation_1", "access.jwt.token")).resolves.toMatchObject({
+      invitation: { id: "invitation_1", status: "ARCHIVED" },
+    });
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe(
+      "https://api.salense.test/subscription/invitations/invitation_1/archive",
+    );
+    expect(new Headers(fetchImpl.mock.calls[0]?.[1]?.headers).get("authorization")).toBe(
+      "Bearer access.jwt.token",
+    );
+  });
 });
 
 function jsonResponse(body: unknown, ok = true, status = 200): Response {
