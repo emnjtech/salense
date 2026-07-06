@@ -1,8 +1,8 @@
 # Salense
 
-Salense is a production SaaS monorepo for an AI-powered commerce intelligence platform.
+Salense is a production SaaS monorepo for commerce intelligence across connected marketplace and store platforms.
 
-This repository currently contains the initial monorepo foundation only. It follows the Salense PRD + SES baseline architecture and intentionally does not include authentication, database models, commerce integrations, dashboard features, AI workflows, or business logic yet.
+The current application includes authentication, company setup, secure store connections, read-only synchronization, normalized commerce persistence, dashboards, orders, products, customers, inventory, reports, platform drill-downs, settings, and a lightweight invitation flow. Version 1 remains read-only: marketplace platforms stay the source of truth and Salense does not write back to stores.
 
 ## Architecture
 
@@ -61,10 +61,10 @@ pnpm format:check
 
 Do not commit secrets. Runtime configuration must be provided through environment variables.
 
-The database package includes a Prisma datasource configured for PostgreSQL through `DATABASE_URL`, but no application models have been added yet.
+Required local runtime values are documented in `.env.local.example` and include PostgreSQL, Redis, JWT secrets, token lifetimes, and the Salense credential encryption key. Marketplace credentials are entered per connected store through the application and are stored through the encrypted credential path.
 
-## Scope Guardrails
+## Local Setup
 
-This foundation commit is limited to repository structure, workspace configuration, TypeScript strict mode, linting, formatting, testing setup, and tracked placeholders.
+For Windows development without Docker, use [docs/windows-local-demo-setup.md](docs/windows-local-demo-setup.md).
 
-Product features must be introduced only in later changes that map back to PRD/SES requirements.
+For CI behavior and matching local checks, use [docs/ci.md](docs/ci.md).

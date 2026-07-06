@@ -41,7 +41,7 @@ export function AuthenticatedNavigation() {
         await authClient.logout(currentSession.refreshToken);
       }
     } catch {
-      // Local demo logout still clears the browser session if the server token is already invalid.
+      // Local logout still clears the browser session if the server token is already invalid.
     } finally {
       clearDemoSession();
       setSession(null);

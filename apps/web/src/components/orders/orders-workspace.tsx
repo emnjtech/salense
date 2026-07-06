@@ -11,7 +11,7 @@ import {
 import { StorePlatform } from "../../lib/api/store-integrations-client";
 import { getFriendlyAuthErrorMessage, readDemoSession } from "../../lib/auth-session";
 import { PlatformIcon } from "../brand/platform-icon";
-import { DemoModeBanner } from "../demo/demo-mode-banner";
+import { WorkspaceContextBanner } from "../workspace/workspace-context-banner";
 
 const allPlatforms = "ALL";
 
@@ -117,7 +117,7 @@ export function OrdersWorkspace() {
         </button>
       </header>
 
-      <DemoModeBanner />
+      <WorkspaceContextBanner />
 
       {error ? (
         <section className="state-banner error" role="alert">

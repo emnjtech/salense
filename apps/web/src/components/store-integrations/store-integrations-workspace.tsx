@@ -24,7 +24,7 @@ import {
 } from "../../lib/api/store-integrations-client";
 import { getDemoAccessToken, getFriendlyAuthErrorMessage } from "../../lib/auth-session";
 import { PlatformIcon } from "../brand/platform-icon";
-import { DemoModeBanner } from "../demo/demo-mode-banner";
+import { WorkspaceContextBanner } from "../workspace/workspace-context-banner";
 
 interface WooCommerceFormState {
   readonly consumerKey: string;
@@ -286,7 +286,7 @@ export function StoreIntegrationsWorkspace() {
         </button>
       </header>
 
-      <DemoModeBanner />
+      <WorkspaceContextBanner />
 
       {!hasAccessToken ? (
         <section className="state-banner warning" aria-live="polite">
@@ -438,8 +438,7 @@ export function StoreIntegrationsWorkspace() {
             <div>
               <h2>Connect Amazon Seller</h2>
               <p>
-                Optional Amazon Seller setup for local testing; credentials are encrypted and used
-                read-only.
+                Connect Amazon Seller with encrypted credentials and read-only synchronisation.
               </p>
             </div>
           </div>
@@ -557,8 +556,7 @@ export function StoreIntegrationsWorkspace() {
             <div>
               <h2>Connect TikTok Shop</h2>
               <p>
-                Optional TikTok Shop setup for local testing; credentials are encrypted and used
-                read-only.
+                Connect TikTok Shop with encrypted credentials and read-only synchronisation.
               </p>
             </div>
           </div>
@@ -675,8 +673,7 @@ export function StoreIntegrationsWorkspace() {
             <div>
               <h2>Connect Shopify</h2>
               <p>
-                Optional Shopify setup for local testing; Admin API credentials are encrypted and
-                used read-only.
+                Connect Shopify with encrypted Admin API credentials and read-only synchronisation.
               </p>
             </div>
           </div>
@@ -1025,7 +1022,19 @@ function getFriendlyErrorMessage(error: unknown): string {
   }
 
   if (error instanceof ApiClientError) {
-    return error.message;
+    if (error.status === 400) {
+      return "Please check your store connection details and try again.";
+    }
+
+    if (error.status === 409) {
+      return error.message;
+    }
+
+    if (error.status >= 500) {
+      return "Store connections are temporarily unavailable. Please try again shortly.";
+    }
+
+    return "We could not complete that store connection request. Please try again.";
   }
 
   if (error instanceof Error) {

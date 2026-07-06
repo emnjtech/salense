@@ -1,9 +1,9 @@
 import { ShieldCheck, Store } from "lucide-react";
 
-export function DemoModeBanner() {
+export function WorkspaceContextBanner() {
   return (
-    <section className="demo-mode-banner" aria-label="Workspace context">
-      <div className="demo-mode-icon">
+    <section className="workspace-context-banner" aria-label="Workspace context">
+      <div className="workspace-context-icon">
         <Store size={18} aria-hidden="true" />
       </div>
       <div>
@@ -13,11 +13,11 @@ export function DemoModeBanner() {
           Shop.
         </span>
       </div>
-      <div className="demo-mode-pill">
+      <div className="workspace-context-pill">
         <ShieldCheck size={14} aria-hidden="true" />
         Read-only
       </div>
-      <div className="demo-mode-pill secondary">
+      <div className="workspace-context-pill secondary">
         <Store size={14} aria-hidden="true" />4 platforms
       </div>
     </section>

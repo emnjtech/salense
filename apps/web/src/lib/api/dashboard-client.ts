@@ -99,10 +99,10 @@ async function getErrorMessage(response: Response): Promise<string> {
       return body.message.filter((message) => typeof message === "string").join(" ");
     }
   } catch {
-    return `Request failed with status ${response.status}.`;
+    return "We could not complete the request. Please try again.";
   }
 
-  return `Request failed with status ${response.status}.`;
+  return "We could not complete the request. Please try again.";
 }
 
 function trimTrailingSlash(value: string): string {

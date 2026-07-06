@@ -122,12 +122,28 @@ describe("store integrations API client", () => {
     });
     expect(JSON.stringify(payload).toLowerCase()).not.toContain("password");
   });
+
+  it("returns backend validation messages for failed requests without exposing response internals", async () => {
+    const fetchImpl = jest
+      .fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>()
+      .mockResolvedValue(jsonResponse({ message: ["storeUrl must be a URL address"] }, false, 400));
+    const client = createStoreIntegrationsApiClient({
+      accessTokenProvider: () => "access-token",
+      baseUrl: "https://api.salense.test",
+      fetchImpl,
+    });
+
+    await expect(client.listConnectedStores()).rejects.toMatchObject({
+      message: "storeUrl must be a URL address",
+      status: 400,
+    });
+  });
 });
 
-function jsonResponse(body: unknown): Response {
+function jsonResponse(body: unknown, ok = true, status = 200): Response {
   return {
     json: async () => body,
-    ok: true,
-    status: 200,
+    ok,
+    status,
   } as Response;
 }
