@@ -1871,6 +1871,43 @@ button:disabled {
   padding: 0 12px;
 }
 
+.admin-auth-page {
+  align-items: center;
+  background:
+    radial-gradient(circle at 20% 20%, rgb(167 243 208 / 16%), transparent 34%),
+    linear-gradient(135deg, #0e3d2e 0%, #063426 100%);
+  display: grid;
+  min-height: 100vh;
+  padding: 28px;
+}
+
+.admin-auth-card {
+  display: grid;
+  gap: 22px;
+  justify-self: center;
+  max-width: 520px;
+  padding: 34px;
+  width: 100%;
+}
+
+.admin-auth-card h1 {
+  font-size: 34px;
+  line-height: 1.12;
+  margin: 8px 0 0;
+}
+
+.admin-auth-card p:not(.eyebrow) {
+  color: #5b675e;
+  line-height: 1.6;
+  margin: 10px 0 0;
+}
+
+.admin-auth-card > a:not(.public-brand) {
+  color: #0a7048;
+  font-size: 14px;
+  font-weight: 760;
+}
+
 .status-pill {
   border-radius: 999px;
   display: inline-flex !important;

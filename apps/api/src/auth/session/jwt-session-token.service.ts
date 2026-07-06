@@ -12,6 +12,7 @@ export interface JwtSessionClaims {
   readonly email: string;
   readonly emailVerified: true;
   readonly platformRole?: "SUPER_ADMIN";
+  readonly sessionKind?: "PLATFORM_ADMIN";
 }
 
 export interface JwtAccessTokenPayload extends JwtSessionClaims {
@@ -49,6 +50,7 @@ export class JwtSessionTokenService {
       email: claims.email,
       emailVerified: true,
       ...(claims.platformRole ? { platformRole: claims.platformRole } : {}),
+      ...(claims.sessionKind ? { sessionKind: claims.sessionKind } : {}),
       aud: "salense-api",
       iss: "salense-api",
       iat: issuedAt,
@@ -67,6 +69,7 @@ export class JwtSessionTokenService {
       email: claims.email,
       emailVerified: true,
       ...(claims.platformRole ? { platformRole: claims.platformRole } : {}),
+      ...(claims.sessionKind ? { sessionKind: claims.sessionKind } : {}),
       aud: "salense-api",
       iss: "salense-api",
       iat: issuedAt,
@@ -91,6 +94,7 @@ export class JwtSessionTokenService {
       email: payload.email,
       emailVerified: true,
       ...(payload.platformRole ? { platformRole: payload.platformRole } : {}),
+      ...(payload.sessionKind ? { sessionKind: payload.sessionKind } : {}),
     };
   }
 
@@ -108,6 +112,7 @@ export class JwtSessionTokenService {
       email: payload.email,
       emailVerified: true,
       ...(payload.platformRole ? { platformRole: payload.platformRole } : {}),
+      ...(payload.sessionKind ? { sessionKind: payload.sessionKind } : {}),
     };
   }
 
@@ -192,6 +197,7 @@ function isSessionTokenPayload(
     typeof payload.email === "string" &&
     payload.emailVerified === true &&
     (payload.platformRole === undefined || payload.platformRole === "SUPER_ADMIN") &&
+    (payload.sessionKind === undefined || payload.sessionKind === "PLATFORM_ADMIN") &&
     payload.aud === "salense-api" &&
     payload.iss === "salense-api" &&
     payload.typ === tokenType &&

@@ -11,7 +11,10 @@ export class PlatformAdminGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
 
-    if (request.user?.platformRole !== "SUPER_ADMIN") {
+    if (
+      request.user?.sessionKind !== "PLATFORM_ADMIN" ||
+      request.user.platformRole !== "SUPER_ADMIN"
+    ) {
       throw new ForbiddenException("Platform administration requires SUPER_ADMIN access.");
     }
 

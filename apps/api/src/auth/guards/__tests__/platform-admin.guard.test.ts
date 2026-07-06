@@ -19,10 +19,26 @@ describe("PlatformAdminGuard", () => {
           email: "admin@salense.local",
           emailVerified: true,
           platformRole: "SUPER_ADMIN",
-          sub: "user_1",
+          sessionKind: "PLATFORM_ADMIN",
+          sub: "admin_1",
         }),
       ),
     ).toBe(true);
+  });
+
+  it("blocks legacy role claims that are not admin sessions", () => {
+    const guard = new PlatformAdminGuard();
+
+    expect(() =>
+      guard.canActivate(
+        createContext({
+          email: "owner@example.com",
+          emailVerified: true,
+          platformRole: "SUPER_ADMIN",
+          sub: "user_1",
+        }),
+      ),
+    ).toThrow(ForbiddenException);
   });
 
   it("blocks authenticated business users without a platform role", () => {

@@ -78,10 +78,6 @@ function createService() {
 }
 
 describe("SubscriptionService", () => {
-  beforeEach(() => {
-    process.env.PLATFORM_ADMIN_EMAIL = "admin@salense.local";
-  });
-
   it("stores a normalised pending invitation request and returns a safe confirmation", async () => {
     const mocks = createService();
     mocks.create.mockResolvedValue({

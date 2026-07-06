@@ -17,7 +17,6 @@ model User {
   passwordHash    String
   emailVerified   Boolean   @default(false)
   emailVerifiedAt DateTime?
-  platformRole    PlatformRole?
 
   businesses              Business[]
   emailVerificationTokens EmailVerificationToken[]
@@ -75,9 +74,56 @@ enum StorePlatform {
 }
 
 /// Internal Salense platform administration role.
-/// Business users do not receive this role and platform administrators do not inherit business ownership.
-enum PlatformRole {
+/// Platform administrators are stored separately from customer business users.
+enum PlatformAdminRole {
   SUPER_ADMIN
+}
+
+/// Internal Salense platform administrator account status.
+enum PlatformAdminStatus {
+  ACTIVE
+  DISABLED
+}
+
+/// Internal Salense platform administrator.
+/// Platform administrators never inherit customer business ownership.
+model PlatformAdmin {
+  id           String              @id @default(cuid())
+  email        String              @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  role         PlatformAdminRole   @default(SUPER_ADMIN)
+  status       PlatformAdminStatus @default(ACTIVE)
+  lastLoginAt  DateTime?
+
+  refreshTokens PlatformAdminRefreshToken[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([email])
+  @@index([role])
+  @@index([status])
+  @@map("platform_admins")
+}
+
+/// Refresh token store for internal Platform Administration sessions.
+/// Tokens are hashed and scoped to platform administrators only.
+model PlatformAdminRefreshToken {
+  id              String    @id @default(cuid())
+  platformAdminId String
+  tokenHash       String    @unique
+  expiresAt       DateTime
+  revokedAt       DateTime?
+  createdAt       DateTime  @default(now())
+
+  platformAdmin PlatformAdmin @relation(fields: [platformAdminId], references: [id], onDelete: Cascade)
+
+  @@index([platformAdminId])
+  @@index([expiresAt])
+  @@index([revokedAt])
+  @@map("platform_admin_refresh_tokens")
 }
 
 /// Store connection lifecycle shown to users in the Store Integration Module.

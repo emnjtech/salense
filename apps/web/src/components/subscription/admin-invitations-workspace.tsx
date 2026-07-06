@@ -1,13 +1,14 @@
 "use client";
 
 import { Archive, CheckCircle2, Copy, Loader2, XCircle } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
   createSubscriptionApiClient,
   type AdminInvitation,
 } from "../../lib/api/subscription-client";
-import { readDemoSession } from "../../lib/auth-session";
+import { readAdminSession } from "../../lib/admin-session";
 
 export function AdminInvitationsWorkspace() {
   const router = useRouter();
@@ -22,8 +23,8 @@ export function AdminInvitationsWorkspace() {
     let mounted = true;
 
     async function loadInvitations() {
-      if (!readDemoSession()) {
-        router.replace("/login?next=/admin");
+      if (!readAdminSession()) {
+        router.replace("/admin/login?next=/admin");
         return;
       }
 
@@ -120,6 +121,9 @@ export function AdminInvitationsWorkspace() {
             links for Salense.
           </p>
         </div>
+        <Link className="secondary-button" href="/admin/settings">
+          Admin settings
+        </Link>
       </header>
 
       {latestLink ? (

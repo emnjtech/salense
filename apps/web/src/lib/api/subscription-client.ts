@@ -3,7 +3,7 @@ import type {
   SubscriptionPlan,
   SubscriptionPlatform,
 } from "../../components/subscription/subscription-plans";
-import { fetchWithSessionRefresh } from "../auth-session";
+import { fetchWithAdminSessionRefresh } from "../admin-session";
 
 export interface SubscriptionInvitationInput {
   readonly businessName: string;
@@ -121,7 +121,7 @@ export function createSubscriptionApiClient(
       };
     },
     async approveInvitation(invitationId, accessToken) {
-      const response = await fetchWithSessionRefresh(
+      const response = await fetchWithAdminSessionRefresh(
         `${baseUrl}/subscription/invitations/${encodeURIComponent(invitationId)}/approve`,
         { method: "POST" },
         { accessToken, baseUrl, fetchImpl },
@@ -137,7 +137,7 @@ export function createSubscriptionApiClient(
       };
     },
     async archiveInvitation(invitationId, accessToken) {
-      const response = await fetchWithSessionRefresh(
+      const response = await fetchWithAdminSessionRefresh(
         `${baseUrl}/subscription/invitations/${encodeURIComponent(invitationId)}/archive`,
         { method: "POST" },
         { accessToken, baseUrl, fetchImpl },
@@ -161,7 +161,7 @@ export function createSubscriptionApiClient(
       return (await response.json()) as InvitationContext;
     },
     async listInvitations(accessToken) {
-      const response = await fetchWithSessionRefresh(
+      const response = await fetchWithAdminSessionRefresh(
         `${baseUrl}/subscription/invitations/admin`,
         undefined,
         { accessToken, baseUrl, fetchImpl },
@@ -191,7 +191,7 @@ export function createSubscriptionApiClient(
       return (await response.json()) as SubscriptionInvitationResponse;
     },
     async rejectInvitation(invitationId, accessToken) {
-      const response = await fetchWithSessionRefresh(
+      const response = await fetchWithAdminSessionRefresh(
         `${baseUrl}/subscription/invitations/${encodeURIComponent(invitationId)}/reject`,
         { method: "POST" },
         { accessToken, baseUrl, fetchImpl },

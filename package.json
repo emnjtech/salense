@@ -10,6 +10,7 @@
     "pnpm": ">=9.0.0"
   },
   "scripts": {
+    "admin:create": "node scripts/create-platform-admin.mjs",
     "dev": "turbo run dev --parallel",
     "demo:check-env": "node scripts/check-demo-env.mjs",
     "demo:seed": "pnpm --filter @salense/worker exec tsx ../../scripts/seed.ts",

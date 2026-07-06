@@ -77,7 +77,6 @@ JWT_ACCESS_TOKEN_EXPIRES_IN="15m"
 JWT_REFRESH_TOKEN_EXPIRES_IN="7d"
 SALENSE_CREDENTIAL_ENCRYPTION_KEY="MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
 PUBLIC_REGISTRATION_ENABLED="false"
-PLATFORM_ADMIN_EMAIL="demo@salense.local"
 AI_PROVIDER_API_KEY=""
 ```
 
@@ -85,8 +84,8 @@ The credential encryption key above is demo-only. Do not use it in production.
 
 `PUBLIC_REGISTRATION_ENABLED=false` keeps Salense in private-access mode. The
 `/register` route remains in the codebase for future public registration, but the backend rejects
-public registration while this flag is disabled. `PLATFORM_ADMIN_EMAIL` bootstraps the first
-internal Salense platform administrator with `PlatformRole = SUPER_ADMIN` after normal login.
+public registration while this flag is disabled. Platform administrators are database-backed
+internal accounts created with `pnpm admin:create`.
 
 ## 4. Check Local Demo Environment
 
@@ -133,7 +132,17 @@ Email: demo@salense.local
 Password: DemoPassword123!
 ```
 
-## 8. Start The API
+## 8. Create A Platform Admin
+
+Create the first internal Salense administrator:
+
+```powershell
+pnpm admin:create -- --email admin@salense.local --first-name Salense --last-name Admin --password "AdminPassword123!"
+```
+
+You can choose any secure local password. The script stores only a password hash.
+
+## 9. Start The API
 
 In one PowerShell window:
 
@@ -143,7 +152,7 @@ pnpm --filter @salense/api dev
 
 The API listens on `http://localhost:3001`.
 
-## 9. Start The Web App
+## 10. Start The Web App
 
 In another PowerShell window:
 
@@ -157,7 +166,7 @@ Open:
 http://localhost:3000
 ```
 
-## 10. Recommended Demo Walkthrough
+## 11. Recommended Demo Walkthrough
 
 1. Log in as `demo@salense.local`.
 2. Open Today and show the Business Health Score, platform comparison, and deterministic Today Briefing.
@@ -176,7 +185,7 @@ Pricing -> Request invitation -> Admin review -> Approve -> Accept invitation ->
 ```
 
 1. Submit a request at `http://localhost:3000/request-invitation`.
-2. Sign in with the email configured as `PLATFORM_ADMIN_EMAIL`.
+2. Sign in at `http://localhost:3000/admin/login` using the platform admin account created with `pnpm admin:create`.
 3. Open `http://localhost:3000/admin`.
 4. Approve the request and copy the generated `/accept-invitation?token=...` link.
 5. Open the invitation link, set a password, then sign in.

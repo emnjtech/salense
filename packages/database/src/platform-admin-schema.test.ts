@@ -8,10 +8,16 @@ describe("platform administration schema", () => {
   it("keeps platform administration separate from business ownership", () => {
     const userModel = getBlock("model User");
     const businessModel = getBlock("model Business");
+    const platformAdminModel = getBlock("model PlatformAdmin");
 
-    expect(schema).toContain("enum PlatformRole");
+    expect(schema).toContain("enum PlatformAdminRole");
+    expect(schema).toContain("enum PlatformAdminStatus");
     expect(schema).toContain("SUPER_ADMIN");
-    expect(userModel).toContain("platformRole    PlatformRole?");
+    expect(userModel).not.toContain("platformRole");
+    expect(platformAdminModel).toContain("email        String              @unique");
+    expect(platformAdminModel).toContain("passwordHash String");
+    expect(platformAdminModel).toContain("role         PlatformAdminRole");
+    expect(platformAdminModel).toContain("status       PlatformAdminStatus");
     expect(businessModel).toContain("ownerId");
     expect(businessModel).not.toContain("platformRole");
   });

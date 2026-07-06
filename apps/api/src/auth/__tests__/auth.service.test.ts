@@ -203,7 +203,6 @@ function mockCreatedUser(create: jest.Mock): void {
 describe("AuthService", () => {
   beforeEach(() => {
     process.env.PUBLIC_REGISTRATION_ENABLED = "true";
-    delete process.env.PLATFORM_ADMIN_EMAIL;
   });
 
   it("blocks public registration when invite-only mode is enabled", async () => {
@@ -404,7 +403,6 @@ describe("AuthService", () => {
         email: true,
         passwordHash: true,
         emailVerified: true,
-        platformRole: true,
       },
     });
     expect(mocks.comparePassword).toHaveBeenCalledWith("Password123!", "hashed-password");
@@ -424,48 +422,6 @@ describe("AuthService", () => {
         tokenHash: "hashed-refresh-token",
         expiresAt: new Date("2026-08-02T12:00:00.000Z"),
       },
-    });
-  });
-
-  it("bootstraps the configured platform administrator during normal login", async () => {
-    process.env.PLATFORM_ADMIN_EMAIL = "admin@salense.local";
-    const mocks = createAuthServiceMocks();
-    mocks.findUnique.mockResolvedValue({
-      id: "user_1",
-      email: "admin@salense.local",
-      passwordHash: "hashed-password",
-      emailVerified: true,
-      platformRole: null,
-    });
-    mocks.comparePassword.mockResolvedValue(true);
-    mocks.issueAccessToken.mockResolvedValue("access.jwt.token");
-    mocks.issueRefreshToken.mockResolvedValue("refresh.jwt.token");
-    mocks.hashRefreshToken.mockReturnValue("hashed-refresh-token");
-    mocks.getRefreshTokenExpiryDate.mockReturnValue(new Date("2026-08-02T12:00:00.000Z"));
-    mocks.getRequiredConfig.mockReturnValue({
-      accessTokenSecret: "access-secret",
-      refreshTokenSecret: "refresh-secret",
-      accessTokenExpiresIn: "15m",
-      refreshTokenExpiresIn: "30d",
-    });
-
-    await expect(
-      mocks.service.login({ email: "ADMIN@SALENSE.LOCAL", password: "Password123!" }),
-    ).resolves.toMatchObject({
-      user: {
-        email: "admin@salense.local",
-      },
-    });
-
-    expect(mocks.updateUser).toHaveBeenCalledWith({
-      where: { id: "user_1" },
-      data: { platformRole: "SUPER_ADMIN" },
-    });
-    expect(mocks.issueAccessToken).toHaveBeenCalledWith({
-      sub: "user_1",
-      email: "admin@salense.local",
-      emailVerified: true,
-      platformRole: "SUPER_ADMIN",
     });
   });
 

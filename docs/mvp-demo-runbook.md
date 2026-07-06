@@ -31,7 +31,6 @@ JWT_ACCESS_TOKEN_EXPIRES_IN="15m"
 JWT_REFRESH_TOKEN_EXPIRES_IN="7d"
 SALENSE_CREDENTIAL_ENCRYPTION_KEY="MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
 PUBLIC_REGISTRATION_ENABLED="false"
-PLATFORM_ADMIN_EMAIL="demo@salense.local"
 ```
 
 No WooCommerce, Amazon Seller, TikTok Shop, or Shopify credentials are required for the seeded MVP demo. Live connection forms are available for local validation testing only.
@@ -60,6 +59,14 @@ pnpm demo:seed
 ```
 
 The seed is rerunnable. It recreates the demo user, business, stores, orders, products, customers, inventory snapshots, refunds, and sync cursors.
+
+Create the first internal Platform Administrator:
+
+```bash
+pnpm admin:create -- --email admin@salense.local --first-name Salense --last-name Admin --password "AdminPassword123!"
+```
+
+Use a secure local password. The script stores only a password hash.
 
 ## 4. Start The API
 
@@ -94,7 +101,7 @@ Open the web app at `http://localhost:3000` and log in with the demo account.
 Salense currently operates as an invite-only product for pilot users.
 
 1. A business requests access from `/request-invitation`.
-2. The authenticated internal user configured as `PLATFORM_ADMIN_EMAIL` reviews requests at `/admin`.
+2. A database-backed Platform Administrator signs in at `/admin/login` and reviews requests at `/admin`.
 3. Approving a request creates a single-use `/accept-invitation?token=...` link.
 4. The invited user sets their password and receives a verified account for the approved business.
 
