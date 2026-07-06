@@ -92,7 +92,7 @@ export function SubscriptionSettingsWorkspace() {
             trial by invitation.
           </p>
           <Link className="primary-button" href="/request-invitation?plan=PROFESSIONAL">
-            Request Professional invitation
+            Request Business invitation
           </Link>
         </article>
 

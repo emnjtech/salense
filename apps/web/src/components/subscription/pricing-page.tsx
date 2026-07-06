@@ -1,4 +1,4 @@
-import { ArrowRight, CheckCircle2 } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { pricingPlans } from "./subscription-plans";
@@ -68,7 +68,6 @@ export function PricingPage() {
               href={`/request-invitation?plan=${plan.plan}`}
             >
               Request invitation
-              <ArrowRight size={16} aria-hidden="true" />
             </Link>
           </article>
         ))}

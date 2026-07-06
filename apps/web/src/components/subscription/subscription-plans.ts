@@ -24,8 +24,8 @@ export interface PricingPlan {
 
 export const pricingPlans: readonly PricingPlan[] = [
   {
-    bestFor: "Founder-led stores getting their first reliable cross-channel view.",
-    connectedStoreLimit: "2 connected stores",
+    bestFor: "Ideal for small businesses beginning multi-channel selling.",
+    connectedStoreLimit: "2",
     description: "A focused workspace for daily commerce visibility.",
     features: [
       "Today dashboard",
@@ -33,14 +33,14 @@ export const pricingPlans: readonly PricingPlan[] = [
       "Store connection status",
       "Platform performance reporting",
     ],
-    monthlyPrice: "£49",
+    monthlyPrice: "\u00a320",
     name: "Starter",
     plan: SubscriptionPlan.Starter,
-    teamMemberLimit: "1 team member",
+    teamMemberLimit: "1",
   },
   {
-    bestFor: "Growing operators selling through several commerce channels.",
-    connectedStoreLimit: "6 connected stores",
+    bestFor: "Designed for growing businesses managing multiple sales channels.",
+    connectedStoreLimit: "4",
     description: "More room for multi-platform operations and weekly performance review.",
     features: [
       "Everything in Starter",
@@ -48,25 +48,26 @@ export const pricingPlans: readonly PricingPlan[] = [
       "Reports workspace",
       "Inventory attention signals",
     ],
-    monthlyPrice: "£129",
-    name: "Professional",
+    monthlyPrice: "\u00a335",
+    name: "Business",
     plan: SubscriptionPlan.Professional,
-    teamMemberLimit: "3 team members",
+    teamMemberLimit: "3",
   },
   {
-    bestFor: "Established businesses that need senior-level commerce oversight.",
-    connectedStoreLimit: "15 connected stores",
+    bestFor:
+      "For established businesses requiring advanced commerce intelligence across larger operations.",
+    connectedStoreLimit: "8",
     description: "A broader operating view for larger catalogues and store portfolios.",
     features: [
-      "Everything in Professional",
+      "Everything in Business",
       "Expanded store coverage",
       "Priority onboarding",
       "Workspace readiness review",
     ],
-    monthlyPrice: "£249",
-    name: "Business",
+    monthlyPrice: "\u00a370",
+    name: "Enterprise",
     plan: SubscriptionPlan.Business,
-    teamMemberLimit: "8 team members",
+    teamMemberLimit: "8",
   },
 ] as const;
 
@@ -84,13 +85,13 @@ export function getPlanByValue(plan: string | undefined): PricingPlan {
     return matchedPlan;
   }
 
-  const professionalPlan = pricingPlans.find(
+  const businessPlan = pricingPlans.find(
     (pricingPlan) => pricingPlan.plan === SubscriptionPlan.Professional,
   );
 
-  if (!professionalPlan) {
-    throw new Error("Professional subscription plan is not configured.");
+  if (!businessPlan) {
+    throw new Error("Business subscription plan is not configured.");
   }
 
-  return professionalPlan;
+  return businessPlan;
 }

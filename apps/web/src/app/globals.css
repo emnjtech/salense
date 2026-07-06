@@ -2339,16 +2339,18 @@ button:disabled {
 }
 
 .pricing-grid {
+  align-items: stretch;
   display: grid;
   gap: 18px;
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .pricing-card {
-  align-content: start;
-  display: grid;
-  gap: 22px;
-  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  height: 100%;
+  padding: 26px;
 }
 
 .pricing-card h2 {
@@ -2365,12 +2367,13 @@ button:disabled {
 .pricing-price {
   align-items: baseline;
   display: flex;
-  gap: 6px;
+  gap: 8px;
 }
 
 .pricing-price strong {
-  font-size: 38px;
+  font-size: 48px;
   letter-spacing: 0;
+  line-height: 1;
 }
 
 .pricing-price span,
@@ -2395,6 +2398,7 @@ button:disabled {
 
 .pricing-limits dd {
   color: #17211b;
+  font-size: 16px;
   font-weight: 760;
   margin: 0;
 }
@@ -2403,7 +2407,7 @@ button:disabled {
   display: grid;
   gap: 10px;
   list-style: none;
-  margin: 0;
+  margin: 0 0 6px;
   padding: 0;
 }
 
@@ -2421,7 +2425,12 @@ button:disabled {
 }
 
 .pricing-action {
-  margin-top: 6px;
+  align-self: stretch;
+  justify-content: center;
+  margin-top: auto;
+  min-height: 48px;
+  text-align: center;
+  width: 100%;
 }
 
 .invitation-layout {
