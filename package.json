@@ -10,7 +10,7 @@
     "pnpm": ">=9.0.0"
   },
   "scripts": {
-    "admin:create": "pnpm --filter @salense/worker exec tsx ../../apps/api/src/platform-admin/create-platform-admin.cli.ts",
+    "admin:create": "node ./node_modules/.pnpm/tsx@4.19.2/node_modules/tsx/dist/cli.mjs ./apps/api/src/platform-admin/create-platform-admin.cli.ts",
     "dev": "turbo run dev --parallel",
     "demo:check-env": "node scripts/check-demo-env.mjs",
     "demo:seed": "pnpm --filter @salense/worker exec tsx ../../scripts/seed.ts",
