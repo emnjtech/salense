@@ -39,10 +39,10 @@ export function LoginForm() {
         <>
           <Link href="/forgot-password">Forgot password?</Link>
           <span>New to Salense?</span>
-          <Link href="/register">Create account</Link>
+          <Link href="/request-invitation">Request invitation</Link>
         </>
       }
-      summary="Login to continue to the authenticated workspace. Email verification is required before access."
+      summary="Login to continue to your Salense workspace. Private access is available by invitation."
       title="Sign in to Salense"
     >
       {searchParams?.get("verified") === "true" ? (

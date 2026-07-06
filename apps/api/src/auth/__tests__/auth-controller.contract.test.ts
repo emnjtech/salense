@@ -209,6 +209,7 @@ const invalidContracts = [
 describe("Phase 1 authentication and user management controller contracts", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    process.env.PUBLIC_REGISTRATION_ENABLED = "true";
     prismaClient.$transaction.mockImplementation(
       async (callback: (client: unknown) => Promise<unknown>) => callback(prismaClient),
     );

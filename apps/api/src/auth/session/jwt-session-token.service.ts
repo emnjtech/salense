@@ -11,6 +11,7 @@ export interface JwtSessionClaims {
   readonly sub: string;
   readonly email: string;
   readonly emailVerified: true;
+  readonly platformRole?: "SUPER_ADMIN";
 }
 
 export interface JwtAccessTokenPayload extends JwtSessionClaims {
@@ -47,6 +48,7 @@ export class JwtSessionTokenService {
       sub: claims.sub,
       email: claims.email,
       emailVerified: true,
+      ...(claims.platformRole ? { platformRole: claims.platformRole } : {}),
       aud: "salense-api",
       iss: "salense-api",
       iat: issuedAt,
@@ -64,6 +66,7 @@ export class JwtSessionTokenService {
       sub: claims.sub,
       email: claims.email,
       emailVerified: true,
+      ...(claims.platformRole ? { platformRole: claims.platformRole } : {}),
       aud: "salense-api",
       iss: "salense-api",
       iat: issuedAt,
@@ -87,6 +90,7 @@ export class JwtSessionTokenService {
       sub: payload.sub,
       email: payload.email,
       emailVerified: true,
+      ...(payload.platformRole ? { platformRole: payload.platformRole } : {}),
     };
   }
 
@@ -103,6 +107,7 @@ export class JwtSessionTokenService {
       sub: payload.sub,
       email: payload.email,
       emailVerified: true,
+      ...(payload.platformRole ? { platformRole: payload.platformRole } : {}),
     };
   }
 
@@ -186,6 +191,7 @@ function isSessionTokenPayload(
     typeof payload.sub === "string" &&
     typeof payload.email === "string" &&
     payload.emailVerified === true &&
+    (payload.platformRole === undefined || payload.platformRole === "SUPER_ADMIN") &&
     payload.aud === "salense-api" &&
     payload.iss === "salense-api" &&
     payload.typ === tokenType &&

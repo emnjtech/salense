@@ -76,10 +76,17 @@ JWT_REFRESH_TOKEN_SECRET="local-refresh-token-secret"
 JWT_ACCESS_TOKEN_EXPIRES_IN="15m"
 JWT_REFRESH_TOKEN_EXPIRES_IN="7d"
 SALENSE_CREDENTIAL_ENCRYPTION_KEY="MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
+PUBLIC_REGISTRATION_ENABLED="false"
+PLATFORM_ADMIN_EMAIL="demo@salense.local"
 AI_PROVIDER_API_KEY=""
 ```
 
 The credential encryption key above is demo-only. Do not use it in production.
+
+`PUBLIC_REGISTRATION_ENABLED=false` keeps Salense in private-access mode. The
+`/register` route remains in the codebase for future public registration, but the backend rejects
+public registration while this flag is disabled. `PLATFORM_ADMIN_EMAIL` bootstraps the first
+internal Salense platform administrator with `PlatformRole = SUPER_ADMIN` after normal login.
 
 ## 4. Check Local Demo Environment
 
@@ -159,6 +166,23 @@ http://localhost:3000
 5. Open Customers and show New Customers, Returning Customers, and Highest Lifetime Customer.
 6. Open Inventory and show low stock, out of stock, inventory value, and deterministic stock insights.
 7. Open Store Integrations and show all four supported platforms connected in demo mode.
+
+## Private Access Flow
+
+For pilot onboarding, use:
+
+```text
+Pricing -> Request invitation -> Admin review -> Approve -> Accept invitation -> Login
+```
+
+1. Submit a request at `http://localhost:3000/request-invitation`.
+2. Sign in with the email configured as `PLATFORM_ADMIN_EMAIL`.
+3. Open `http://localhost:3000/admin`.
+4. Approve the request and copy the generated `/accept-invitation?token=...` link.
+5. Open the invitation link, set a password, then sign in.
+
+Invitation accounts are created with email verification complete because access has been approved
+by an admin. Normal email verification remains available for future public registration.
 
 ## Troubleshooting
 

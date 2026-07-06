@@ -17,6 +17,7 @@ model User {
   passwordHash    String
   emailVerified   Boolean   @default(false)
   emailVerifiedAt DateTime?
+  platformRole    PlatformRole?
 
   businesses              Business[]
   emailVerificationTokens EmailVerificationToken[]
@@ -71,6 +72,12 @@ enum StorePlatform {
   AMAZON_SELLER
   TIKTOK_SHOP
   SHOPIFY
+}
+
+/// Internal Salense platform administration role.
+/// Business users do not receive this role and platform administrators do not inherit business ownership.
+enum PlatformRole {
+  SUPER_ADMIN
 }
 
 /// Store connection lifecycle shown to users in the Store Integration Module.
@@ -434,22 +441,29 @@ model AuditLog {
 /// Public early-access subscription interest request.
 /// This captures commercial intent only; payment processing is intentionally not implemented.
 model SubscriptionInvitation {
-  id            String   @id @default(cuid())
-  fullName      String
-  businessName  String
-  workEmail     String
-  phoneNumber   String?
-  websiteUrl    String?
-  preferredPlan String
-  platforms     Json
-  message       String?
-  status        String   @default("REQUESTED")
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id                       String    @id @default(cuid())
+  fullName                 String
+  businessName             String
+  workEmail                String
+  phoneNumber              String?
+  websiteUrl               String?
+  preferredPlan            String
+  platforms                Json
+  message                  String?
+  status                   String    @default("PENDING")
+  invitationTokenHash      String?   @unique
+  invitationTokenExpiresAt DateTime?
+  invitationTokenUsedAt    DateTime?
+  approvedAt               DateTime?
+  rejectedAt               DateTime?
+  archivedAt               DateTime?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
 
   @@index([workEmail])
   @@index([preferredPlan])
   @@index([status])
+  @@index([invitationTokenExpiresAt])
   @@index([createdAt])
   @@map("subscription_invitations")
 }

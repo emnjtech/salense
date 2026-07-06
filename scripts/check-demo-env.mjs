@@ -13,6 +13,8 @@ const requiredVariables = [
   "JWT_ACCESS_TOKEN_EXPIRES_IN",
   "JWT_REFRESH_TOKEN_EXPIRES_IN",
   "SALENSE_CREDENTIAL_ENCRYPTION_KEY",
+  "PUBLIC_REGISTRATION_ENABLED",
+  "PLATFORM_ADMIN_EMAIL",
 ];
 
 const placeholderValues = new Set([

@@ -1809,6 +1809,109 @@ button:disabled {
   min-height: 220px;
 }
 
+.admin-invitations-workspace {
+  max-width: 1320px;
+}
+
+.admin-invitations-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.table-shell {
+  overflow-x: auto;
+}
+
+.table-shell table {
+  border-collapse: collapse;
+  min-width: 1060px;
+  width: 100%;
+}
+
+.table-shell th,
+.table-shell td {
+  border-bottom: 1px solid #e4e9e4;
+  padding: 13px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.table-shell th {
+  color: #647067;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.table-shell td {
+  color: #243027;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.table-shell td strong,
+.table-shell td span {
+  display: block;
+}
+
+.table-shell td span {
+  color: #647067;
+  font-size: 12px;
+  margin-top: 3px;
+}
+
+.admin-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-action-row .secondary-button {
+  min-height: 36px;
+  padding: 0 12px;
+}
+
+.status-pill {
+  border-radius: 999px;
+  display: inline-flex !important;
+  font-size: 12px;
+  font-weight: 760;
+  margin: 0 !important;
+  min-height: 24px;
+  padding: 3px 9px;
+  width: max-content;
+}
+
+.status-pill.pending {
+  background: #fff7df;
+  color: #805b04 !important;
+}
+
+.status-pill.approved {
+  background: #eff6ff;
+  color: #255c97 !important;
+}
+
+.status-pill.accepted {
+  background: #eaf8ef;
+  color: #22543a !important;
+}
+
+.status-pill.rejected {
+  background: #fff0f0;
+  color: #842828 !important;
+}
+
+.status-pill.archived {
+  background: #eef1ee;
+  color: #59645d !important;
+}
+
+.accept-invitation-form {
+  align-self: start;
+  padding: 24px;
+}
+
 .content-grid {
   display: grid;
   gap: 18px;

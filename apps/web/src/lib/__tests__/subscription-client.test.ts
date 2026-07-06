@@ -57,6 +57,76 @@ describe("subscription API client", () => {
       }),
     ).rejects.toThrow("workEmail must be an email");
   });
+
+  it("fetches admin invitation requests from the protected endpoint", async () => {
+    const fetchImpl = jest
+      .fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>()
+      .mockResolvedValue(
+        jsonResponse({
+          invitations: [
+            {
+              approvedAt: null,
+              archivedAt: null,
+              businessName: "Northstar Home Goods",
+              createdAt: "2026-07-06T10:00:00.000Z",
+              fullName: "Mia Lewis",
+              id: "invitation_1",
+              invitationTokenExpiresAt: null,
+              invitationTokenUsedAt: null,
+              message: null,
+              phoneNumber: null,
+              platforms: [SubscriptionPlatform.Shopify],
+              preferredPlan: SubscriptionPlan.Professional,
+              rejectedAt: null,
+              status: "PENDING",
+              updatedAt: "2026-07-06T10:00:00.000Z",
+              websiteUrl: null,
+              workEmail: "mia@northstar.example",
+            },
+          ],
+        }),
+      );
+    const client = createSubscriptionApiClient({ baseUrl: "https://api.salense.test", fetchImpl });
+
+    await expect(client.listInvitations("access.jwt.token")).resolves.toMatchObject({
+      invitations: [{ id: "invitation_1", status: "PENDING" }],
+    });
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe(
+      "https://api.salense.test/subscription/invitations/admin",
+    );
+    expect(new Headers(fetchImpl.mock.calls[0]?.[1]?.headers).get("authorization")).toBe(
+      "Bearer access.jwt.token",
+    );
+  });
+
+  it("accepts an invitation token through the public endpoint", async () => {
+    const fetchImpl = jest
+      .fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>()
+      .mockResolvedValue(
+        jsonResponse({
+          accountCreated: true,
+          businessName: "Northstar Home Goods",
+          email: "mia@northstar.example",
+        }),
+      );
+    const client = createSubscriptionApiClient({ baseUrl: "https://api.salense.test", fetchImpl });
+
+    await expect(
+      client.acceptInvitation({
+        confirmPassword: "Password123!",
+        firstName: "Mia",
+        lastName: "Lewis",
+        password: "Password123!",
+        token: "raw-token",
+      }),
+    ).resolves.toMatchObject({
+      accountCreated: true,
+      email: "mia@northstar.example",
+    });
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe(
+      "https://api.salense.test/subscription/invitations/accept",
+    );
+  });
 });
 
 function jsonResponse(body: unknown, ok = true, status = 200): Response {

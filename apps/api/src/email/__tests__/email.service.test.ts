@@ -36,4 +36,24 @@ describe("PlaceholderEmailService", () => {
       },
     ]);
   });
+
+  it("stores outgoing invitation requests for tests without sending email", async () => {
+    const service = new PlaceholderEmailService();
+
+    await service.sendInvitationEmail({
+      businessName: "Northstar Home Goods",
+      email: "mia@northstar.example",
+      fullName: "Mia Lewis",
+      invitationLink: "/accept-invitation?token=raw-token",
+    });
+
+    expect(service.getInvitationRequests()).toEqual([
+      {
+        businessName: "Northstar Home Goods",
+        email: "mia@northstar.example",
+        fullName: "Mia Lewis",
+        invitationLink: "/accept-invitation?token=raw-token",
+      },
+    ]);
+  });
 });

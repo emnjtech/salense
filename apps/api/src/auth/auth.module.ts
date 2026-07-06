@@ -4,6 +4,7 @@ import { EmailModule } from "../email/email.module.js";
 import { AuthController } from "./auth.controller.js";
 import { AuthService } from "./auth.service.js";
 import { JwtAccessTokenGuard } from "./guards/jwt-access-token.guard.js";
+import { PlatformAdminGuard } from "./guards/platform-admin.guard.js";
 import {
   BcryptPasswordHasherService,
   EmailVerificationTokenService,
@@ -25,7 +26,14 @@ import { JwtSessionConfigService, JwtSessionTokenService } from "./session/index
     },
     JwtSessionTokenService,
     JwtAccessTokenGuard,
+    PlatformAdminGuard,
   ],
-  exports: [AuthService, JwtAccessTokenGuard, JwtSessionTokenService],
+  exports: [
+    AuthService,
+    BcryptPasswordHasherService,
+    JwtAccessTokenGuard,
+    JwtSessionTokenService,
+    PlatformAdminGuard,
+  ],
 })
 export class AuthModule {}

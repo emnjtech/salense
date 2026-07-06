@@ -30,6 +30,8 @@ JWT_REFRESH_TOKEN_SECRET="local-refresh-token-secret"
 JWT_ACCESS_TOKEN_EXPIRES_IN="15m"
 JWT_REFRESH_TOKEN_EXPIRES_IN="7d"
 SALENSE_CREDENTIAL_ENCRYPTION_KEY="MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
+PUBLIC_REGISTRATION_ENABLED="false"
+PLATFORM_ADMIN_EMAIL="demo@salense.local"
 ```
 
 No WooCommerce, Amazon Seller, TikTok Shop, or Shopify credentials are required for the seeded MVP demo. Live connection forms are available for local validation testing only.
@@ -86,6 +88,17 @@ Open the web app at `http://localhost:3000` and log in with the demo account.
 5. Open Customers and show new customers, returning customers, highest lifetime customer, and the searchable customer table.
 6. Open Inventory and show low stock, out of stock, inventory value, and deterministic stock insights.
 7. Open Store Integrations and show the seeded WooCommerce, Amazon Seller, TikTok Shop, and Shopify connections. Avoid entering live marketplace credentials during the MVP demo.
+
+## Private Access Onboarding
+
+Salense currently operates as an invite-only product for pilot users.
+
+1. A business requests access from `/request-invitation`.
+2. The authenticated internal user configured as `PLATFORM_ADMIN_EMAIL` reviews requests at `/admin`.
+3. Approving a request creates a single-use `/accept-invitation?token=...` link.
+4. The invited user sets their password and receives a verified account for the approved business.
+
+Set `PUBLIC_REGISTRATION_ENABLED=true` only when testing the preserved public registration flow.
 
 ## Optional Shopify Connection Test
 

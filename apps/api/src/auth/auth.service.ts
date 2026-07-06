@@ -47,6 +47,7 @@ interface RegistrationPrismaClient {
         readonly email?: true;
         readonly passwordHash?: true;
         readonly emailVerified?: true;
+        readonly platformRole?: true;
       };
     }): Promise<{
       readonly id: string;
@@ -55,6 +56,7 @@ interface RegistrationPrismaClient {
       readonly email?: string;
       readonly passwordHash?: string;
       readonly emailVerified?: boolean;
+      readonly platformRole?: "SUPER_ADMIN" | null;
     } | null>;
     create(args: {
       readonly data: {
@@ -103,6 +105,7 @@ interface RegistrationPrismaClient {
         readonly emailVerified?: true;
         readonly emailVerifiedAt?: Date;
         readonly passwordHash?: string;
+        readonly platformRole?: "SUPER_ADMIN";
       };
     }): Promise<unknown>;
   };
@@ -208,6 +211,10 @@ export class AuthService {
   ) {}
 
   async register(registerRequest: RegisterRequestDto): Promise<RegistrationResponse> {
+    if (!isPublicRegistrationEnabled()) {
+      throw new ForbiddenException("Public registration is currently invite-only.");
+    }
+
     if (registerRequest.password !== registerRequest.confirmPassword) {
       throw new BadRequestException("Password confirmation does not match.");
     }
@@ -341,6 +348,7 @@ export class AuthService {
         email: true,
         passwordHash: true,
         emailVerified: true,
+        platformRole: true,
       },
     });
 
@@ -361,10 +369,20 @@ export class AuthService {
       throw new ForbiddenException("Email verification is required before login.");
     }
 
+    const platformRole = getBootstrapPlatformRole(user.email);
+
+    if (platformRole && user.platformRole !== platformRole) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { platformRole },
+      });
+    }
+
     const claims = {
       sub: user.id,
       email: user.email,
       emailVerified: true,
+      ...(platformRole ? { platformRole } : {}),
     } as const;
     const accessToken = await this.jwtSessionTokens.issueAccessToken(claims);
     const refreshToken = await this.jwtSessionTokens.issueRefreshToken(claims);
@@ -426,6 +444,7 @@ export class AuthService {
         id: true,
         email: true,
         emailVerified: true,
+        platformRole: true,
       },
     });
 
@@ -433,10 +452,12 @@ export class AuthService {
       throw new UnauthorizedException("Refresh token is invalid.");
     }
 
+    const platformRole = user.platformRole ?? getBootstrapPlatformRole(user.email);
     const accessToken = await this.jwtSessionTokens.issueAccessToken({
       sub: user.id,
       email: user.email,
       emailVerified: true,
+      ...(platformRole ? { platformRole } : {}),
     });
     const { accessTokenExpiresIn } = this.jwtSessionConfig.getRequiredAccessTokenConfig();
 
@@ -649,4 +670,16 @@ export class AuthService {
 
     return { passwordReset: true };
   }
+}
+
+function isPublicRegistrationEnabled(): boolean {
+  return (process.env.PUBLIC_REGISTRATION_ENABLED ?? "false").trim().toLowerCase() === "true";
+}
+
+function getBootstrapPlatformRole(email: string): "SUPER_ADMIN" | undefined {
+  const platformAdminEmail = process.env.PLATFORM_ADMIN_EMAIL?.trim().toLowerCase();
+
+  return platformAdminEmail && email.trim().toLowerCase() === platformAdminEmail
+    ? "SUPER_ADMIN"
+    : undefined;
 }
