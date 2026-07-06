@@ -32,6 +32,7 @@ import { JwtSessionConfigService, JwtSessionTokenService } from "./session/index
     AuthService,
     BcryptPasswordHasherService,
     JwtAccessTokenGuard,
+    JwtSessionConfigService,
     JwtSessionTokenService,
     PlatformAdminGuard,
   ],

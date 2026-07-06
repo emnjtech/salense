@@ -3,15 +3,23 @@
 import "reflect-metadata";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
+import { Module } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
-import { PlatformAdminModule } from "./platform-admin.module.js";
+import { BcryptPasswordHasherService } from "../auth/security/index.js";
+import { DatabaseModule } from "../database/database.module.js";
 import { PlatformAdminService } from "./platform-admin.service.js";
 
 const args = parseArgs(process.argv.slice(2));
 
+@Module({
+  imports: [DatabaseModule],
+  providers: [BcryptPasswordHasherService, PlatformAdminService],
+})
+class PlatformAdminCliModule {}
+
 async function main(): Promise<void> {
   const answers = await readInput(args);
-  const app = await NestFactory.createApplicationContext(PlatformAdminModule, { logger: false });
+  const app = await NestFactory.createApplicationContext(PlatformAdminCliModule, { logger: false });
 
   try {
     const service = app.get(PlatformAdminService);
@@ -86,6 +94,11 @@ function parseArgs(values: readonly string[]): Partial<CreatePlatformAdminCliInp
 }
 
 main().catch((error: unknown) => {
-  console.error(error instanceof Error ? error.message : error);
+  if (error instanceof Error) {
+    console.error(error.message || error.stack || error.name);
+  } else {
+    console.error(error);
+  }
+
   process.exitCode = 1;
 });
