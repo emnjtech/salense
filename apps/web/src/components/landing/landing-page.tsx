@@ -11,10 +11,51 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 export function LandingPage() {
   const [heroImageReady, setHeroImageReady] = useState(true);
+
+  useEffect(() => {
+    const revealItems = Array.from(document.querySelectorAll<HTMLElement>("[data-scroll-reveal]"));
+
+    if (revealItems.length === 0) {
+      return;
+    }
+
+    const showImmediately = () => {
+      revealItems.forEach((item) => item.classList.add("is-visible"));
+    };
+
+    if (
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches ||
+      !("IntersectionObserver" in window)
+    ) {
+      showImmediately();
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) {
+            return;
+          }
+
+          entry.target.classList.add("is-visible");
+          observer.unobserve(entry.target);
+        });
+      },
+      {
+        rootMargin: "0px 0px -8% 0px",
+        threshold: 0.16,
+      },
+    );
+
+    revealItems.forEach((item) => observer.observe(item));
+
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <main className="landing-page">
@@ -34,7 +75,7 @@ export function LandingPage() {
       </header>
 
       <section className="landing-hero">
-        <div className="landing-hero-copy">
+        <div className="landing-hero-copy" data-scroll-reveal>
           <span className="landing-pill">
             <span aria-hidden="true" />
             All your stores. One intelligent view.
@@ -64,7 +105,7 @@ export function LandingPage() {
           </ul>
         </div>
 
-        <div className="landing-hero-media" aria-label="Salense product screenshot">
+        <div className="landing-hero-media" aria-label="Salense product screenshot" data-scroll-reveal>
           {heroImageReady ? (
             <Image
               alt="Salense commerce intelligence dashboard"
@@ -86,7 +127,7 @@ export function LandingPage() {
       </section>
 
       <section className="landing-feature-band">
-        <div className="landing-feature-copy">
+        <div className="landing-feature-copy" data-scroll-reveal>
           <p className="eyebrow">Built for modern commerce</p>
           <h2>Unify your data. Understand your business. Grow with confidence.</h2>
           <p>
@@ -103,26 +144,30 @@ export function LandingPage() {
             icon={<BarChart3 size={26} aria-hidden="true" />}
             title="Unified Dashboard"
             text="See all your stores, metrics and performance in one place."
+            reveal
           />
           <FeatureCard
             icon={<Sparkles size={26} aria-hidden="true" />}
             title="Smart Insights"
             text="Understand the signals behind revenue, orders, customers and inventory."
+            reveal
           />
           <FeatureCard
             icon={<RefreshCw size={26} aria-hidden="true" />}
             title="Real-time Sync"
             text="Automatic, reliable data sync across all your sales channels."
+            reveal
           />
           <FeatureCard
             icon={<ShieldCheck size={26} aria-hidden="true" />}
             title="Actionable Reports"
             text="Track, analyse and review performance across connected platforms."
+            reveal
           />
         </div>
       </section>
 
-      <section className="landing-scale-section">
+      <section className="landing-scale-section" data-scroll-reveal>
         <h2>Everything you need to scale smarter</h2>
         <div className="landing-scale-grid">
           {[
@@ -132,7 +177,7 @@ export function LandingPage() {
             "Customer Insights",
             "Secure & Reliable",
           ].map((item) => (
-            <article key={item}>
+            <article key={item} data-scroll-reveal>
               <ShieldCheck size={30} aria-hidden="true" />
               <strong>{item}</strong>
               <p>Built to help commerce teams make clearer decisions across every channel.</p>
@@ -141,7 +186,7 @@ export function LandingPage() {
         </div>
       </section>
 
-      <section className="landing-cta">
+      <section className="landing-cta" data-scroll-reveal>
         <div>
           <p className="eyebrow">Ready to grow?</p>
           <h2>Get started with Salense today</h2>
@@ -172,15 +217,17 @@ export function LandingPage() {
 
 function FeatureCard({
   icon,
+  reveal = false,
   text,
   title,
 }: {
   readonly icon: ReactNode;
+  readonly reveal?: boolean;
   readonly text: string;
   readonly title: string;
 }) {
   return (
-    <article className="landing-feature-card">
+    <article className="landing-feature-card" data-scroll-reveal={reveal ? true : undefined}>
       <span>{icon}</span>
       <h3>{title}</h3>
       <p>{text}</p>
