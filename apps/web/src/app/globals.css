@@ -1499,6 +1499,94 @@ button:disabled {
   top: 16px;
 }
 
+.settings-detail-grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.settings-detail-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.settings-detail-panel .panel-heading h2 {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.settings-detail-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+}
+
+.settings-detail-list div {
+  align-items: center;
+  border-top: 1px solid #e8ede8;
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  min-height: 52px;
+  padding: 12px 0;
+}
+
+.settings-detail-list div:first-child {
+  border-top: 0;
+}
+
+.settings-detail-list dt {
+  color: #647067;
+  font-size: 13px;
+  font-weight: 720;
+}
+
+.settings-detail-list dd {
+  color: #243027;
+  font-size: 14px;
+  font-weight: 760;
+  margin: 0;
+  text-align: right;
+}
+
+.settings-note-panel {
+  align-items: flex-start;
+  display: flex;
+  gap: 14px;
+  grid-column: 1 / -1;
+}
+
+.settings-note-panel > svg {
+  background: #eaf8ef;
+  border-radius: 8px;
+  color: #1f6f55;
+  flex: 0 0 auto;
+  height: 42px;
+  padding: 10px;
+  width: 42px;
+}
+
+.settings-note-panel h2 {
+  font-size: 18px;
+  line-height: 1.25;
+  margin: 0;
+}
+
+.settings-note-panel p {
+  color: #647067;
+  font-size: 13px;
+  line-height: 1.55;
+  margin: 8px 0 14px;
+  max-width: 760px;
+}
+
+.settings-note-panel .secondary-button {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+}
+
 .orders-workspace {
   max-width: 1320px;
 }
@@ -2096,6 +2184,7 @@ button:disabled {
   .today-hero-grid,
   .reports-chart-grid,
   .reports-filter-panel,
+  .settings-detail-grid,
   .settings-grid,
   .reports-table-grid,
   .orders-toolbar,

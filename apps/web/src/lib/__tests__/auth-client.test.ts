@@ -134,6 +134,52 @@ describe("auth API client", () => {
 
     expect(readDemoSession(storage)).toBeNull();
   });
+
+  it("loads the authenticated company profile", async () => {
+    const fetchImpl = jest
+      .fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>()
+      .mockResolvedValue(
+        jsonResponse({
+          businessLogoUrl: null,
+          businessName: "Northstar Home Goods",
+          country: "GB",
+          currency: "GBP",
+          id: "business_1",
+          industry: "Homeware",
+          taxPreference: "VAT_REGISTERED",
+          timeZone: "Europe/London",
+        }),
+      );
+    const client = createAuthApiClient({ baseUrl: "https://api.salense.test", fetchImpl });
+
+    await client.getCompanyProfile("access-token");
+
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe("https://api.salense.test/users/company-profile");
+    expect(getAuthorization(fetchImpl.mock.calls[0]?.[1])).toBe("Bearer access-token");
+  });
+
+  it("submits password changes to the existing authenticated endpoint", async () => {
+    const fetchImpl = jest
+      .fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>()
+      .mockResolvedValue(jsonResponse({ passwordChanged: true }));
+    const client = createAuthApiClient({ baseUrl: "https://api.salense.test", fetchImpl });
+
+    await client.changePassword("access-token", {
+      confirmNewPassword: "NewPassword123!",
+      currentPassword: "CurrentPassword123!",
+      newPassword: "NewPassword123!",
+    });
+
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe("https://api.salense.test/auth/change-password");
+    expect(getAuthorization(fetchImpl.mock.calls[0]?.[1])).toBe("Bearer access-token");
+    expect(fetchImpl.mock.calls[0]?.[1]?.body).toBe(
+      JSON.stringify({
+        confirmNewPassword: "NewPassword123!",
+        currentPassword: "CurrentPassword123!",
+        newPassword: "NewPassword123!",
+      }),
+    );
+  });
 });
 
 function jsonResponse(body: unknown, ok = true, status = 200): Response {

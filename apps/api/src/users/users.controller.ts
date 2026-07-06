@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   Inject,
   NotImplementedException,
   Put,
@@ -20,6 +21,18 @@ import { UsersService } from "./users.service.js";
 @Controller("users")
 export class UsersController {
   constructor(@Inject(UsersService) private readonly usersService: UsersService) {}
+
+  @Get("company-profile")
+  @UseGuards(JwtAccessTokenGuard)
+  getCompanyProfile(@Req() request: AuthenticatedRequest): Promise<CompanyProfileResponse> {
+    const userId = request.user?.sub;
+
+    if (!userId) {
+      throw new UnauthorizedException("Authenticated request context is not available.");
+    }
+
+    return this.usersService.getCompanyProfile(userId);
+  }
 
   @Put("company-profile")
   @UseGuards(JwtAccessTokenGuard)

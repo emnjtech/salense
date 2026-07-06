@@ -14,6 +14,8 @@ describe("SettingsWorkspace", () => {
     expect(html).toContain("Store connections");
     expect(html).toContain("Notifications");
     expect(html).toContain("Data &amp; privacy");
+    expect(html).toContain("/settings/account");
+    expect(html).toContain("/settings/security");
     expect(html).toContain("/store-integrations");
     expect(html).not.toContain("Demo");
     expect(html).not.toContain("MVP");

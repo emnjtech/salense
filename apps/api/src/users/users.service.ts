@@ -11,6 +11,28 @@ interface CompanyProfilePrismaClient {
     }): Promise<{ readonly id: string } | null>;
   };
   readonly business: {
+    findUnique(args: {
+      readonly where: { readonly ownerId: string };
+      readonly select: {
+        readonly id: true;
+        readonly name: true;
+        readonly businessLogoUrl: true;
+        readonly country: true;
+        readonly timeZone: true;
+        readonly currency: true;
+        readonly taxPreference: true;
+        readonly industry: true;
+      };
+    }): Promise<{
+      readonly id: string;
+      readonly name: string;
+      readonly businessLogoUrl: string | null;
+      readonly country: string | null;
+      readonly timeZone: string | null;
+      readonly currency: string | null;
+      readonly taxPreference: string | null;
+      readonly industry: string | null;
+    } | null>;
     upsert(args: {
       readonly where: { readonly ownerId: string };
       readonly create: {
@@ -58,6 +80,38 @@ interface CompanyProfilePrismaClient {
 @Injectable()
 export class UsersService {
   constructor(@Inject(PrismaService) private readonly prismaService: PrismaService) {}
+
+  async getCompanyProfile(userId: string): Promise<CompanyProfileResponse> {
+    const prisma = this.prismaService.client as unknown as CompanyProfilePrismaClient;
+    const business = await prisma.business.findUnique({
+      where: { ownerId: userId },
+      select: {
+        id: true,
+        name: true,
+        businessLogoUrl: true,
+        country: true,
+        timeZone: true,
+        currency: true,
+        taxPreference: true,
+        industry: true,
+      },
+    });
+
+    if (!business) {
+      throw new UnauthorizedException("Company profile is required.");
+    }
+
+    return {
+      id: business.id,
+      businessName: business.name,
+      businessLogoUrl: business.businessLogoUrl,
+      country: business.country ?? "Not configured",
+      timeZone: business.timeZone ?? "Not configured",
+      currency: business.currency ?? "Not configured",
+      taxPreference: business.taxPreference ?? "Not configured",
+      industry: business.industry ?? "Not configured",
+    };
+  }
 
   async updateCompanyProfile(
     userId: string,

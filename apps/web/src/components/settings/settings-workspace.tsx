@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 const settingsSections = [
   {
     description: "Manage your name, email address, password access, and workspace preferences.",
-    href: null,
+    href: "/settings/account",
     icon: <UserCircle size={20} aria-hidden="true" />,
     label: "Account",
     status: "Account controls",
@@ -21,7 +21,7 @@ const settingsSections = [
   {
     description:
       "Review sign-in protection, password policies, session handling, and access safeguards.",
-    href: null,
+    href: "/settings/security",
     icon: <LockKeyhole size={20} aria-hidden="true" />,
     label: "Security",
     status: "Security settings",

@@ -81,6 +81,15 @@ export interface AuthApiClient {
     readonly confirmPassword: string;
   }): Promise<{ readonly passwordReset: true }>;
   getCurrentUser(accessToken: string): Promise<CurrentUserResponse>;
+  getCompanyProfile(accessToken: string): Promise<CompanyProfileResponse>;
+  changePassword(
+    accessToken: string,
+    input: {
+      readonly currentPassword: string;
+      readonly newPassword: string;
+      readonly confirmNewPassword: string;
+    },
+  ): Promise<{ readonly passwordChanged: true }>;
   updateCompanyProfile(
     accessToken: string,
     input: CompanyProfileInput,
@@ -145,6 +154,16 @@ export function createAuthApiClient(options: AuthApiClientOptions = {}): AuthApi
   }
 
   return {
+    changePassword(accessToken, input) {
+      return request(
+        "/auth/change-password",
+        {
+          body: JSON.stringify(input),
+          method: "POST",
+        },
+        accessToken,
+      );
+    },
     confirmPasswordReset(input) {
       return request("/auth/password-reset/confirm", {
         body: JSON.stringify(input),
@@ -153,6 +172,9 @@ export function createAuthApiClient(options: AuthApiClientOptions = {}): AuthApi
     },
     getCurrentUser(accessToken) {
       return request("/auth/me", undefined, accessToken);
+    },
+    getCompanyProfile(accessToken) {
+      return request("/users/company-profile", undefined, accessToken);
     },
     login(input) {
       return request("/auth/login", {

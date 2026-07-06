@@ -4,26 +4,74 @@ import { UsersService } from "../users.service.js";
 
 function createUsersServiceMocks(): {
   readonly service: UsersService;
+  readonly findBusiness: jest.Mock;
   readonly findUser: jest.Mock;
   readonly upsertBusiness: jest.Mock;
 } {
+  const findBusiness = jest.fn();
   const findUser = jest.fn();
   const upsertBusiness = jest.fn();
   const prismaService = {
     client: {
       user: { findUnique: findUser },
-      business: { upsert: upsertBusiness },
+      business: { findUnique: findBusiness, upsert: upsertBusiness },
     },
   } as unknown as PrismaService;
 
   return {
     service: new UsersService(prismaService),
+    findBusiness,
     findUser,
     upsertBusiness,
   };
 }
 
 describe("UsersService", () => {
+  it("returns the authenticated user's company profile", async () => {
+    const { service, findBusiness } = createUsersServiceMocks();
+    findBusiness.mockResolvedValue({
+      id: "business_1",
+      name: "Northstar Home Goods",
+      businessLogoUrl: null,
+      country: "GB",
+      timeZone: "Europe/London",
+      currency: "GBP",
+      taxPreference: "VAT_REGISTERED",
+      industry: "Homeware",
+    });
+
+    await expect(service.getCompanyProfile("user_1")).resolves.toEqual({
+      id: "business_1",
+      businessName: "Northstar Home Goods",
+      businessLogoUrl: null,
+      country: "GB",
+      timeZone: "Europe/London",
+      currency: "GBP",
+      taxPreference: "VAT_REGISTERED",
+      industry: "Homeware",
+    });
+    expect(findBusiness).toHaveBeenCalledWith({
+      where: { ownerId: "user_1" },
+      select: {
+        id: true,
+        name: true,
+        businessLogoUrl: true,
+        country: true,
+        timeZone: true,
+        currency: true,
+        taxPreference: true,
+        industry: true,
+      },
+    });
+  });
+
+  it("rejects company profile reads for a missing profile", async () => {
+    const { service, findBusiness } = createUsersServiceMocks();
+    findBusiness.mockResolvedValue(null);
+
+    await expect(service.getCompanyProfile("missing_user")).rejects.toThrow(UnauthorizedException);
+  });
+
   it("updates the authenticated user's single company profile", async () => {
     const { service, findUser, upsertBusiness } = createUsersServiceMocks();
     findUser.mockResolvedValue({ id: "user_1" });
