@@ -64,31 +64,30 @@ describe("PlaceholderEmailService", () => {
 
 describe("ResendEmailService", () => {
   const originalFetch = global.fetch;
+  const originalApiKey = process.env.RESEND_API_KEY;
+  const originalEmailFrom = process.env.SALENSE_EMAIL_FROM;
+  const originalPublicAppUrl = process.env.PUBLIC_APP_URL;
 
   afterEach(() => {
     global.fetch = originalFetch;
+    process.env.RESEND_API_KEY = originalApiKey;
+    process.env.SALENSE_EMAIL_FROM = originalEmailFrom;
+    process.env.PUBLIC_APP_URL = originalPublicAppUrl;
   });
 
   it("is enabled when a Resend API key is configured", () => {
-    const originalApiKey = process.env.RESEND_API_KEY;
-
     process.env.RESEND_API_KEY = "re_test";
 
-    try {
-      expect(isResendEmailConfigured()).toBe(true);
-    } finally {
-      process.env.RESEND_API_KEY = originalApiKey;
-    }
+    expect(isResendEmailConfigured()).toBe(true);
   });
 
   it("sends invitation emails with an absolute invitation link", async () => {
     const fetchMock = jest.fn().mockResolvedValue({ ok: true });
     global.fetch = fetchMock as unknown as typeof fetch;
-    const service = new ResendEmailService({
-      apiKey: "re_test",
-      from: "Salense <hello@getsalense.com>",
-      publicAppUrl: "http://localhost:3000",
-    });
+    process.env.RESEND_API_KEY = "re_test";
+    process.env.SALENSE_EMAIL_FROM = "Salense <hello@getsalense.com>";
+    process.env.PUBLIC_APP_URL = "http://localhost:3000";
+    const service = new ResendEmailService();
 
     await service.sendInvitationEmail({
       businessName: "Northstar Home Goods",

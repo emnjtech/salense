@@ -74,7 +74,9 @@ export class ResendEmailService implements EmailService {
   private readonly from: string;
   private readonly publicAppUrl: string;
 
-  constructor(config: ResendEmailServiceConfig = readResendEmailConfig({ requireConfigured: false })) {
+  constructor() {
+    const config = readResendEmailConfig({ requireConfigured: false });
+
     this.apiKey = config.apiKey;
     this.from = config.from;
     this.publicAppUrl = trimTrailingSlash(config.publicAppUrl);
@@ -176,7 +178,7 @@ export class ResendEmailService implements EmailService {
   }
 }
 
-export interface ResendEmailServiceConfig {
+interface ResendEmailServiceConfig {
   readonly apiKey: string;
   readonly from: string;
   readonly publicAppUrl: string;
