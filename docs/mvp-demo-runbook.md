@@ -105,6 +105,16 @@ Salense currently operates as an invite-only product for pilot users.
 3. Approving a request creates a single-use `/accept-invitation?token=...` link.
 4. The invited user sets their password and receives a verified account for the approved business.
 
+To send invitation links by email through Resend, start the API with:
+
+```bash
+PUBLIC_APP_URL="http://localhost:3000"
+RESEND_API_KEY="re_your_resend_api_key"
+SALENSE_EMAIL_FROM="Salense <hello@getsalense.com>"
+```
+
+If `RESEND_API_KEY` is not set, the admin portal still displays the generated invitation link for manual sharing.
+
 Set `PUBLIC_REGISTRATION_ENABLED=true` only when testing the preserved public registration flow.
 
 ## Optional Shopify Connection Test

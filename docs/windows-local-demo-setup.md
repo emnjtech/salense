@@ -193,6 +193,20 @@ Pricing -> Request invitation -> Admin review -> Approve -> Accept invitation ->
 Invitation accounts are created with email verification complete because access has been approved
 by an admin. Normal email verification remains available for future public registration.
 
+### Invitation Email Delivery
+
+For real invitation delivery, configure Resend in the API environment before starting the API:
+
+```powershell
+$env:PUBLIC_APP_URL="http://localhost:3000"
+$env:RESEND_API_KEY="re_your_resend_api_key"
+$env:SALENSE_EMAIL_FROM="Salense <hello@getsalense.com>"
+```
+
+When `RESEND_API_KEY` is not set, Salense keeps invitation links available in the admin portal
+without sending email. When it is set, approving an invitation sends the user a single-use
+`/accept-invitation` link using the configured sender address.
+
 ## Troubleshooting
 
 - PostgreSQL is reachable but Prisma fails: update `DATABASE_URL` to the correct local user, password, database, and port.
