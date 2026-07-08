@@ -19,7 +19,9 @@ export class WooCommerceSyncWorkerHandler {
   async handle(job: WooCommerceSyncJob): Promise<unknown> {
     switch (job.name) {
       case WooCommerceSyncJobName.ManualFullSync:
-        return sanitizeFullSyncResult(await this.wooCommerceSyncService.syncAll(job.data.storeId));
+        return assertFullSyncSucceeded(
+          sanitizeFullSyncResult(await this.wooCommerceSyncService.syncAll(job.data.storeId)),
+        );
       case WooCommerceSyncJobName.OrdersSync:
         return sanitizeResourceSyncResult(
           await this.wooCommerceSyncService.syncOrders(job.data.storeId),
@@ -48,6 +50,14 @@ export class WooCommerceSyncWorkerHandler {
         throw new Error("Unsupported WooCommerce sync job.");
     }
   }
+}
+
+function assertFullSyncSucceeded(result: WooCommerceFullSyncResult): WooCommerceFullSyncResult {
+  if (result.status === "ERROR") {
+    throw new Error(result.errors[0] ?? "WooCommerce full sync failed.");
+  }
+
+  return result;
 }
 
 function sanitizeFullSyncResult(result: WooCommerceFullSyncResult): WooCommerceFullSyncResult {

@@ -36,6 +36,7 @@ export interface ConnectedStore {
   readonly region: string | null;
   readonly connectionStatus: StoreConnectionStatus;
   readonly lastSynchronisedAt: string | null;
+  readonly validationFailureReason?: string;
   readonly createdAt: string;
   readonly updatedAt: string;
 }

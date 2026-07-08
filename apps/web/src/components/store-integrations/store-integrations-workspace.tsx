@@ -114,6 +114,8 @@ export function StoreIntegrationsWorkspace() {
   const [actionStoreId, setActionStoreId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [sessionChecked, setSessionChecked] = useState(false);
+  const [hasAccessToken, setHasAccessToken] = useState(false);
 
   const apiClient = useMemo(
     () =>
@@ -123,8 +125,6 @@ export function StoreIntegrationsWorkspace() {
     [],
   );
 
-  const hasAccessToken = Boolean(getDemoAccessToken());
-
   const loadWorkspace = useCallback(async () => {
     setError(null);
     setLoading(true);
@@ -133,7 +133,11 @@ export function StoreIntegrationsWorkspace() {
       const supportedPlatforms = await apiClient.listSupportedPlatforms();
       setPlatforms(supportedPlatforms);
 
-      if (!getDemoAccessToken()) {
+      const accessToken = getDemoAccessToken();
+      setHasAccessToken(Boolean(accessToken));
+      setSessionChecked(true);
+
+      if (!accessToken) {
         setStores([]);
         setSyncStatuses({});
         return;
@@ -151,6 +155,7 @@ export function StoreIntegrationsWorkspace() {
       setSyncStatuses(Object.fromEntries(statuses));
     } catch (caughtError) {
       setError(getFriendlyErrorMessage(caughtError));
+      setSessionChecked(true);
     } finally {
       setLoading(false);
     }
@@ -354,7 +359,7 @@ export function StoreIntegrationsWorkspace() {
 
       <WorkspaceContextBanner />
 
-      {!hasAccessToken ? (
+      {sessionChecked && !hasAccessToken ? (
         <section className="state-banner warning" aria-live="polite">
           <ShieldCheck size={18} aria-hidden="true" />
           Sign in before managing protected store connections.
@@ -1102,6 +1107,7 @@ function StoreRow({
 }) {
   const isSyncEnabled = isSyncEnabledPlatform(store.platform);
   const isConnected = store.connectionStatus === StoreConnectionStatus.Connected;
+  const canDisconnect = store.connectionStatus !== StoreConnectionStatus.Disconnected;
   const isBusy = actionStoreId === store.id;
   const syncAttention = getSyncAttention(syncStatus);
 
@@ -1154,7 +1160,7 @@ function StoreRow({
           Remove schedule
         </button>
         <button
-          disabled={!isConnected || isBusy || !isSyncEnabled}
+          disabled={!canDisconnect || isBusy || !isSyncEnabled}
           onClick={onDisconnect}
           type="button"
         >
@@ -1300,7 +1306,9 @@ function getConnectionNotice(store: ConnectedStore, platformLabel: string): stri
   }
 
   if (store.connectionStatus === StoreConnectionStatus.Error) {
-    return `${store.storeName} could not be validated. Please check the credentials and try again.`;
+    return store.validationFailureReason
+      ? `${store.storeName} could not be validated. ${store.validationFailureReason}`
+      : `${store.storeName} could not be validated. Please check the credentials and try again.`;
   }
 
   return `${store.storeName} was submitted for ${platformLabel} validation.`;

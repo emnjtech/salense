@@ -40,7 +40,7 @@ export async function bootstrapSyncWorker(
     const jobData = getSyncJobData(job);
 
     console.error(
-      `Sync job failed: ${jobId} platform=${jobData.platform} store=${jobData.storeId} resource=${jobData.resource} category=${toSafeFailureCategory(failedReason)}`,
+      `Sync job failed: ${jobId} platform=${jobData.platform} store=${jobData.storeId} resource=${jobData.resource} category=${toSafeFailureCategory(failedReason)} reason="${toSafeFailureReason(failedReason)}"`,
     );
   });
 
@@ -113,4 +113,18 @@ function toSafeFailureCategory(reason: string): string {
   }
 
   return "SYNC_FAILED";
+}
+
+function toSafeFailureReason(reason: string): string {
+  const normalizedReason = reason.trim();
+
+  if (!normalizedReason) {
+    return "Sync failed without a detailed reason.";
+  }
+
+  return normalizedReason
+    .replace(/consumer_key=[^&\s")]+/gi, "consumer_key=[redacted]")
+    .replace(/consumer_secret=[^&\s")]+/gi, "consumer_secret=[redacted]")
+    .replace(/ck_[A-Za-z0-9_]+/g, "ck_[redacted]")
+    .replace(/cs_[A-Za-z0-9_]+/g, "cs_[redacted]");
 }

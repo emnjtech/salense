@@ -1,4 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
+import { IntegrationError } from "@salense/integrations";
 import { sanitizeAuditMetadata } from "../../audit/index.js";
 import { PrismaService } from "../../database/prisma.service.js";
 import type { StorePlatform } from "../types/store-platform.enum.js";
@@ -132,6 +133,7 @@ export class CommerceSyncCursorService {
     const failureSummary = getSafeSyncFailureSummary(input.error);
     const errorMetadata = sanitizeAuditMetadata({
       category: failureSummary.category,
+      ...getSafeIntegrationErrorMetadata(input.error),
       errorName: input.error instanceof Error ? input.error.name : "UnknownError",
       message: failureSummary.message,
     });
@@ -164,6 +166,19 @@ export class CommerceSyncCursorService {
   private get prisma(): CommerceSyncCursorPrismaClient {
     return this.prismaService.client as unknown as CommerceSyncCursorPrismaClient;
   }
+}
+
+function getSafeIntegrationErrorMetadata(error: unknown): Readonly<Record<string, unknown>> {
+  if (!(error instanceof IntegrationError)) {
+    return {};
+  }
+
+  return sanitizeAuditMetadata({
+    endpoint: error.metadata?.endpoint,
+    fallbackAuthMethod: error.metadata?.fallbackAuthMethod,
+    fallbackStatus: error.metadata?.fallbackStatus,
+    status: error.metadata?.status,
+  });
 }
 
 function getSafeSyncFailureSummary(error: unknown): {
@@ -202,7 +217,10 @@ function getSafeSyncFailureSummary(error: unknown): {
   ) {
     return {
       category: "STORE_REACHABILITY",
-      message: "The WooCommerce store URL could not be reached. Check the URL and store availability.",
+      message: appendSafeIntegrationDetails(
+        "The WooCommerce store URL could not be reached. Check the URL and store availability.",
+        error,
+      ),
     };
   }
 
@@ -217,4 +235,24 @@ function getSafeSyncFailureSummary(error: unknown): {
     category: "SYNC_FAILED",
     message: "WooCommerce sync failed. Please retry synchronization.",
   };
+}
+
+function appendSafeIntegrationDetails(message: string, error: unknown): string {
+  if (!(error instanceof IntegrationError)) {
+    return message;
+  }
+
+  const endpoint = typeof error.metadata?.endpoint === "string" ? error.metadata.endpoint : undefined;
+  const status = typeof error.metadata?.status === "number" ? error.metadata.status : undefined;
+  const fallbackStatus =
+    typeof error.metadata?.fallbackStatus === "number" ? error.metadata.fallbackStatus : undefined;
+  const details = [
+    endpoint ? `endpoint ${endpoint}` : undefined,
+    status ? `HTTP ${status}` : undefined,
+    fallbackStatus ? `fallback HTTP ${fallbackStatus}` : undefined,
+  ]
+    .filter(Boolean)
+    .join(", ");
+
+  return details ? `${message} (${details})` : message;
 }

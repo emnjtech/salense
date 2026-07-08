@@ -14,6 +14,7 @@ import {
   mapWooCommerceRefund,
   WooCommerceApiVersion,
   WooCommerceRestClient,
+  IntegrationError,
   type NormalizedCommerceRefund,
   type WooCommerceCommerceMappingContext,
   type WooCommerceRawCustomer,
@@ -334,7 +335,7 @@ export class WooCommerceSyncService {
 
       return {
         connectedStoreId,
-        errors: [error instanceof Error ? error.message : "WooCommerce sync failed."],
+        errors: [toSafeWooCommerceSyncErrorMessage(error)],
         persistence: emptyPersistenceResult,
         readOnly: true,
         resource,
@@ -441,6 +442,29 @@ function createMappingContext(
 
 function asWooCommerceCredentialMetadata(value: unknown): WooCommerceCredentialMetadata {
   return typeof value === "object" && value !== null ? (value as WooCommerceCredentialMetadata) : {};
+}
+
+function toSafeWooCommerceSyncErrorMessage(error: unknown): string {
+  if (!(error instanceof Error)) {
+    return "WooCommerce sync failed.";
+  }
+
+  if (error instanceof IntegrationError) {
+    const endpoint = typeof error.metadata?.endpoint === "string" ? error.metadata.endpoint : undefined;
+    const status =
+      typeof error.metadata?.status === "number" ? `status ${error.metadata.status}` : undefined;
+    const fallbackStatus =
+      typeof error.metadata?.fallbackStatus === "number"
+        ? `fallback status ${error.metadata.fallbackStatus}`
+        : undefined;
+    const details = [endpoint ? `endpoint ${endpoint}` : undefined, status, fallbackStatus]
+      .filter(Boolean)
+      .join(", ");
+
+    return details ? `${error.message} (${details})` : error.message;
+  }
+
+  return error.message;
 }
 
 function withoutUndefined<T extends Readonly<Record<string, unknown>>>(input: T): Partial<T> {

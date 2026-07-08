@@ -34,6 +34,7 @@ export interface WooCommerceRestClientOptions {
 
 const defaultTimeoutMs = 10_000;
 const defaultPerPage = 100;
+const salenseWooCommerceUserAgent = "Salense Commerce Intelligence/0.1";
 
 export class WooCommerceRestClient {
   private readonly fetchFn: typeof fetch;
@@ -180,6 +181,7 @@ export class WooCommerceRestClient {
             `${request.consumerKey}:${request.consumerSecret}`,
             "utf8",
           ).toString("base64")}`,
+          "User-Agent": salenseWooCommerceUserAgent,
         },
         method: "GET",
         ...(requestSignal ? { signal: requestSignal } : {}),
@@ -188,23 +190,42 @@ export class WooCommerceRestClient {
       const response = await this.fetchFn(endpoint, requestInit);
 
       if (response.status === 401 || response.status === 403) {
+        const fallbackEndpoint = buildQueryAuthenticatedUrl(endpoint, request);
+        const fallbackResponse = await this.fetchFn(fallbackEndpoint, {
+          headers: {
+            Accept: "application/json",
+            "User-Agent": salenseWooCommerceUserAgent,
+          },
+          method: "GET",
+          ...(requestSignal ? { signal: requestSignal } : {}),
+        });
+
+        if (fallbackResponse.ok) {
+          return fallbackResponse;
+        }
+
         throw new IntegrationAuthenticationError("WooCommerce authentication failed.", {
           platform: IntegrationPlatform.WooCommerce,
-          metadata: { status: response.status },
+          metadata: {
+            endpoint: endpoint.pathname,
+            fallbackAuthMethod: "query",
+            fallbackStatus: fallbackResponse.status,
+            status: response.status,
+          },
         });
       }
 
       if (response.status === 429) {
         throw new IntegrationConnectionError("WooCommerce rate limit exceeded.", {
           platform: IntegrationPlatform.WooCommerce,
-          metadata: { status: response.status },
+          metadata: { endpoint: endpoint.pathname, status: response.status },
         });
       }
 
       if (!response.ok) {
         throw new IntegrationConnectionError("WooCommerce store returned an error.", {
           platform: IntegrationPlatform.WooCommerce,
-          metadata: { status: response.status },
+          metadata: { endpoint: endpoint.pathname, status: response.status },
         });
       }
 
@@ -221,12 +242,14 @@ export class WooCommerceRestClient {
         throw new IntegrationConnectionError("WooCommerce request timed out.", {
           platform: IntegrationPlatform.WooCommerce,
           cause: error,
+          metadata: { endpoint: endpoint.pathname },
         });
       }
 
       throw new IntegrationConnectionError("WooCommerce store is unreachable.", {
         platform: IntegrationPlatform.WooCommerce,
         cause: error,
+        metadata: { endpoint: endpoint.pathname },
       });
     } finally {
       if (timeout) {
@@ -237,7 +260,11 @@ export class WooCommerceRestClient {
 }
 
 function buildSystemStatusUrl(storeUrl: string, apiVersion: WooCommerceApiVersion): URL {
-  return buildWooCommerceUrl(storeUrl, apiVersion, "system_status");
+  const endpoint = buildWooCommerceUrl(storeUrl, apiVersion, "orders");
+  endpoint.searchParams.set("page", "1");
+  endpoint.searchParams.set("per_page", "1");
+
+  return endpoint;
 }
 
 function buildWooCommerceUrl(
@@ -256,11 +283,27 @@ function buildWooCommerceUrl(
     });
   }
 
-  baseUrl.pathname = joinUrlPath(baseUrl.pathname, "wp-json", apiVersion, resourcePath);
+  baseUrl.pathname = joinUrlPath(
+    normalizeWooCommerceStoreBasePath(baseUrl.pathname),
+    "wp-json",
+    apiVersion,
+    resourcePath,
+  );
   baseUrl.search = "";
   baseUrl.hash = "";
 
   return baseUrl;
+}
+
+function buildQueryAuthenticatedUrl(
+  endpoint: URL,
+  request: WooCommerceConnectionValidationRequest,
+): URL {
+  const authenticatedEndpoint = new URL(endpoint.toString());
+  authenticatedEndpoint.searchParams.set("consumer_key", request.consumerKey);
+  authenticatedEndpoint.searchParams.set("consumer_secret", request.consumerSecret);
+
+  return authenticatedEndpoint;
 }
 
 function getTotalPages(response: Response): number | undefined {
@@ -273,6 +316,20 @@ function getTotalPages(response: Response): number | undefined {
   const totalPages = Number.parseInt(headerValue, 10);
 
   return Number.isFinite(totalPages) ? totalPages : undefined;
+}
+
+function normalizeWooCommerceStoreBasePath(pathname: string): string {
+  const pathSegments = pathname
+    .split("/")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const restApiIndex = pathSegments.findIndex((part) => part.toLowerCase() === "wp-json");
+
+  if (restApiIndex >= 0) {
+    return joinUrlPath(...pathSegments.slice(0, restApiIndex));
+  }
+
+  return pathname;
 }
 
 function joinUrlPath(...parts: readonly string[]): string {

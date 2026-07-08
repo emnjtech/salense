@@ -1,5 +1,6 @@
 import {
   INTEGRATION_FACTORY,
+  IntegrationError,
   IntegrationPlatform,
   defaultShopifyAdminApiVersion,
   normalizeShopifyDomain,
@@ -133,7 +134,14 @@ interface ConnectedStoreCreateData {
 
 interface ConnectedStoreUpdateData {
   readonly connectionStatus: StoreConnectionStatus;
+  readonly accessTokenHash?: string;
+  readonly accessTokenMetadata?: Readonly<Record<string, unknown>>;
+  readonly refreshTokenHash?: string;
+  readonly refreshTokenMetadata?: Readonly<Record<string, unknown>>;
   readonly disconnectedAt?: Date | null;
+  readonly region?: string | null;
+  readonly storeName?: string;
+  readonly storeUrl?: string | null;
 }
 
 interface ConnectedStoreSelect {
@@ -300,37 +308,46 @@ export class StoreIntegrationsService {
 
     const storeUrl = normalizeOptionalValue(request.storeUrl);
     const region = normalizeOptionalValue(request.region)?.toUpperCase() ?? null;
-    const duplicateConnection = await prisma.connectedStore.findFirst({
+    const existingConnection = (await prisma.connectedStore.findFirst({
       where: {
         businessId: business.id,
         platform: request.platform,
         storeUrl,
         region,
-        disconnectedAt: null,
       },
-      select: { id: true },
-    });
+      select: connectedStoreSelect,
+    })) as ConnectedStoreRecord | null;
 
-    if (duplicateConnection) {
+    if (existingConnection && isActiveConnectionStatus(existingConnection.connectionStatus)) {
       throw new ConflictException("Duplicate store connections are prohibited.");
     }
 
     const credentialConfiguration = this.createCredentialConfiguration(request);
-    const connectedStore = await prisma.connectedStore.create({
-      data: {
-        businessId: business.id,
-        platform: request.platform,
-        storeName: request.storeName.trim(),
-        storeUrl,
-        region,
-        connectionStatus: StoreConnectionStatus.PendingValidation,
-        accessTokenHash: credentialConfiguration.accessTokenHash ?? "",
-        accessTokenMetadata: credentialConfiguration.accessTokenMetadata ?? {},
-        refreshTokenHash: credentialConfiguration.refreshTokenHash ?? "",
-        refreshTokenMetadata: credentialConfiguration.refreshTokenMetadata ?? {},
-      },
-      select: connectedStoreSelect,
-    });
+    const connectionData = {
+      accessTokenHash: credentialConfiguration.accessTokenHash ?? "",
+      accessTokenMetadata: credentialConfiguration.accessTokenMetadata ?? {},
+      connectionStatus: StoreConnectionStatus.PendingValidation,
+      disconnectedAt: null,
+      refreshTokenHash: credentialConfiguration.refreshTokenHash ?? "",
+      refreshTokenMetadata: credentialConfiguration.refreshTokenMetadata ?? {},
+      region,
+      storeName: request.storeName.trim(),
+      storeUrl,
+    } satisfies ConnectedStoreUpdateData;
+    const connectedStore = existingConnection
+      ? await prisma.connectedStore.update({
+          where: { id: existingConnection.id },
+          data: connectionData,
+          select: connectedStoreSelect,
+        })
+      : await prisma.connectedStore.create({
+          data: {
+            businessId: business.id,
+            platform: request.platform,
+            ...connectionData,
+          },
+          select: connectedStoreSelect,
+        });
 
     await this.recordStoreIntegrationAuditEvent({
       action: getConnectionCreatedAuditAction(request.platform),
@@ -400,9 +417,13 @@ export class StoreIntegrationsService {
 
       return toConnectedStoreResponse(validatedStore as ConnectedStoreRecord);
     } catch (error) {
+      const validationFailureReason = toSafeConnectionValidationFailureReason(error);
       const failedStore = await prisma.connectedStore.update({
         where: { id: connectedStore.id },
-        data: { connectionStatus: StoreConnectionStatus.Error },
+        data: {
+          connectionStatus: StoreConnectionStatus.Error,
+          disconnectedAt: new Date(),
+        },
         select: connectedStoreSelect,
       });
 
@@ -415,6 +436,7 @@ export class StoreIntegrationsService {
           errorName: error instanceof Error ? error.name : "UnknownError",
           marketplaceId: getSafeMarketplaceId(credentialConfiguration.accessTokenMetadata),
           region,
+          safeReason: validationFailureReason,
           storeUrl,
         },
         result: AuditLogResult.Failure,
@@ -422,7 +444,10 @@ export class StoreIntegrationsService {
         userId,
       });
 
-      return toConnectedStoreResponse(failedStore as ConnectedStoreRecord);
+      return {
+        ...toConnectedStoreResponse(failedStore as ConnectedStoreRecord),
+        validationFailureReason,
+      };
     }
   }
 
@@ -616,8 +641,8 @@ export class StoreIntegrationsService {
   ): Promise<DisconnectStoreResponse> {
     const store = await this.assertStoreBelongsToUser(userId, request.storeId);
 
-    if (store.connectionStatus !== StoreConnectionStatus.Connected) {
-      throw new ConflictException("Store must be connected before it can be disconnected.");
+    if (store.connectionStatus === StoreConnectionStatus.Disconnected || store.disconnectedAt) {
+      throw new ConflictException("Store is already disconnected.");
     }
 
     await this.syncSchedulingService.removeAutomaticSync(store);
@@ -916,6 +941,62 @@ function normalizeOptionalValue(value: string | undefined): string | null {
 
 function hashCredentialPlaceholder(value: string): string {
   return createHash("sha256").update(value.trim(), "utf8").digest("hex");
+}
+
+function isActiveConnectionStatus(status: StoreConnectionStatus): boolean {
+  return [
+    StoreConnectionStatus.AuthenticationExpired,
+    StoreConnectionStatus.Connected,
+    StoreConnectionStatus.PendingValidation,
+    StoreConnectionStatus.Synchronising,
+  ].includes(status);
+}
+
+function toSafeConnectionValidationFailureReason(error: unknown): string {
+  const errorName = error instanceof Error ? error.name : "";
+  const message = error instanceof Error ? error.message.toLowerCase() : "";
+
+  if (errorName.includes("Authentication") || message.includes("auth")) {
+    return "WooCommerce rejected the credentials or the key does not have read permission.";
+  }
+
+  if (
+    errorName.includes("Connection") ||
+    message.includes("unreachable") ||
+    message.includes("timed out") ||
+    message.includes("timeout")
+  ) {
+    return appendSafeIntegrationDetails(
+      "The WooCommerce store URL could not be reached from Salense.",
+      error,
+    );
+  }
+
+  if (message.includes("required") || message.includes("configuration")) {
+    return "Please check that the WooCommerce store URL, consumer key, and consumer secret are complete.";
+  }
+
+  return "WooCommerce could not validate this connection. Please check the store URL and read-only REST API key.";
+}
+
+function appendSafeIntegrationDetails(message: string, error: unknown): string {
+  if (!(error instanceof IntegrationError)) {
+    return message;
+  }
+
+  const endpoint = typeof error.metadata?.endpoint === "string" ? error.metadata.endpoint : undefined;
+  const status = typeof error.metadata?.status === "number" ? error.metadata.status : undefined;
+  const fallbackStatus =
+    typeof error.metadata?.fallbackStatus === "number" ? error.metadata.fallbackStatus : undefined;
+  const details = [
+    endpoint ? `endpoint ${endpoint}` : undefined,
+    status ? `HTTP ${status}` : undefined,
+    fallbackStatus ? `fallback HTTP ${fallbackStatus}` : undefined,
+  ]
+    .filter(Boolean)
+    .join(", ");
+
+  return details ? `${message} (${details})` : message;
 }
 
 function getConnectionCreatedAuditAction(platform: StorePlatform): AuditAction {

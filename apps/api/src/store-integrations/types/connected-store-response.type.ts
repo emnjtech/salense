@@ -10,6 +10,7 @@ export interface ConnectedStoreResponse {
   readonly region: string | null;
   readonly connectionStatus: StoreConnectionStatus;
   readonly lastSynchronisedAt: Date | null;
+  readonly validationFailureReason?: string;
   readonly createdAt: Date;
   readonly updatedAt: Date;
 }

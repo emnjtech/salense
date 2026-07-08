@@ -779,10 +779,16 @@ describe("StoreIntegrationsService", () => {
 
     expect(updateConnectedStore).toHaveBeenCalledWith({
       where: { id: "store_1" },
-      data: { connectionStatus: StoreConnectionStatus.Error },
+      data: {
+        connectionStatus: StoreConnectionStatus.Error,
+        disconnectedAt: expect.any(Date),
+      },
       select: expect.objectContaining({ id: true }),
     });
     expect(response.connectionStatus).toBe(StoreConnectionStatus.Error);
+    expect(response.validationFailureReason).toBe(
+      "WooCommerce rejected the credentials or the key does not have read permission.",
+    );
     expect(JSON.stringify(response)).not.toContain("ck_live_placeholder");
     expect(JSON.stringify(response)).not.toContain("cs_live_placeholder");
     expect(recordAuditLog).toHaveBeenCalledWith({
@@ -796,6 +802,7 @@ describe("StoreIntegrationsService", () => {
         errorName: "IntegrationAuthenticationError",
         marketplaceId: undefined,
         region: null,
+        safeReason: "WooCommerce rejected the credentials or the key does not have read permission.",
         storeUrl: "https://shop.example.com",
       },
       result: AuditLogResult.Failure,

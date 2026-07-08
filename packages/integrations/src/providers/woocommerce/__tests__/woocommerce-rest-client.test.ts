@@ -13,18 +13,18 @@ const validationRequest = {
 };
 
 describe("WooCommerceRestClient", () => {
-  it("validates credentials with a read-only system status request", async () => {
+  it("validates credentials with a read-only orders request", async () => {
     const fetchFn = jest.fn().mockResolvedValue({ ok: true, status: 200 });
     const client = new WooCommerceRestClient({ fetchFn });
 
     await expect(client.validateConnection(validationRequest)).resolves.toMatchObject({
       status: "HEALTHY",
       message: "WooCommerce credentials validated successfully.",
-      metadata: { endpoint: "/wp-json/wc/v3/system_status", readOnly: true },
+      metadata: { endpoint: "/wp-json/wc/v3/orders", readOnly: true },
     });
 
     expect(fetchFn).toHaveBeenCalledWith(
-      new URL("https://shop.example.com/wp-json/wc/v3/system_status"),
+      new URL("https://shop.example.com/wp-json/wc/v3/orders?page=1&per_page=1"),
       expect.objectContaining({
         method: "GET",
         headers: expect.objectContaining({
@@ -67,6 +67,79 @@ describe("WooCommerceRestClient", () => {
       perPage: "1",
     });
     expectOnlyGetRequests(fetchFn);
+  });
+
+  it("falls back to query-string credentials when a host rejects Basic Auth", async () => {
+    const fetchFn = jest
+      .fn()
+      .mockResolvedValueOnce(createJsonResponse({ code: "woocommerce_rest_cannot_view" }, 1, 401))
+      .mockResolvedValueOnce(createJsonResponse({ environment: { version: "8.0.0" } }, 1));
+    const client = new WooCommerceRestClient({ fetchFn });
+
+    await expect(client.validateConnection(validationRequest)).resolves.toMatchObject({
+      status: "HEALTHY",
+    });
+
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+    expect(fetchFn.mock.calls[0]?.[1]).toEqual(
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: expect.stringMatching(/^Basic /),
+        }),
+      }),
+    );
+    expectCalledUrl(fetchFn, 1, {
+      consumerKey: validationRequest.consumerKey,
+      consumerSecret: validationRequest.consumerSecret,
+      page: "1",
+      path: "/wp-json/wc/v3/orders",
+      perPage: "1",
+    });
+    expect(fetchFn.mock.calls[1]?.[1]).toEqual(
+      expect.not.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: expect.any(String),
+        }),
+      }),
+    );
+    expectOnlyGetRequests(fetchFn);
+  });
+
+  it("accepts a store URL that already points at the WordPress REST root", async () => {
+    const fetchFn = jest.fn().mockResolvedValue({ ok: true, status: 200 });
+    const client = new WooCommerceRestClient({ fetchFn });
+
+    await expect(
+      client.validateConnection({
+        ...validationRequest,
+        storeUrl: "https://ivonmelda.com/wp-json/",
+      }),
+    ).resolves.toMatchObject({
+      status: "HEALTHY",
+    });
+
+    expect(fetchFn).toHaveBeenCalledWith(
+      new URL("https://ivonmelda.com/wp-json/wc/v3/orders?page=1&per_page=1"),
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("preserves WordPress subdirectory installs while removing duplicated REST path segments", async () => {
+    const fetchFn = jest.fn().mockResolvedValue(createJsonResponse([{ id: 1 }], 1));
+    const client = new WooCommerceRestClient({ fetchFn });
+
+    await expect(
+      client.listOrders({
+        ...validationRequest,
+        storeUrl: "https://shop.example.com/store/wp-json/wc/v3/orders",
+      }),
+    ).resolves.toEqual([{ id: 1 }]);
+
+    expectCalledUrl(fetchFn, 0, {
+      page: "1",
+      path: "/store/wp-json/wc/v3/orders",
+      perPage: "100",
+    });
   });
 
   it("reads products, customers, categories, refunds, and inventory with read-only endpoints", async () => {
@@ -168,6 +241,8 @@ function expectCalledUrl(
   callIndex: number,
   expectation: {
     readonly after?: string | null;
+    readonly consumerKey?: string;
+    readonly consumerSecret?: string;
     readonly fields?: string;
     readonly page?: string;
     readonly path: string;
@@ -179,6 +254,12 @@ function expectCalledUrl(
   expect(url.pathname).toBe(expectation.path);
   if (expectation.after !== undefined) {
     expect(url.searchParams.get("after")).toBe(expectation.after);
+  }
+  if (expectation.consumerKey !== undefined) {
+    expect(url.searchParams.get("consumer_key")).toBe(expectation.consumerKey);
+  }
+  if (expectation.consumerSecret !== undefined) {
+    expect(url.searchParams.get("consumer_secret")).toBe(expectation.consumerSecret);
   }
   if (expectation.fields !== undefined) {
     expect(url.searchParams.get("_fields")).toBe(expectation.fields);
