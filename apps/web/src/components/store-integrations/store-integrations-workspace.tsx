@@ -5,6 +5,7 @@ import {
   CalendarClock,
   CheckCircle2,
   Clock3,
+  ExternalLink,
   Loader2,
   PlugZap,
   RefreshCcw,
@@ -92,6 +93,12 @@ const emptyShopifyForm: ShopifyFormState = {
   storeUrl: "",
 };
 
+const emptyAuthorizationInput = {
+  region: "GB",
+  shop: "",
+  storeName: "",
+};
+
 export function StoreIntegrationsWorkspace() {
   const [platforms, setPlatforms] = useState<readonly SupportedStorePlatform[]>([]);
   const [stores, setStores] = useState<readonly ConnectedStore[]>([]);
@@ -101,6 +108,7 @@ export function StoreIntegrationsWorkspace() {
     useState<AmazonSellerFormState>(emptyAmazonSellerForm);
   const [tikTokFormState, setTikTokFormState] = useState<TikTokShopFormState>(emptyTikTokShopForm);
   const [shopifyFormState, setShopifyFormState] = useState<ShopifyFormState>(emptyShopifyForm);
+  const [authorizationInput, setAuthorizationInput] = useState(emptyAuthorizationInput);
   const [loading, setLoading] = useState(true);
   const [actionStoreId, setActionStoreId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -269,6 +277,63 @@ export function StoreIntegrationsWorkspace() {
     }
   }
 
+  async function startShopifyAuthorization() {
+    setActionStoreId("oauth-shopify");
+    setError(null);
+    setNotice(null);
+
+    try {
+      const response = await apiClient.startShopifyOAuth({
+        shop: authorizationInput.shop,
+        storeName: authorizationInput.storeName,
+      });
+      window.location.assign(response.authorizationUrl);
+    } catch (caughtError) {
+      setError(getFriendlyErrorMessage(caughtError));
+      setActionStoreId(null);
+    }
+  }
+
+  async function startAmazonSellerAuthorization() {
+    setActionStoreId("oauth-amazon-seller");
+    setError(null);
+    setNotice(null);
+
+    try {
+      const response = await apiClient.startAmazonSellerOAuth({
+        region: authorizationInput.region,
+        storeName: authorizationInput.storeName,
+      });
+      window.location.assign(response.authorizationUrl);
+    } catch (caughtError) {
+      setError(getFriendlyErrorMessage(caughtError));
+      setActionStoreId(null);
+    }
+  }
+
+  async function startTikTokShopAuthorization() {
+    setActionStoreId("oauth-tiktok-shop");
+    setError(null);
+    setNotice(null);
+
+    try {
+      const response = await apiClient.startTikTokShopOAuth({
+        region: authorizationInput.region,
+        storeName: authorizationInput.storeName,
+      });
+      window.location.assign(response.authorizationUrl);
+    } catch (caughtError) {
+      setError(getFriendlyErrorMessage(caughtError));
+      setActionStoreId(null);
+    }
+  }
+
+  function showWooCommerceGuidedSetup() {
+    setNotice(
+      "WooCommerce uses read-only REST API keys. Open Advanced manual setup for guided steps and encrypted key storage.",
+    );
+  }
+
   return (
     <main className="workspace">
       <header className="workspace-header">
@@ -356,14 +421,37 @@ export function StoreIntegrationsWorkspace() {
           <div className="panel-heading">
             <div>
               <h2>Connect WooCommerce</h2>
-              <p>Connect a WooCommerce store for read-only validation and synchronization.</p>
+              <p>
+                Approve read-only access with WooCommerce REST API keys. Salense will never modify
+                your store.
+              </p>
             </div>
           </div>
 
-          <form
-            className="integration-form"
-            onSubmit={(event) => void handleWooCommerceConnect(event)}
-          >
+          <div className="authorization-card-actions">
+            <button
+              className="primary-button"
+              disabled={!hasAccessToken}
+              onClick={showWooCommerceGuidedSetup}
+              type="button"
+            >
+              <PlugZap size={16} aria-hidden="true" />
+              Connect WooCommerce
+            </button>
+            <span>Generate read-only REST API keys in WooCommerce, then store them securely.</span>
+          </div>
+
+          <details className="advanced-manual-setup">
+            <summary>Advanced manual setup</summary>
+            <ol className="guided-setup-list">
+              <li>Open WooCommerce, then go to Settings, Advanced, REST API.</li>
+              <li>Create a key with read-only permissions.</li>
+              <li>Copy the consumer key and consumer secret into Salense.</li>
+            </ol>
+            <form
+              className="integration-form"
+              onSubmit={(event) => void handleWooCommerceConnect(event)}
+            >
             <label>
               Store name
               <input
@@ -430,7 +518,8 @@ export function StoreIntegrationsWorkspace() {
               )}
               Connect WooCommerce
             </button>
-          </form>
+            </form>
+          </details>
         </section>
 
         <section className="panel">
@@ -438,15 +527,65 @@ export function StoreIntegrationsWorkspace() {
             <div>
               <h2>Connect Amazon Seller</h2>
               <p>
-                Connect Amazon Seller with encrypted credentials and read-only synchronisation.
+                Connect securely through Amazon authorization when your SP-API app is approved.
               </p>
             </div>
           </div>
 
-          <form
-            className="integration-form"
-            onSubmit={(event) => void handleAmazonSellerConnect(event)}
-          >
+          <div className="authorization-fields">
+            <label>
+              Store name
+              <input
+                autoComplete="organization"
+                onChange={(event) =>
+                  setAuthorizationInput((current) => ({
+                    ...current,
+                    storeName: event.target.value,
+                  }))
+                }
+                placeholder="Amazon UK"
+                value={authorizationInput.storeName}
+              />
+            </label>
+            <label>
+              Region
+              <input
+                autoComplete="country"
+                onChange={(event) =>
+                  setAuthorizationInput((current) => ({ ...current, region: event.target.value }))
+                }
+                placeholder="GB"
+                value={authorizationInput.region}
+              />
+            </label>
+          </div>
+          <div className="authorization-card-actions">
+            <button
+              className="primary-button"
+              disabled={!hasAccessToken || actionStoreId === "oauth-amazon-seller"}
+              onClick={() => void startAmazonSellerAuthorization()}
+              type="button"
+            >
+              {actionStoreId === "oauth-amazon-seller" ? (
+                <Loader2 className="spin" size={16} aria-hidden="true" />
+              ) : (
+                <ExternalLink size={16} aria-hidden="true" />
+              )}
+              Connect Amazon Seller
+            </button>
+            <span>Requires Amazon SP-API app registration and read-only authorization scopes.</span>
+          </div>
+
+          <details className="advanced-manual-setup">
+            <summary>Advanced manual setup</summary>
+            <p className="manual-setup-note">
+              Use this only when you already have valid SP-API tokens from your Amazon developer
+              setup.
+            </p>
+            <form
+              className="integration-form"
+              onSubmit={(event) => void handleAmazonSellerConnect(event)}
+            >
             <label>
               Store name
               <input
@@ -548,7 +687,8 @@ export function StoreIntegrationsWorkspace() {
               )}
               Connect Amazon Seller
             </button>
-          </form>
+            </form>
+          </details>
         </section>
 
         <section className="panel">
@@ -556,15 +696,64 @@ export function StoreIntegrationsWorkspace() {
             <div>
               <h2>Connect TikTok Shop</h2>
               <p>
-                Connect TikTok Shop with encrypted credentials and read-only synchronisation.
+                Connect securely through TikTok Shop authorization when your app is approved.
               </p>
             </div>
           </div>
 
-          <form
-            className="integration-form"
-            onSubmit={(event) => void handleTikTokShopConnect(event)}
-          >
+          <div className="authorization-fields">
+            <label>
+              Store name
+              <input
+                autoComplete="organization"
+                onChange={(event) =>
+                  setAuthorizationInput((current) => ({
+                    ...current,
+                    storeName: event.target.value,
+                  }))
+                }
+                placeholder="TikTok UK"
+                value={authorizationInput.storeName}
+              />
+            </label>
+            <label>
+              Region
+              <input
+                autoComplete="country"
+                onChange={(event) =>
+                  setAuthorizationInput((current) => ({ ...current, region: event.target.value }))
+                }
+                placeholder="GB"
+                value={authorizationInput.region}
+              />
+            </label>
+          </div>
+          <div className="authorization-card-actions">
+            <button
+              className="primary-button"
+              disabled={!hasAccessToken || actionStoreId === "oauth-tiktok-shop"}
+              onClick={() => void startTikTokShopAuthorization()}
+              type="button"
+            >
+              {actionStoreId === "oauth-tiktok-shop" ? (
+                <Loader2 className="spin" size={16} aria-hidden="true" />
+              ) : (
+                <ExternalLink size={16} aria-hidden="true" />
+              )}
+              Connect TikTok Shop
+            </button>
+            <span>Requires TikTok Shop app approval before token exchange can be completed.</span>
+          </div>
+
+          <details className="advanced-manual-setup">
+            <summary>Advanced manual setup</summary>
+            <p className="manual-setup-note">
+              Use this only when you already have valid TikTok Shop tokens from your app setup.
+            </p>
+            <form
+              className="integration-form"
+              onSubmit={(event) => void handleTikTokShopConnect(event)}
+            >
             <label>
               Store name
               <input
@@ -665,7 +854,8 @@ export function StoreIntegrationsWorkspace() {
               )}
               Connect TikTok Shop
             </button>
-          </form>
+            </form>
+          </details>
         </section>
 
         <section className="panel">
@@ -673,12 +863,65 @@ export function StoreIntegrationsWorkspace() {
             <div>
               <h2>Connect Shopify</h2>
               <p>
-                Connect Shopify with encrypted Admin API credentials and read-only synchronisation.
+                Connect Shopify securely, approve read-only access, and return to Salense.
               </p>
             </div>
           </div>
 
-          <form className="integration-form" onSubmit={(event) => void handleShopifyConnect(event)}>
+          <div className="authorization-fields">
+            <label>
+              Shopify shop domain
+              <input
+                autoComplete="off"
+                inputMode="url"
+                onChange={(event) =>
+                  setAuthorizationInput((current) => ({ ...current, shop: event.target.value }))
+                }
+                placeholder="northstar.myshopify.com"
+                value={authorizationInput.shop}
+              />
+            </label>
+            <label>
+              Store name
+              <input
+                autoComplete="organization"
+                onChange={(event) =>
+                  setAuthorizationInput((current) => ({
+                    ...current,
+                    storeName: event.target.value,
+                  }))
+                }
+                placeholder="Shopify UK"
+                value={authorizationInput.storeName}
+              />
+            </label>
+          </div>
+          <div className="authorization-card-actions">
+            <button
+              className="primary-button"
+              disabled={!hasAccessToken || actionStoreId === "oauth-shopify"}
+              onClick={() => void startShopifyAuthorization()}
+              type="button"
+            >
+              {actionStoreId === "oauth-shopify" ? (
+                <Loader2 className="spin" size={16} aria-hidden="true" />
+              ) : (
+                <ExternalLink size={16} aria-hidden="true" />
+              )}
+              Connect Shopify
+            </button>
+            <span>Salense requests read-only Shopify Admin API scopes.</span>
+          </div>
+
+          <details className="advanced-manual-setup">
+            <summary>Advanced manual setup</summary>
+            <p className="manual-setup-note">
+              Use this fallback only if you already have a Shopify Admin API access token.
+            </p>
+            <form
+              className="integration-form"
+              onSubmit={(event) => void handleShopifyConnect(event)}
+            >
             <label>
               Store name
               <input
@@ -773,7 +1016,8 @@ export function StoreIntegrationsWorkspace() {
               )}
               Connect Shopify
             </button>
-          </form>
+            </form>
+          </details>
         </section>
       </div>
 

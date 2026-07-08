@@ -2066,6 +2066,7 @@ button:disabled {
 
 .platform-list,
 .store-list,
+.authorization-fields,
 .integration-form {
   display: grid;
   gap: 12px;
@@ -2166,6 +2167,7 @@ button:disabled {
   color: #923636;
 }
 
+.authorization-fields label,
 .integration-form label {
   color: #2d3930;
   display: grid;
@@ -2174,6 +2176,7 @@ button:disabled {
   gap: 7px;
 }
 
+.authorization-fields input,
 .integration-form input {
   border: 1px solid #cfd7d0;
   border-radius: 8px;
@@ -2182,10 +2185,57 @@ button:disabled {
   width: 100%;
 }
 
+.authorization-fields input:focus,
 .integration-form input:focus {
   border-color: #1f6f55;
   box-shadow: 0 0 0 3px #d8f0e4;
   outline: 0;
+}
+
+.authorization-fields {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 14px;
+}
+
+.authorization-card-actions {
+  align-items: center;
+  border: 1px solid #dfe7df;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: auto minmax(0, 1fr);
+  margin-bottom: 14px;
+  padding: 14px;
+}
+
+.authorization-card-actions span,
+.manual-setup-note,
+.guided-setup-list {
+  color: #516058;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.advanced-manual-setup {
+  border-top: 1px solid #edf1ed;
+  padding-top: 12px;
+}
+
+.advanced-manual-setup summary {
+  color: #1f6f55;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 760;
+  list-style-position: inside;
+}
+
+.advanced-manual-setup[open] summary {
+  margin-bottom: 12px;
+}
+
+.guided-setup-list {
+  margin: 0 0 14px;
+  padding-left: 18px;
 }
 
 .store-row {
@@ -3579,6 +3629,7 @@ button:disabled {
   .settings-detail-grid,
   .settings-grid,
   .reports-table-grid,
+  .authorization-fields,
   .orders-toolbar,
   .products-toolbar,
   .store-row {

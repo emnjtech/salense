@@ -1,4 +1,5 @@
 import { UnauthorizedException } from "@nestjs/common";
+import type { StoreIntegrationOAuthService } from "../store-integration-oauth.service.js";
 import { StoreIntegrationsController } from "../store-integrations.controller.js";
 import type { StoreIntegrationsService } from "../store-integrations.service.js";
 import type { ConnectedStoreResponse } from "../types/connected-store-response.type.js";
@@ -18,7 +19,18 @@ describe("StoreIntegrationsController", () => {
     requestManualSync: jest.fn(),
     scheduleAutomaticSync: jest.fn(),
   } as unknown as StoreIntegrationsService;
-  const controller = new StoreIntegrationsController(storeIntegrationsService);
+  const storeIntegrationOAuthService = {
+    handleAmazonSellerCallback: jest.fn(),
+    handleShopifyCallback: jest.fn(),
+    handleTikTokShopCallback: jest.fn(),
+    startAmazonSellerOAuth: jest.fn(),
+    startShopifyOAuth: jest.fn(),
+    startTikTokShopOAuth: jest.fn(),
+  } as unknown as StoreIntegrationOAuthService;
+  const controller = new StoreIntegrationsController(
+    storeIntegrationsService,
+    storeIntegrationOAuthService,
+  );
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -96,6 +108,45 @@ describe("StoreIntegrationsController", () => {
         apiVersion: WooCommerceApiVersion.WcV3,
       },
     });
+  });
+
+  it("delegates Shopify OAuth start for authenticated users", () => {
+    const response = {
+      authorizationUrl: "https://northstar.myshopify.com/admin/oauth/authorize",
+      platform: StorePlatform.Shopify,
+      stateExpiresAt: "2026-07-08T10:10:00.000Z",
+    };
+    jest.mocked(storeIntegrationOAuthService.startShopifyOAuth).mockReturnValueOnce(response);
+
+    expect(
+      controller.startShopifyOAuth(
+        {
+          headers: {},
+          user: { sub: "user_1", email: "owner@example.com", emailVerified: true },
+        },
+        { shop: "northstar.myshopify.com", storeName: "Northstar Shopify" },
+      ),
+    ).toBe(response);
+    expect(storeIntegrationOAuthService.startShopifyOAuth).toHaveBeenCalledWith("user_1", {
+      shop: "northstar.myshopify.com",
+      storeName: "Northstar Shopify",
+    });
+  });
+
+  it("redirects after Shopify OAuth callback", async () => {
+    const response = { redirect: jest.fn() };
+    jest
+      .mocked(storeIntegrationOAuthService.handleShopifyCallback)
+      .mockResolvedValueOnce("https://app.salense.test/store-integrations?connected=shopify");
+
+    await controller.handleShopifyOAuthCallback(
+      { code: "auth-code", state: "state.signature" },
+      response,
+    );
+
+    expect(response.redirect).toHaveBeenCalledWith(
+      "https://app.salense.test/store-integrations?connected=shopify",
+    );
   });
 
   it("delegates disconnect and sync actions for authenticated users", async () => {

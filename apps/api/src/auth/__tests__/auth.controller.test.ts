@@ -43,6 +43,7 @@ describe("AuthController", () => {
   it("delegates login to AuthService", async () => {
     const response = {
       user: { id: "user_1", email: "sarah@example.com", emailVerified: true as const },
+      business: { id: "business_1", name: "Example Company" },
       accessToken: "access.jwt.token",
       accessTokenExpiresIn: "15m",
       refreshToken: "refresh.jwt.token",

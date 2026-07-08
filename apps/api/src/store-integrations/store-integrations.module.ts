@@ -15,6 +15,7 @@ import {
   ShopifySyncService,
 } from "./shopify-sync.service.js";
 import { StoreIntegrationsController } from "./store-integrations.controller.js";
+import { StoreIntegrationOAuthService } from "./store-integration-oauth.service.js";
 import { StoreIntegrationsService } from "./store-integrations.service.js";
 import { CommerceSyncCursorService } from "./sync-cursors/commerce-sync-cursor.service.js";
 import { AmazonSellerSyncWorkerHandler } from "./sync-queue/amazon-seller-sync-worker.handler.js";
@@ -49,6 +50,7 @@ import {
     AmazonSellerSyncWorkerHandler,
     ShopifySyncService,
     ShopifySyncWorkerHandler,
+    StoreIntegrationOAuthService,
     StoreIntegrationsService,
     TikTokShopSyncService,
     TikTokShopSyncWorkerHandler,
@@ -68,6 +70,7 @@ import {
     ShopifySyncService,
     ShopifySyncWorkerHandler,
     StoreIntegrationsService,
+    StoreIntegrationOAuthService,
     TikTokShopSyncService,
     TikTokShopSyncWorkerHandler,
     CommerceSyncCursorService,

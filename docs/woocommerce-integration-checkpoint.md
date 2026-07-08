@@ -101,6 +101,6 @@ Current automated coverage includes:
 
 ## Remaining Differences
 
-The MVP uses platform-specific credential forms and read clients rather than full production OAuth redirect flows for every marketplace. This is acceptable for the local MVP demo because seeded data demonstrates the complete multi-channel commerce story without requiring live WooCommerce, Amazon Seller, TikTok Shop, or Shopify credentials.
+Store Integrations now presents authorization-first platform cards and keeps credential forms under Advanced manual setup. Shopify has an OAuth start/callback foundation that exchanges authorization codes for read-only Admin API tokens. Amazon Seller and TikTok Shop have authorization start/callback state handling ready for approved marketplace app credentials. WooCommerce remains guided through read-only REST API key creation with manual fallback.
 
-Future production work should define official OAuth/authorization flows, token refresh policies, adaptive rate-limit handling, quota observability, user-facing retry controls, and notification policies for expired or failed integrations.
+See [Store authorization setup](./store-authorization-setup.md) for platform app configuration, redirect URLs, and remaining marketplace approval requirements.

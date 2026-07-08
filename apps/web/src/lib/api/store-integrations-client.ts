@@ -137,6 +137,12 @@ export interface DisconnectStoreResponse {
   readonly storeId: string;
 }
 
+export interface StoreOAuthStartResponse {
+  readonly authorizationUrl: string;
+  readonly platform: StorePlatform;
+  readonly stateExpiresAt: string;
+}
+
 export interface StoreIntegrationsApiClient {
   listSupportedPlatforms(): Promise<readonly SupportedStorePlatform[]>;
   listConnectedStores(): Promise<readonly ConnectedStore[]>;
@@ -144,6 +150,18 @@ export interface StoreIntegrationsApiClient {
   connectShopify(input: ShopifyConnectionInput): Promise<ConnectedStore>;
   connectTikTokShop(input: TikTokShopConnectionInput): Promise<ConnectedStore>;
   connectWooCommerce(input: WooCommerceConnectionInput): Promise<ConnectedStore>;
+  startAmazonSellerOAuth(input?: {
+    readonly region?: string;
+    readonly storeName?: string;
+  }): Promise<StoreOAuthStartResponse>;
+  startShopifyOAuth(input: {
+    readonly shop: string;
+    readonly storeName?: string;
+  }): Promise<StoreOAuthStartResponse>;
+  startTikTokShopOAuth(input?: {
+    readonly region?: string;
+    readonly storeName?: string;
+  }): Promise<StoreOAuthStartResponse>;
   requestManualSync(storeId: string): Promise<ManualSyncJobResponse>;
   scheduleSync(storeId: string): Promise<SyncScheduleResponse>;
   removeSchedule(storeId: string): Promise<SyncScheduleRemovalResponse>;
@@ -262,6 +280,21 @@ export function createStoreIntegrationsApiClient(
         body: JSON.stringify({ storeId }),
         method: "POST",
       });
+    },
+    startAmazonSellerOAuth(input = {}) {
+      return request<StoreOAuthStartResponse>(
+        `/store-integrations/amazon-seller/oauth/start${toQueryString(input)}`,
+      );
+    },
+    startShopifyOAuth(input) {
+      return request<StoreOAuthStartResponse>(
+        `/store-integrations/shopify/oauth/start${toQueryString(input)}`,
+      );
+    },
+    startTikTokShopOAuth(input = {}) {
+      return request<StoreOAuthStartResponse>(
+        `/store-integrations/tiktok-shop/oauth/start${toQueryString(input)}`,
+      );
     },
   };
 }
@@ -382,4 +415,21 @@ async function getErrorMessage(response: Response): Promise<string> {
 
 function trimTrailingSlash(value: string): string {
   return value.replace(/\/+$/u, "");
+}
+
+function toQueryString(input: {
+  readonly region?: string;
+  readonly shop?: string;
+  readonly storeName?: string;
+}): string {
+  const params = new URLSearchParams();
+
+  Object.entries(input).forEach(([key, value]) => {
+    if (value?.trim()) {
+      params.set(key, value.trim());
+    }
+  });
+
+  const serialized = params.toString();
+  return serialized ? `?${serialized}` : "";
 }

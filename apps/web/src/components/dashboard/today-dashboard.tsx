@@ -272,6 +272,22 @@ function HealthScoreCard({ dashboard }: { readonly dashboard: TodayDashboardResp
   const score = dashboard.basicBusinessHealthScore;
   const contributors = getHealthContributors(dashboard);
 
+  if (score === null) {
+    return (
+      <section className="panel health-score-panel" aria-label="Business Health Score">
+        <div className="panel-heading">
+          <div>
+            <h2>Business Health Score</h2>
+            <p>
+              Business Health Score will become available after your first successful
+              synchronization.
+            </p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="panel health-score-panel" aria-label="Business Health Score">
       <div className="panel-heading">

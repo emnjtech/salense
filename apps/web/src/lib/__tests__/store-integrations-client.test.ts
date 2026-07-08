@@ -138,6 +138,60 @@ describe("store integrations API client", () => {
       status: 400,
     });
   });
+
+  it("starts Shopify OAuth with shop and store name query parameters", async () => {
+    const fetchImpl = jest
+      .fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>()
+      .mockResolvedValue(
+        jsonResponse({
+          authorizationUrl: "https://northstar.myshopify.com/admin/oauth/authorize",
+          platform: StorePlatform.Shopify,
+          stateExpiresAt: "2026-07-08T10:10:00.000Z",
+        }),
+      );
+    const client = createStoreIntegrationsApiClient({
+      accessTokenProvider: () => "access-token",
+      baseUrl: "https://api.salense.test",
+      fetchImpl,
+    });
+
+    await client.startShopifyOAuth({
+      shop: " northstar.myshopify.com ",
+      storeName: " Northstar Shopify ",
+    });
+
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe(
+      "https://api.salense.test/store-integrations/shopify/oauth/start?shop=northstar.myshopify.com&storeName=Northstar+Shopify",
+    );
+  });
+
+  it("starts Amazon Seller and TikTok Shop authorization without sending secrets to the browser", async () => {
+    const fetchImpl = jest
+      .fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>()
+      .mockResolvedValue(
+        jsonResponse({
+          authorizationUrl: "https://authorization.example",
+          platform: StorePlatform.AmazonSeller,
+          stateExpiresAt: "2026-07-08T10:10:00.000Z",
+        }),
+      );
+    const client = createStoreIntegrationsApiClient({
+      accessTokenProvider: () => "access-token",
+      baseUrl: "https://api.salense.test",
+      fetchImpl,
+    });
+
+    await client.startAmazonSellerOAuth({ region: " gb ", storeName: " Amazon UK " });
+    await client.startTikTokShopOAuth({ region: " gb ", storeName: " TikTok UK " });
+
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe(
+      "https://api.salense.test/store-integrations/amazon-seller/oauth/start?region=gb&storeName=Amazon+UK",
+    );
+    expect(fetchImpl.mock.calls[1]?.[0]).toBe(
+      "https://api.salense.test/store-integrations/tiktok-shop/oauth/start?region=gb&storeName=TikTok+UK",
+    );
+    expect(JSON.stringify(fetchImpl.mock.calls).toLowerCase()).not.toContain("secret");
+  });
 });
 
 function jsonResponse(body: unknown, ok = true, status = 200): Response {
