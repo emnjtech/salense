@@ -23,6 +23,7 @@ import type {
   InvitationContextResponse,
 } from "./types/invitation-account-response.type.js";
 import type {
+  SubscriptionAdminInvitationResponse,
   SubscriptionAdminInvitationListResponse,
   SubscriptionInvitationArchiveResponse,
   SubscriptionInvitationApprovalResponse,
@@ -45,6 +46,14 @@ export class SubscriptionController {
   @UseGuards(JwtAccessTokenGuard, PlatformAdminGuard)
   listInvitations(): Promise<SubscriptionAdminInvitationListResponse> {
     return this.subscriptionService.listInvitations();
+  }
+
+  @Get("invitations/admin/:invitationId")
+  @UseGuards(JwtAccessTokenGuard, PlatformAdminGuard)
+  getAdminInvitation(
+    @Param("invitationId") invitationId: string,
+  ): Promise<{ readonly invitation: SubscriptionAdminInvitationResponse }> {
+    return this.subscriptionService.getAdminInvitation(invitationId);
   }
 
   @Post("invitations/:invitationId/approve")

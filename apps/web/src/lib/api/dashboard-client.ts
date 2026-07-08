@@ -23,10 +23,12 @@ export interface RuleBasedInsight {
 export interface TodayDashboardResponse {
   readonly activeStores: number;
   readonly averageOrderValueToday: number;
-  readonly basicBusinessHealthScore: number;
+  readonly basicBusinessHealthScore: number | null;
   readonly basicRuleBasedInsights: readonly RuleBasedInsight[];
   readonly bestPlatformToday: StorePlatform | null;
+  readonly businessName: string;
   readonly connectedPlatforms: readonly StorePlatform[];
+  readonly hasCommerceData: boolean;
   readonly lowStockCount: number;
   readonly ordersByPlatform: readonly PlatformMetric[];
   readonly ordersToday: number;

@@ -221,6 +221,7 @@ describe("Phase 1 authentication and user management controller contracts", () =
       email: "sarah@example.com",
       passwordHash: "hashed-password",
       emailVerified: true,
+      businesses: [{ id: "business_1", name: "Example Company" }],
     });
     passwordHasher.comparePassword.mockResolvedValue(true);
     jwtSessionTokens.issueAccessToken.mockResolvedValue("access.jwt.token");
@@ -250,6 +251,7 @@ describe("Phase 1 authentication and user management controller contracts", () =
           email: "sarah@example.com",
           emailVerified: true,
         },
+        business: { id: "business_1", name: "Example Company" },
         accessToken: "access.jwt.token",
         accessTokenExpiresIn: "15m",
         refreshToken: "refresh.jwt.token",

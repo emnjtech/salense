@@ -3,7 +3,7 @@ import type { PrismaService } from "../../database/prisma.service.js";
 import { StorePlatform } from "../../store-integrations/types/store-platform.enum.js";
 import { DashboardService } from "../dashboard.service.js";
 
-const business = { id: "business_1" } as const;
+const business = { id: "business_1", name: "Harbour Home Co" } as const;
 
 describe("DashboardService", () => {
   beforeEach(() => {
@@ -20,7 +20,7 @@ describe("DashboardService", () => {
     await expect(service.getTodayDashboard("user_1")).resolves.toEqual({
       activeStores: 0,
       averageOrderValueToday: 0,
-      basicBusinessHealthScore: 50,
+      basicBusinessHealthScore: null,
       basicRuleBasedInsights: [
         {
           message: "Connect at least one store to begin unified commerce analysis.",
@@ -29,7 +29,9 @@ describe("DashboardService", () => {
         },
       ],
       bestPlatformToday: null,
+      businessName: "Harbour Home Co",
       connectedPlatforms: [],
+      hasCommerceData: false,
       lowStockCount: 0,
       ordersByPlatform: [],
       ordersToday: 0,
@@ -203,7 +205,7 @@ describe("DashboardService", () => {
 
     expect(prisma.business.findUnique).toHaveBeenCalledWith({
       where: { ownerId: "user_1" },
-      select: { id: true },
+      select: { id: true, name: true },
     });
     expect(prisma.commerceOrder.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: expect.objectContaining({ businessId: business.id }) }),

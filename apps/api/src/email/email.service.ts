@@ -19,9 +19,18 @@ export interface InvitationEmailRequest {
   readonly invitationLink: string;
 }
 
+export interface InvitationAcknowledgementEmailRequest {
+  readonly businessName: string;
+  readonly email: string;
+  readonly fullName: string;
+}
+
 export abstract class EmailService {
   abstract sendVerificationEmail(request: VerificationEmailRequest): Promise<void>;
   abstract sendPasswordResetEmail(request: PasswordResetEmailRequest): Promise<void>;
+  abstract sendInvitationAcknowledgementEmail(
+    request: InvitationAcknowledgementEmailRequest,
+  ): Promise<void>;
   abstract sendInvitationEmail(request: InvitationEmailRequest): Promise<void>;
 }
 
@@ -29,6 +38,7 @@ export abstract class EmailService {
 export class PlaceholderEmailService implements EmailService {
   private readonly verificationRequests: VerificationEmailRequest[] = [];
   private readonly passwordResetRequests: PasswordResetEmailRequest[] = [];
+  private readonly invitationAcknowledgementRequests: InvitationAcknowledgementEmailRequest[] = [];
   private readonly invitationRequests: InvitationEmailRequest[] = [];
 
   async sendVerificationEmail(request: VerificationEmailRequest): Promise<void> {
@@ -37,6 +47,12 @@ export class PlaceholderEmailService implements EmailService {
 
   async sendPasswordResetEmail(request: PasswordResetEmailRequest): Promise<void> {
     this.passwordResetRequests.push(request);
+  }
+
+  async sendInvitationAcknowledgementEmail(
+    request: InvitationAcknowledgementEmailRequest,
+  ): Promise<void> {
+    this.invitationAcknowledgementRequests.push(request);
   }
 
   async sendInvitationEmail(request: InvitationEmailRequest): Promise<void> {
@@ -55,6 +71,10 @@ export class PlaceholderEmailService implements EmailService {
     return this.invitationRequests;
   }
 
+  getInvitationAcknowledgementRequests(): readonly InvitationAcknowledgementEmailRequest[] {
+    return this.invitationAcknowledgementRequests;
+  }
+
   clearVerificationRequests(): void {
     this.verificationRequests.length = 0;
   }
@@ -65,6 +85,10 @@ export class PlaceholderEmailService implements EmailService {
 
   clearInvitationRequests(): void {
     this.invitationRequests.length = 0;
+  }
+
+  clearInvitationAcknowledgementRequests(): void {
+    this.invitationAcknowledgementRequests.length = 0;
   }
 }
 
@@ -118,6 +142,26 @@ export class ResendEmailService implements EmailService {
         title: "Reset your Salense password",
       }),
       subject: "Reset your Salense password",
+      to: request.email,
+    });
+  }
+
+  async sendInvitationAcknowledgementEmail(
+    request: InvitationAcknowledgementEmailRequest,
+  ): Promise<void> {
+    await this.sendEmail({
+      html: renderActionEmail({
+        actionLabel: "Visit Salense",
+        actionUrl: this.publicAppUrl,
+        body: [
+          `Hi ${request.fullName},`,
+          `Thank you for requesting access to Salense for ${request.businessName}.`,
+          "We have received your invitation request and it is currently under review.",
+          "You should expect a response within approximately 48 hours. If approved, you will receive a secure invitation link to create your account.",
+        ],
+        title: "Thank you for requesting access to Salense",
+      }),
+      subject: "Thank you for requesting access to Salense",
       to: request.email,
     });
   }

@@ -369,6 +369,7 @@ describe("AuthService", () => {
       email: "sarah@example.com",
       passwordHash: "hashed-password",
       emailVerified: true,
+      businesses: [{ id: "business_1", name: "Example Company" }],
     });
     mocks.comparePassword.mockResolvedValue(true);
     mocks.issueAccessToken.mockResolvedValue("access.jwt.token");
@@ -390,6 +391,7 @@ describe("AuthService", () => {
         email: "sarah@example.com",
         emailVerified: true,
       },
+      business: { id: "business_1", name: "Example Company" },
       accessToken: "access.jwt.token",
       accessTokenExpiresIn: "15m",
       refreshToken: "refresh.jwt.token",
@@ -403,6 +405,13 @@ describe("AuthService", () => {
         email: true,
         passwordHash: true,
         emailVerified: true,
+        businesses: {
+          select: {
+            id: true,
+            name: true,
+          },
+          take: 1,
+        },
       },
     });
     expect(mocks.comparePassword).toHaveBeenCalledWith("Password123!", "hashed-password");

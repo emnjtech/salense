@@ -69,7 +69,7 @@ export function AuthenticatedNavigation() {
       <div className="sidebar-business-card" aria-label="Active business">
         <div>
           <span>Active business</span>
-          <strong>Northstar Home Goods</strong>
+          <strong>{session?.businessName ?? "Your business"}</strong>
         </div>
         <ChevronDown size={16} aria-hidden="true" />
       </div>

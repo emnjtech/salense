@@ -127,16 +127,18 @@ export function ProductsWorkspace() {
 
       {!error ? (
         <>
-          <section className="overview-grid" aria-label="Products summary">
-            <MetricTile label="Products" value={products.length.toString()} />
-            <MetricTile label="Units sold" value={unitsSold.toString()} />
-            <MetricTile
-              label="Revenue"
-              value={formatCurrency(totalRevenue, getPrimaryCurrency(products))}
-            />
-            <MetricTile label="Low stock" value={lowStockCount.toString()} />
-            <MetricTile label="Platforms" value={uniquePlatforms.toString()} />
-          </section>
+          {products.length > 0 ? (
+            <section className="overview-grid" aria-label="Products summary">
+              <MetricTile label="Products" value={products.length.toString()} />
+              <MetricTile label="Units sold" value={unitsSold.toString()} />
+              <MetricTile
+                label="Revenue"
+                value={formatCurrency(totalRevenue, getPrimaryCurrency(products))}
+              />
+              <MetricTile label="Low stock" value={lowStockCount.toString()} />
+              <MetricTile label="Platforms" value={uniquePlatforms.toString()} />
+            </section>
+          ) : null}
 
           <section className="panel orders-panel">
             <div className="products-toolbar">
@@ -246,10 +248,10 @@ function ProductsEmptyState() {
   return (
     <div className="empty-state orders-empty-state">
       <PackageSearch size={22} aria-hidden="true" />
-      <strong>No products match this view</strong>
+      <strong>No products imported yet</strong>
       <span>
-        Clear filters to return to the full product set, or sync stores to refresh normalized
-        products.
+        Connect your first commerce platform and run your first synchronization to see products
+        here.
       </span>
     </div>
   );

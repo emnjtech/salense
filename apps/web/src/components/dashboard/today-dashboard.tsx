@@ -68,7 +68,11 @@ export function TodayDashboard() {
       <header className="workspace-header today-header">
         <div>
           <h1>Today</h1>
-          <p>Overview of Northstar Home Goods across every connected commerce channel.</p>
+          <p>
+            {dashboard
+              ? `Overview of ${dashboard.businessName} across connected commerce channels.`
+              : "Overview of your business across connected commerce channels."}
+          </p>
         </div>
         <div className="today-header-actions">
           <div className="date-chip" aria-label="Current dashboard date">
@@ -90,17 +94,12 @@ export function TodayDashboard() {
 }
 
 function TodayDashboardContent({ dashboard }: { readonly dashboard: TodayDashboardResponse }) {
-  const isEmpty = dashboard.activeStores === 0 && dashboard.todayRevenue === 0;
+  if (!dashboard.hasCommerceData) {
+    return <TodayOnboardingEmptyState dashboard={dashboard} />;
+  }
 
   return (
     <>
-      {isEmpty ? (
-        <section className="state-banner warning">
-          <Store size={18} aria-hidden="true" />
-          Sync a connected store to populate this daily operating view.
-        </section>
-      ) : null}
-
       <section className="today-top-grid" aria-label="Today headline metrics">
         <MetricTile
           icon={<TrendingUp size={22} />}
@@ -200,6 +199,45 @@ function TodayDashboardContent({ dashboard }: { readonly dashboard: TodayDashboa
         </div>
       </section>
     </>
+  );
+}
+
+function TodayOnboardingEmptyState({
+  dashboard,
+}: {
+  readonly dashboard: TodayDashboardResponse;
+}) {
+  return (
+    <section className="panel onboarding-empty-panel">
+      <div className="empty-state">
+        <Store size={28} aria-hidden="true" />
+        <strong>No stores connected yet.</strong>
+        <span>
+          Connect your first commerce platform and run your first synchronization to activate
+          Today for {dashboard.businessName}.
+        </span>
+        <Link className="primary-button" href="/store-integrations">
+          Connect your first store
+        </Link>
+      </div>
+      <div className="onboarding-empty-grid">
+        <div>
+          <span>Revenue</span>
+          <strong>Available after synchronization</strong>
+        </div>
+        <div>
+          <span>Orders</span>
+          <strong>Available after synchronization</strong>
+        </div>
+        <div>
+          <span>Business Health Score</span>
+          <strong>
+            Business Health Score will become available after your first successful
+            synchronization.
+          </strong>
+        </div>
+      </div>
+    </section>
   );
 }
 

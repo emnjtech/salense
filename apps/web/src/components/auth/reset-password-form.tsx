@@ -38,7 +38,7 @@ export function ResetPasswordForm() {
     <AuthPageShell
       eyebrow="Secure reset"
       footer={<Link href="/login">Back to login</Link>}
-      summary="Choose a new password that meets the Chapter 6.1 policy."
+      summary="Choose a strong new password for your Salense account."
       title="Set a new password"
     >
       {success ? (

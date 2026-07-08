@@ -42,6 +42,7 @@ function createService() {
     }),
   );
   const hashPassword = jest.fn();
+  const sendInvitationAcknowledgementEmail = jest.fn();
   const sendInvitationEmail = jest.fn();
   const service = new SubscriptionService(
     {
@@ -60,7 +61,7 @@ function createService() {
       },
     } as unknown as PrismaService,
     { hashPassword } as unknown as BcryptPasswordHasherService,
-    { sendInvitationEmail } as unknown as EmailService,
+    { sendInvitationAcknowledgementEmail, sendInvitationEmail } as unknown as EmailService,
   );
 
   return {
@@ -70,6 +71,7 @@ function createService() {
     findMany,
     findUserUnique,
     hashPassword,
+    sendInvitationAcknowledgementEmail,
     sendInvitationEmail,
     service,
     transaction,
@@ -119,6 +121,11 @@ describe("SubscriptionService", () => {
         preferredPlan: true,
       },
     });
+    expect(mocks.sendInvitationAcknowledgementEmail).toHaveBeenCalledWith({
+      businessName: "Northstar Home Goods",
+      email: "mia@northstar.example",
+      fullName: "Mia Lewis",
+    });
   });
 
   it("lists invitations without token hashes", async () => {
@@ -138,19 +145,44 @@ describe("SubscriptionService", () => {
     expect(JSON.stringify(await mocks.service.listInvitations())).not.toContain("tokenHash");
   });
 
+  it("returns a single invitation request for admin review without token hashes", async () => {
+    const mocks = createService();
+    mocks.findInvitationUnique.mockResolvedValue(baseInvitation);
+
+    await expect(mocks.service.getAdminInvitation("invitation_1")).resolves.toEqual({
+      invitation: expect.objectContaining({
+        businessName: "Northstar Home Goods",
+        fullName: "Mia Lewis",
+        message: "Interested in channel intelligence.",
+        status: "PENDING",
+        workEmail: "mia@northstar.example",
+      }),
+    });
+
+    const response = await mocks.service.getAdminInvitation("invitation_1");
+    expect(JSON.stringify(response)).not.toContain("tokenHash");
+  });
+
   it("approves an invitation with a hashed single-use token and returns the link once", async () => {
     const mocks = createService();
     mocks.findInvitationUnique.mockResolvedValue(baseInvitation);
-    mocks.updateInvitation.mockResolvedValue({
-      ...baseInvitation,
-      approvedAt: new Date("2026-07-06T11:00:00.000Z"),
-      invitationTokenExpiresAt: new Date("2026-07-13T11:00:00.000Z"),
-      status: "APPROVED",
-    });
+    mocks.updateInvitation
+      .mockResolvedValueOnce({
+        ...baseInvitation,
+        approvedAt: new Date("2026-07-06T11:00:00.000Z"),
+        invitationTokenExpiresAt: new Date("2026-07-13T11:00:00.000Z"),
+        status: "APPROVED",
+      })
+      .mockResolvedValueOnce({
+        ...baseInvitation,
+        approvedAt: new Date("2026-07-06T11:00:00.000Z"),
+        invitationTokenExpiresAt: new Date("2026-07-13T11:00:00.000Z"),
+        status: "INVITATION_SENT",
+      });
 
     const response = await mocks.service.approveInvitation("invitation_1");
 
-    expect(response.invitation.status).toBe("APPROVED");
+    expect(response.invitation.status).toBe("INVITATION_SENT");
     expect(response.invitationLink).toContain("/accept-invitation?token=");
     expect(mocks.updateInvitation).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -165,6 +197,11 @@ describe("SubscriptionService", () => {
       expect.objectContaining({
         email: "mia@northstar.example",
         invitationLink: response.invitationLink,
+      }),
+    );
+    expect(mocks.updateInvitation).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: { status: "INVITATION_SENT" },
       }),
     );
   });
@@ -226,7 +263,7 @@ describe("SubscriptionService", () => {
     mocks.findInvitationUnique.mockResolvedValue({
       ...baseInvitation,
       invitationTokenExpiresAt: new Date(Date.now() + 60_000),
-      status: "APPROVED",
+      status: "INVITATION_SENT",
     });
     mocks.findUserUnique.mockResolvedValue(null);
     mocks.hashPassword.mockResolvedValue("hashed-password");
@@ -237,7 +274,7 @@ describe("SubscriptionService", () => {
     mocks.updateInvitation.mockResolvedValue({
       ...baseInvitation,
       invitationTokenUsedAt: new Date(),
-      status: "ACCEPTED",
+      status: "ACTIVE",
     });
 
     await expect(
@@ -267,7 +304,7 @@ describe("SubscriptionService", () => {
       expect.objectContaining({
         data: expect.objectContaining({
           invitationTokenUsedAt: expect.any(Date),
-          status: "ACCEPTED",
+          status: "ACTIVE",
         }),
       }),
     );

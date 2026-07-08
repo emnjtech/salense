@@ -1818,6 +1818,92 @@ button:disabled {
   gap: 16px;
 }
 
+.admin-invitation-detail-panel {
+  display: grid;
+  gap: 24px;
+}
+
+.admin-invitation-detail-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.admin-invitation-detail-item {
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+}
+
+.admin-invitation-detail-item span,
+.admin-invitation-message span {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.admin-invitation-detail-item strong {
+  color: var(--text-strong);
+  font-size: 0.98rem;
+}
+
+.admin-invitation-message {
+  border-top: 1px solid var(--border-subtle);
+  display: grid;
+  gap: 8px;
+  padding-top: 20px;
+}
+
+.admin-invitation-message p {
+  color: var(--text);
+  line-height: 1.7;
+  margin: 0;
+}
+
+.admin-detail-actions {
+  align-items: center;
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-top: 20px;
+}
+
+.onboarding-empty-panel {
+  display: grid;
+  gap: 24px;
+}
+
+.onboarding-empty-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.onboarding-empty-grid div {
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+}
+
+.onboarding-empty-grid span {
+  color: var(--text-muted);
+  font-size: 0.84rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.onboarding-empty-grid strong {
+  color: var(--text-strong);
+  font-size: 0.98rem;
+  line-height: 1.5;
+}
+
 .table-shell {
   overflow-x: auto;
 }

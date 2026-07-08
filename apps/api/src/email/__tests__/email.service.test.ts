@@ -60,6 +60,24 @@ describe("PlaceholderEmailService", () => {
       },
     ]);
   });
+
+  it("stores outgoing invitation acknowledgement requests for tests without sending email", async () => {
+    const service = new PlaceholderEmailService();
+
+    await service.sendInvitationAcknowledgementEmail({
+      businessName: "Northstar Home Goods",
+      email: "mia@northstar.example",
+      fullName: "Mia Lewis",
+    });
+
+    expect(service.getInvitationAcknowledgementRequests()).toEqual([
+      {
+        businessName: "Northstar Home Goods",
+        email: "mia@northstar.example",
+        fullName: "Mia Lewis",
+      },
+    ]);
+  });
 });
 
 describe("ResendEmailService", () => {
@@ -106,6 +124,29 @@ describe("ResendEmailService", () => {
           authorization: "Bearer re_test",
           "content-type": "application/json",
         }),
+        method: "POST",
+      }),
+    );
+  });
+
+  it("sends professional invitation acknowledgement emails", async () => {
+    const fetchMock = jest.fn().mockResolvedValue({ ok: true });
+    global.fetch = fetchMock as unknown as typeof fetch;
+    process.env.RESEND_API_KEY = "re_test";
+    process.env.SALENSE_EMAIL_FROM = "Salense <hello@getsalense.com>";
+    process.env.PUBLIC_APP_URL = "http://localhost:3000";
+    const service = new ResendEmailService();
+
+    await service.sendInvitationAcknowledgementEmail({
+      businessName: "Northstar Home Goods",
+      email: "mia@northstar.example",
+      fullName: "Mia Lewis",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.resend.com/emails",
+      expect.objectContaining({
+        body: expect.stringContaining("Thank you for requesting access to Salense"),
         method: "POST",
       }),
     );

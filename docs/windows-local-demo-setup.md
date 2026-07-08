@@ -181,17 +181,23 @@ http://localhost:3000
 For pilot onboarding, use:
 
 ```text
-Pricing -> Request invitation -> Admin review -> Approve -> Accept invitation -> Login
+Pricing -> Request invitation -> Admin review -> Open request -> Approve -> Accept invitation -> Login
 ```
 
 1. Submit a request at `http://localhost:3000/request-invitation`.
 2. Sign in at `http://localhost:3000/admin/login` using the platform admin account created with `pnpm admin:create`.
 3. Open `http://localhost:3000/admin`.
-4. Approve the request and copy the generated `/accept-invitation?token=...` link.
-5. Open the invitation link, set a password, then sign in.
+4. Open the request detail page and review the applicant's business name, email, phone, website, plan, platforms, message, submission date, and current status.
+5. Approve the request. Approval creates a hashed, expiring, single-use invitation token and sends the invitation email when Resend is configured.
+6. Open the invitation link, set a password, then sign in.
+7. A new business account starts with a clean workspace. Today, Reports, Orders, Products, Customers, and Inventory display onboarding guidance until the first successful store synchronization.
 
 Invitation accounts are created with email verification complete because access has been approved
 by an admin. Normal email verification remains available for future public registration.
+
+Invitation statuses progress through `PENDING`, `APPROVED`, `INVITATION_SENT`, and `ACTIVE` for
+the standard happy path. `REJECTED` and `ARCHIVED` are available for requests that should not
+proceed.
 
 ### Invitation Email Delivery
 
@@ -204,8 +210,16 @@ $env:SALENSE_EMAIL_FROM="Salense <hello@getsalense.com>"
 ```
 
 When `RESEND_API_KEY` is not set, Salense keeps invitation links available in the admin portal
-without sending email. When it is set, approving an invitation sends the user a single-use
-`/accept-invitation` link using the configured sender address.
+without sending email. When it is set:
+
+- submitting an invitation request sends an acknowledgement email;
+- approving an invitation sends the user a single-use `/accept-invitation` link using the configured sender address.
+
+If Resend shows a bounced status while the recipient receives the message, inspect the Resend log
+for that message ID before changing application code. Capture the delivery event, bounce event,
+SMTP response, bounce reason, and recipient server response. The current application sends through
+Resend's HTTP API and does not yet consume Resend webhooks, so the local app cannot independently
+classify Resend delivery events without those provider logs.
 
 ## Troubleshooting
 

@@ -47,6 +47,13 @@ interface RegistrationPrismaClient {
         readonly email?: true;
         readonly passwordHash?: true;
         readonly emailVerified?: true;
+        readonly businesses?: {
+          readonly select: {
+            readonly id: true;
+            readonly name: true;
+          };
+          readonly take: 1;
+        };
       };
     }): Promise<{
       readonly id: string;
@@ -55,6 +62,7 @@ interface RegistrationPrismaClient {
       readonly email?: string;
       readonly passwordHash?: string;
       readonly emailVerified?: boolean;
+      readonly businesses?: readonly { readonly id: string; readonly name: string }[];
     } | null>;
     create(args: {
       readonly data: {
@@ -217,7 +225,9 @@ export class AuthService {
     }
 
     if (!isPasswordPolicyCompliant(registerRequest.password)) {
-      throw new BadRequestException("Password does not meet Chapter 6.1 requirements.");
+      throw new BadRequestException(
+        "Password must be at least 12 characters and include uppercase, lowercase, number, and special character.",
+      );
     }
 
     const normalizedEmail = registerRequest.email.trim().toLowerCase();
@@ -345,6 +355,13 @@ export class AuthService {
         email: true,
         passwordHash: true,
         emailVerified: true,
+        businesses: {
+          select: {
+            id: true,
+            name: true,
+          },
+          take: 1,
+        },
       },
     });
 
@@ -391,6 +408,7 @@ export class AuthService {
         email: user.email,
         emailVerified: true,
       },
+      business: user.businesses?.[0] ?? null,
       accessToken,
       accessTokenExpiresIn,
       refreshToken,
@@ -520,7 +538,9 @@ export class AuthService {
     }
 
     if (!isPasswordPolicyCompliant(changePasswordRequest.newPassword)) {
-      throw new BadRequestException("Password does not meet Chapter 6.1 requirements.");
+      throw new BadRequestException(
+        "Password must be at least 12 characters and include uppercase, lowercase, number, and special character.",
+      );
     }
 
     const prisma = this.prismaService.client as unknown as RegistrationPrismaClient;
@@ -611,7 +631,9 @@ export class AuthService {
     }
 
     if (!isPasswordPolicyCompliant(passwordResetConfirmationRequest.password)) {
-      throw new BadRequestException("Password does not meet Chapter 6.1 requirements.");
+      throw new BadRequestException(
+        "Password must be at least 12 characters and include uppercase, lowercase, number, and special character.",
+      );
     }
 
     const prisma = this.prismaService.client as unknown as RegistrationPrismaClient;

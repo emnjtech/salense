@@ -3,6 +3,7 @@ import type { LoginSessionResponse, RefreshSessionResponse } from "./api/auth-cl
 export interface DemoSession {
   readonly accessToken: string;
   readonly accessTokenExpiresIn: string;
+  readonly businessName?: string;
   readonly refreshToken: string;
   readonly refreshTokenExpiresIn: string;
   readonly userEmail: string;
@@ -25,6 +26,7 @@ export interface SessionStoragePort {
 const sessionKeys = {
   accessToken: "salense.accessToken",
   accessTokenExpiresIn: "salense.accessTokenExpiresIn",
+  businessName: "salense.businessName",
   refreshToken: "salense.refreshToken",
   refreshTokenExpiresIn: "salense.refreshTokenExpiresIn",
   userEmail: "salense.userEmail",
@@ -39,6 +41,11 @@ export function saveDemoSession(
 ): void {
   storage.setItem(sessionKeys.accessToken, session.accessToken);
   storage.setItem(sessionKeys.accessTokenExpiresIn, session.accessTokenExpiresIn);
+  if (session.business?.name) {
+    storage.setItem(sessionKeys.businessName, session.business.name);
+  } else {
+    storage.removeItem(sessionKeys.businessName);
+  }
   storage.setItem(sessionKeys.refreshToken, session.refreshToken);
   storage.setItem(sessionKeys.refreshTokenExpiresIn, session.refreshTokenExpiresIn);
   storage.setItem(sessionKeys.userEmail, session.user.email);
@@ -67,9 +74,12 @@ export function readDemoSession(
     return null;
   }
 
+  const businessName = storage.getItem(sessionKeys.businessName);
+
   return {
     accessToken,
     accessTokenExpiresIn: storage.getItem(sessionKeys.accessTokenExpiresIn) ?? "",
+    ...(businessName ? { businessName } : {}),
     refreshToken,
     refreshTokenExpiresIn: storage.getItem(sessionKeys.refreshTokenExpiresIn) ?? "",
     userEmail,

@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, CheckCircle2, Copy, Loader2, XCircle } from "lucide-react";
+import { Eye, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -15,9 +15,7 @@ export function AdminInvitationsWorkspace() {
   const client = useMemo(() => createSubscriptionApiClient(), []);
   const [invitations, setInvitations] = useState<readonly AdminInvitation[]>([]);
   const [loading, setLoading] = useState(true);
-  const [actionId, setActionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [latestLink, setLatestLink] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -53,63 +51,6 @@ export function AdminInvitationsWorkspace() {
     };
   }, [client, router]);
 
-  async function approveInvitation(invitationId: string) {
-    setActionId(invitationId);
-    setError(null);
-
-    try {
-      const response = await client.approveInvitation(invitationId);
-      setInvitations((current) =>
-        current.map((invitation) =>
-          invitation.id === invitationId ? response.invitation : invitation,
-        ),
-      );
-      setLatestLink(response.invitationLink);
-    } catch {
-      setError("Invitation could not be approved. Please try again.");
-    } finally {
-      setActionId(null);
-    }
-  }
-
-  async function rejectInvitation(invitationId: string) {
-    setActionId(invitationId);
-    setError(null);
-
-    try {
-      const response = await client.rejectInvitation(invitationId);
-      setInvitations((current) =>
-        current.map((invitation) =>
-          invitation.id === invitationId ? response.invitation : invitation,
-        ),
-      );
-      setLatestLink(null);
-    } catch {
-      setError("Invitation could not be rejected. Please try again.");
-    } finally {
-      setActionId(null);
-    }
-  }
-
-  async function archiveInvitation(invitationId: string) {
-    setActionId(invitationId);
-    setError(null);
-
-    try {
-      const response = await client.archiveInvitation(invitationId);
-      setInvitations((current) =>
-        current.map((invitation) =>
-          invitation.id === invitationId ? response.invitation : invitation,
-        ),
-      );
-      setLatestLink(null);
-    } catch {
-      setError("Invitation could not be archived. Please try again.");
-    } finally {
-      setActionId(null);
-    }
-  }
-
   return (
     <main className="workspace admin-invitations-workspace">
       <header className="workspace-header">
@@ -125,15 +66,6 @@ export function AdminInvitationsWorkspace() {
           Admin settings
         </Link>
       </header>
-
-      {latestLink ? (
-        <section className="state-banner success">
-          <Copy size={17} aria-hidden="true" />
-          <span>
-            Invitation link created: <strong>{latestLink}</strong>
-          </span>
-        </section>
-      ) : null}
 
       {error ? (
         <section className="state-banner error" role="alert">
@@ -187,37 +119,10 @@ export function AdminInvitationsWorkspace() {
                     </td>
                     <td>
                       <div className="admin-action-row">
-                        <button
-                          className="secondary-button"
-                          disabled={!canApproveOrReject(invitation) || actionId === invitation.id}
-                          onClick={() => void approveInvitation(invitation.id)}
-                          type="button"
-                        >
-                          {actionId === invitation.id ? (
-                            <Loader2 className="spin" size={15} aria-hidden="true" />
-                          ) : (
-                            <CheckCircle2 size={15} aria-hidden="true" />
-                          )}
-                          Approve
-                        </button>
-                        <button
-                          className="secondary-button"
-                          disabled={!canApproveOrReject(invitation) || actionId === invitation.id}
-                          onClick={() => void rejectInvitation(invitation.id)}
-                          type="button"
-                        >
-                          <XCircle size={15} aria-hidden="true" />
-                          Reject
-                        </button>
-                        <button
-                          className="secondary-button"
-                          disabled={!canArchive(invitation) || actionId === invitation.id}
-                          onClick={() => void archiveInvitation(invitation.id)}
-                          type="button"
-                        >
-                          <Archive size={15} aria-hidden="true" />
-                          Archive
-                        </button>
+                        <Link className="secondary-button" href={`/admin/invitations/${invitation.id}`}>
+                          <Eye size={15} aria-hidden="true" />
+                          Open
+                        </Link>
                       </div>
                     </td>
                   </tr>
@@ -228,18 +133,6 @@ export function AdminInvitationsWorkspace() {
         )}
       </section>
     </main>
-  );
-}
-
-function canApproveOrReject(invitation: AdminInvitation): boolean {
-  return invitation.status === "PENDING" || invitation.status === "APPROVED";
-}
-
-function canArchive(invitation: AdminInvitation): boolean {
-  return (
-    invitation.status === "APPROVED" ||
-    invitation.status === "REJECTED" ||
-    invitation.status === "ACCEPTED"
   );
 }
 

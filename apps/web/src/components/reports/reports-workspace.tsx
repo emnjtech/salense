@@ -124,6 +124,24 @@ export function ReportsWorkspace() {
 }
 
 export function ReportsOverviewView({ overview }: { readonly overview: ReportsOverviewResponse }) {
+  if (isReportsEmpty(overview)) {
+    return (
+      <section className="panel onboarding-empty-panel">
+        <div className="empty-state">
+          <BarChart3 size={28} aria-hidden="true" />
+          <strong>No synchronized commerce data yet.</strong>
+          <span>
+            Reports will become available after you connect a store and run your first
+            synchronization.
+          </span>
+          <Link className="primary-button" href="/store-integrations">
+            Connect your first store
+          </Link>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <>
       <section className="reports-kpi-grid" aria-label="Report KPI summary">
@@ -221,6 +239,20 @@ export function ReportsOverviewView({ overview }: { readonly overview: ReportsOv
         />
       </section>
     </>
+  );
+}
+
+function isReportsEmpty(overview: ReportsOverviewResponse): boolean {
+  return (
+    overview.kpis.revenue === 0 &&
+    overview.kpis.orders === 0 &&
+    overview.kpis.refunds === 0 &&
+    overview.revenueTrend.every((point) => point.value === 0) &&
+    overview.ordersTrend.every((point) => point.value === 0) &&
+    overview.revenueByPlatform.length === 0 &&
+    overview.ordersByPlatform.length === 0 &&
+    overview.topProducts.length === 0 &&
+    overview.topCustomers.length === 0
   );
 }
 

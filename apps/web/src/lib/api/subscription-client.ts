@@ -52,6 +52,10 @@ export interface InvitationContext {
 
 export interface SubscriptionApiClient {
   requestInvitation(input: SubscriptionInvitationInput): Promise<SubscriptionInvitationResponse>;
+  getAdminInvitation(
+    invitationId: string,
+    accessToken?: string,
+  ): Promise<{ readonly invitation: AdminInvitation }>;
   listInvitations(accessToken?: string): Promise<{ readonly invitations: readonly AdminInvitation[] }>;
   approveInvitation(
     invitationId: string,
@@ -140,6 +144,19 @@ export function createSubscriptionApiClient(
       const response = await fetchWithAdminSessionRefresh(
         `${baseUrl}/subscription/invitations/${encodeURIComponent(invitationId)}/archive`,
         { method: "POST" },
+        { accessToken, baseUrl, fetchImpl },
+      );
+
+      if (!response.ok) {
+        throw new SubscriptionClientError(await getErrorMessage(response), response.status);
+      }
+
+      return (await response.json()) as { readonly invitation: AdminInvitation };
+    },
+    async getAdminInvitation(invitationId, accessToken) {
+      const response = await fetchWithAdminSessionRefresh(
+        `${baseUrl}/subscription/invitations/admin/${encodeURIComponent(invitationId)}`,
+        undefined,
         { accessToken, baseUrl, fetchImpl },
       );
 

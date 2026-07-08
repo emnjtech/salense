@@ -28,8 +28,11 @@ import type { SubscriptionInvitationResponse } from "./types/subscription-invita
 
 const INVITATION_STATUS = {
   accepted: "ACCEPTED",
+  accountCreated: "ACCOUNT_CREATED",
+  active: "ACTIVE",
   approved: "APPROVED",
   archived: "ARCHIVED",
+  invitationSent: "INVITATION_SENT",
   pending: "PENDING",
   rejected: "REJECTED",
 } as const;
@@ -193,6 +196,12 @@ export class SubscriptionService {
       },
     });
 
+    await this.emailService.sendInvitationAcknowledgementEmail({
+      businessName: data.businessName,
+      email: data.workEmail,
+      fullName: data.fullName,
+    });
+
     return {
       invitationId: invitation.id,
       invitationRequested: true,
@@ -209,12 +218,18 @@ export class SubscriptionService {
     return { invitations: invitations.map(toAdminInvitationResponse) };
   }
 
+  async getAdminInvitation(
+    invitationId: string,
+  ): Promise<{ readonly invitation: SubscriptionAdminInvitationResponse }> {
+    return { invitation: toAdminInvitationResponse(await this.getInvitationById(invitationId)) };
+  }
+
   async approveInvitation(
     invitationId: string,
   ): Promise<SubscriptionInvitationApprovalResponse> {
     const invitation = await this.getInvitationById(invitationId);
 
-    if (invitation.status === INVITATION_STATUS.accepted || invitation.invitationTokenUsedAt) {
+    if (isAcceptedOrActive(invitation.status) || invitation.invitationTokenUsedAt) {
       throw new BadRequestException("This invitation has already been accepted.");
     }
 
@@ -249,8 +264,16 @@ export class SubscriptionService {
       invitationLink,
     });
 
+    const sentInvitation = await this.prisma.subscriptionInvitation.update({
+      where: { id: approvedInvitation.id },
+      data: {
+        status: INVITATION_STATUS.invitationSent,
+      },
+      select: invitationRecordSelect,
+    });
+
     return {
-      invitation: toAdminInvitationResponse(approvedInvitation),
+      invitation: toAdminInvitationResponse(sentInvitation),
       invitationLink,
     };
   }
@@ -260,7 +283,7 @@ export class SubscriptionService {
   ): Promise<SubscriptionInvitationRejectionResponse> {
     const invitation = await this.getInvitationById(invitationId);
 
-    if (invitation.status === INVITATION_STATUS.accepted || invitation.invitationTokenUsedAt) {
+    if (isAcceptedOrActive(invitation.status) || invitation.invitationTokenUsedAt) {
       throw new BadRequestException("Accepted invitations cannot be rejected.");
     }
 
@@ -318,7 +341,9 @@ export class SubscriptionService {
     }
 
     if (!isPasswordPolicyCompliant(input.password)) {
-      throw new BadRequestException("Password does not meet Chapter 6.1 requirements.");
+      throw new BadRequestException(
+        "Password must be at least 12 characters and include uppercase, lowercase, number, and special character.",
+      );
     }
 
     const invitation = await this.getValidInvitationByToken(input.token);
@@ -362,7 +387,7 @@ export class SubscriptionService {
         where: { id: invitation.id },
         data: {
           invitationTokenUsedAt: acceptedAt,
-          status: INVITATION_STATUS.accepted,
+          status: INVITATION_STATUS.active,
         },
         select: invitationRecordSelect,
       });
@@ -397,7 +422,11 @@ export class SubscriptionService {
     });
     const now = new Date();
 
-    if (!invitation || invitation.status !== INVITATION_STATUS.approved) {
+    if (
+      !invitation ||
+      (invitation.status !== INVITATION_STATUS.approved &&
+        invitation.status !== INVITATION_STATUS.invitationSent)
+    ) {
       throw new NotFoundException("Invitation link is invalid.");
     }
 
@@ -478,6 +507,14 @@ function toAdminInvitationResponse(record: InvitationRecord): SubscriptionAdminI
 
 function toIsoString(value: Date | null): string | null {
   return value ? value.toISOString() : null;
+}
+
+function isAcceptedOrActive(status: string): boolean {
+  return (
+    status === INVITATION_STATUS.accepted ||
+    status === INVITATION_STATUS.accountCreated ||
+    status === INVITATION_STATUS.active
+  );
 }
 
 function createInvitationToken(): string {

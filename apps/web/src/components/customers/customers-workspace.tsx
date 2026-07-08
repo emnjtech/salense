@@ -126,19 +126,21 @@ export function CustomersWorkspace() {
 
       {!error ? (
         <>
-          <section className="overview-grid" aria-label="Customer intelligence summary">
-            <MetricTile label="New customers" value={summary.newCustomers.toString()} />
-            <MetricTile label="Returning customers" value={summary.returningCustomers.toString()} />
-            <MetricTile
-              label="Highest lifetime customer"
-              value={summary.highestLifetimeCustomer?.customerName ?? "No purchases yet"}
-              supporting={
-                summary.highestLifetimeCustomer
-                  ? formatCurrency(summary.highestLifetimeCustomer.lifetimeSpend)
-                  : "Sync customer orders"
-              }
-            />
-          </section>
+          {customers.length > 0 ? (
+            <section className="overview-grid" aria-label="Customer intelligence summary">
+              <MetricTile label="New customers" value={summary.newCustomers.toString()} />
+              <MetricTile label="Returning customers" value={summary.returningCustomers.toString()} />
+              <MetricTile
+                label="Highest lifetime customer"
+                value={summary.highestLifetimeCustomer?.customerName ?? "No purchases yet"}
+                supporting={
+                  summary.highestLifetimeCustomer
+                    ? formatCurrency(summary.highestLifetimeCustomer.lifetimeSpend)
+                    : "Sync customer orders"
+                }
+              />
+            </section>
+          ) : null}
 
           <section className="panel orders-panel">
             <div className="products-toolbar">
@@ -246,10 +248,8 @@ function CustomersEmptyState() {
   return (
     <div className="empty-state orders-empty-state">
       <Users size={22} aria-hidden="true" />
-      <strong>No customers match this view</strong>
-      <span>
-        Clear filters to return to the full customer view, or sync stores to refresh data.
-      </span>
+      <strong>No customers imported yet</strong>
+      <span>Connect your first commerce platform and run your first synchronization.</span>
     </div>
   );
 }

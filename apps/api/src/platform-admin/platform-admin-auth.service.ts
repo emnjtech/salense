@@ -236,7 +236,9 @@ export class PlatformAdminAuthService {
     }
 
     if (!isPasswordPolicyCompliant(input.newPassword)) {
-      throw new BadRequestException("Password does not meet Chapter 6.1 requirements.");
+      throw new BadRequestException(
+        "Password must be at least 12 characters and include uppercase, lowercase, number, and special character.",
+      );
     }
 
     const admin = await this.getActiveAdmin(adminId);

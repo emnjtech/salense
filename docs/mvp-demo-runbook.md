@@ -100,10 +100,12 @@ Open the web app at `http://localhost:3000` and log in with the demo account.
 
 Salense currently operates as an invite-only product for pilot users.
 
-1. A business requests access from `/request-invitation`.
+1. A business requests access from `/request-invitation` and receives an acknowledgement email when Resend is configured.
 2. A database-backed Platform Administrator signs in at `/admin/login` and reviews requests at `/admin`.
-3. Approving a request creates a single-use `/accept-invitation?token=...` link.
-4. The invited user sets their password and receives a verified account for the approved business.
+3. The administrator opens an invitation detail page before approving, rejecting, or archiving the request.
+4. Approving a request creates a hashed, expiring, single-use `/accept-invitation?token=...` link and sends an invitation email when Resend is configured.
+5. The invited user sets their password and receives a verified account for the approved business.
+6. The new workspace remains clean until the first successful store synchronization; no seeded business data is inherited.
 
 To send invitation links by email through Resend, start the API with:
 
@@ -114,6 +116,7 @@ SALENSE_EMAIL_FROM="Salense <hello@getsalense.com>"
 ```
 
 If `RESEND_API_KEY` is not set, the admin portal still displays the generated invitation link for manual sharing.
+If Resend reports a bounce even though the recipient receives the email, inspect the Resend message log and capture the delivery event, bounce event, SMTP response, bounce reason, and recipient server response before treating it as an application defect.
 
 Set `PUBLIC_REGISTRATION_ENABLED=true` only when testing the preserved public registration flow.
 

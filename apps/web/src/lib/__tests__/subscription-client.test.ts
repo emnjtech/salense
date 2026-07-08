@@ -99,6 +99,52 @@ describe("subscription API client", () => {
     );
   });
 
+  it("fetches a single admin invitation for review", async () => {
+    const fetchImpl = jest
+      .fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>()
+      .mockResolvedValue(
+        jsonResponse({
+          invitation: {
+            approvedAt: null,
+            archivedAt: null,
+            businessName: "Harbour Home Co",
+            createdAt: "2026-07-06T10:00:00.000Z",
+            fullName: "Mia Lewis",
+            id: "invitation_1",
+            invitationTokenExpiresAt: null,
+            invitationTokenUsedAt: null,
+            message: "We sell across Shopify and Amazon.",
+            phoneNumber: "+447700900123",
+            platforms: [SubscriptionPlatform.Shopify, SubscriptionPlatform.AmazonSeller],
+            preferredPlan: SubscriptionPlan.Professional,
+            rejectedAt: null,
+            status: "PENDING",
+            updatedAt: "2026-07-06T10:00:00.000Z",
+            websiteUrl: "https://harbour.example",
+            workEmail: "mia@harbour.example",
+          },
+        }),
+      );
+    const client = createSubscriptionApiClient({ baseUrl: "https://api.salense.test", fetchImpl });
+
+    await expect(
+      client.getAdminInvitation("invitation_1", "access.jwt.token"),
+    ).resolves.toMatchObject({
+      invitation: {
+        businessName: "Harbour Home Co",
+        fullName: "Mia Lewis",
+        message: "We sell across Shopify and Amazon.",
+        status: "PENDING",
+      },
+    });
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe(
+      "https://api.salense.test/subscription/invitations/admin/invitation_1",
+    );
+    expect(new Headers(fetchImpl.mock.calls[0]?.[1]?.headers).get("authorization")).toBe(
+      "Bearer access.jwt.token",
+    );
+  });
+
   it("accepts an invitation token through the public endpoint", async () => {
     const fetchImpl = jest
       .fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>()

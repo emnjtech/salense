@@ -133,14 +133,16 @@ export function InventoryWorkspace() {
 
       {!error ? (
         <>
-          <section className="overview-grid" aria-label="Inventory intelligence summary">
-            <MetricTile label="Low stock products" value={summary.lowStockProducts.toString()} />
-            <MetricTile
-              label="Out of stock products"
-              value={summary.outOfStockProducts.toString()}
-            />
-            <MetricTile label="Inventory value" value={formatCurrency(summary.inventoryValue)} />
-          </section>
+          {inventory.length > 0 ? (
+            <section className="overview-grid" aria-label="Inventory intelligence summary">
+              <MetricTile label="Low stock products" value={summary.lowStockProducts.toString()} />
+              <MetricTile
+                label="Out of stock products"
+                value={summary.outOfStockProducts.toString()}
+              />
+              <MetricTile label="Inventory value" value={formatCurrency(summary.inventoryValue)} />
+            </section>
+          ) : null}
 
           {insights.length > 0 ? <InventoryInsights insights={insights} /> : null}
 
@@ -295,9 +297,9 @@ function InventoryEmptyState() {
   return (
     <div className="empty-state orders-empty-state">
       <Boxes size={22} aria-hidden="true" />
-      <strong>No inventory matches this view</strong>
+      <strong>No inventory imported yet</strong>
       <span>
-        Clear filters to return to the full stock picture, or sync stores to refresh inventory.
+        Connect your first commerce platform and run your first synchronization to see stock levels.
       </span>
     </div>
   );

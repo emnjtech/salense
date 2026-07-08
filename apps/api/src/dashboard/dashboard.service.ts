@@ -13,8 +13,8 @@ interface DashboardPrismaClient {
   readonly business: {
     findUnique(args: {
       readonly where: { readonly ownerId: string };
-      readonly select: { readonly id: true };
-    }): Promise<{ readonly id: string } | null>;
+      readonly select: { readonly id: true; readonly name: true };
+    }): Promise<{ readonly id: string; readonly name: string } | null>;
   };
   readonly connectedStore: {
     findMany(args: {
@@ -117,7 +117,7 @@ export class DashboardService {
     const prisma = this.prismaService.client as unknown as DashboardPrismaClient;
     const business = await prisma.business.findUnique({
       where: { ownerId: userId },
-      select: { id: true },
+      select: { id: true, name: true },
     });
 
     if (!business) {
@@ -165,14 +165,22 @@ export class DashboardService {
       (total, item) => total + Math.max(item.quantity ?? 0, 0),
       0,
     );
+    const hasCommerceData =
+      todayOrders.length > 0 ||
+      yesterdayOrders.length > 0 ||
+      todayOrderItems.length > 0 ||
+      todayRefunds.length > 0 ||
+      products.length > 0;
     const topProductToday = getTopProductToday(todayOrderItems);
     const bestPlatformToday = revenueByPlatform[0]?.platform ?? null;
-    const basicBusinessHealthScore = calculateBusinessHealthScore({
-      activeStores: activeStores.length,
-      lowStockCount,
-      revenueChangePercent: calculateRevenueChangePercent(todayRevenue, yesterdayRevenue),
-      todayRevenue,
-    });
+    const basicBusinessHealthScore = hasCommerceData
+      ? calculateBusinessHealthScore({
+          activeStores: activeStores.length,
+          lowStockCount,
+          revenueChangePercent: calculateRevenueChangePercent(todayRevenue, yesterdayRevenue),
+          todayRevenue,
+        })
+      : null;
 
     return {
       activeStores: activeStores.length,
@@ -189,7 +197,9 @@ export class DashboardService {
         topProductToday,
       }),
       bestPlatformToday,
+      businessName: business.name,
       connectedPlatforms,
+      hasCommerceData,
       lowStockCount,
       ordersByPlatform,
       ordersToday: todayOrders.length,

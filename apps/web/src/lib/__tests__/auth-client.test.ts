@@ -16,6 +16,7 @@ describe("auth API client", () => {
         jsonResponse({
           accessToken: "access",
           accessTokenExpiresIn: "15m",
+          business: { id: "business_1", name: "Harbour Home Co" },
           refreshToken: "refresh",
           refreshTokenExpiresIn: "7d",
           user: { email: "owner@example.com", emailVerified: true, id: "user_1" },
@@ -38,6 +39,7 @@ describe("auth API client", () => {
       {
         accessToken: "access-token",
         accessTokenExpiresIn: "15m",
+        business: { id: "business_1", name: "Harbour Home Co" },
         refreshToken: "refresh-token",
         refreshTokenExpiresIn: "7d",
         user: { email: "owner@example.com", emailVerified: true, id: "user_1" },
@@ -48,6 +50,7 @@ describe("auth API client", () => {
     expect(readDemoSession(storage)).toEqual({
       accessToken: "access-token",
       accessTokenExpiresIn: "15m",
+      businessName: "Harbour Home Co",
       refreshToken: "refresh-token",
       refreshTokenExpiresIn: "7d",
       userEmail: "owner@example.com",
@@ -65,6 +68,7 @@ describe("auth API client", () => {
       {
         accessToken: "expired-access",
         accessTokenExpiresIn: "15m",
+        business: { id: "business_1", name: "Harbour Home Co" },
         refreshToken: "refresh-token",
         refreshTokenExpiresIn: "7d",
         user: { email: "owner@example.com", emailVerified: true, id: "user_1" },
@@ -108,6 +112,7 @@ describe("auth API client", () => {
       {
         accessToken: "expired-access",
         accessTokenExpiresIn: "15m",
+        business: { id: "business_1", name: "Harbour Home Co" },
         refreshToken: "refresh-token",
         refreshTokenExpiresIn: "7d",
         user: { email: "owner@example.com", emailVerified: true, id: "user_1" },

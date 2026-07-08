@@ -90,7 +90,7 @@ export function SettingsWorkspace() {
           <p className="eyebrow">Workspace control</p>
           <h2 id="settings-overview-title">Your commerce intelligence workspace settings</h2>
           <p>
-            These settings help keep Northstar Home Goods organised while Salense preserves platform
+            These settings help keep your business organised while Salense preserves platform
             identity, business ownership, and read-only commerce intelligence.
           </p>
         </div>

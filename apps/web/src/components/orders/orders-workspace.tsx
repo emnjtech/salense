@@ -128,18 +128,22 @@ export function OrdersWorkspace() {
 
       {!error ? (
         <>
-          <section className="overview-grid" aria-label="Orders summary">
-            <MetricTile label="Visible orders" value={visibleOrders.length.toString()} />
-            <MetricTile
-              label="Visible value"
-              value={formatCurrency(totalValue, getPrimaryCurrency(visibleOrders))}
-            />
-            <MetricTile label="Platforms" value={uniquePlatforms.toString()} />
-            <MetricTile
-              label="Items"
-              value={visibleOrders.reduce((total, order) => total + order.itemCount, 0).toString()}
-            />
-          </section>
+          {visibleOrders.length > 0 ? (
+            <section className="overview-grid" aria-label="Orders summary">
+              <MetricTile label="Visible orders" value={visibleOrders.length.toString()} />
+              <MetricTile
+                label="Visible value"
+                value={formatCurrency(totalValue, getPrimaryCurrency(visibleOrders))}
+              />
+              <MetricTile label="Platforms" value={uniquePlatforms.toString()} />
+              <MetricTile
+                label="Items"
+                value={visibleOrders
+                  .reduce((total, order) => total + order.itemCount, 0)
+                  .toString()}
+              />
+            </section>
+          ) : null}
 
           <section className="panel orders-panel">
             <div className="orders-toolbar">
@@ -259,9 +263,9 @@ function OrdersEmptyState() {
   return (
     <div className="empty-state orders-empty-state">
       <ShoppingCart size={22} aria-hidden="true" />
-      <strong>No orders match this view</strong>
+      <strong>No orders imported yet</strong>
       <span>
-        Clear filters to return to the full order view, or sync stores to refresh normalized orders.
+        Connect your first commerce platform and run your first synchronization to see orders here.
       </span>
     </div>
   );
