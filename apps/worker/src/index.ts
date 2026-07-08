@@ -36,7 +36,12 @@ export async function bootstrapSyncWorker(
 
   worker.on("failed", (job) => {
     const jobId = typeof job === "object" && job !== null && "id" in job ? String(job.id) : "unknown";
-    console.error(`Sync job failed: ${jobId}`);
+    const failedReason = getFailedReason(job);
+    const jobData = getSyncJobData(job);
+
+    console.error(
+      `Sync job failed: ${jobId} platform=${jobData.platform} store=${jobData.storeId} resource=${jobData.resource} category=${toSafeFailureCategory(failedReason)}`,
+    );
   });
 
   return {
@@ -46,4 +51,66 @@ export async function bootstrapSyncWorker(
     },
     worker,
   };
+}
+
+function getFailedReason(job: unknown): string {
+  return typeof job === "object" &&
+    job !== null &&
+    "failedReason" in job &&
+    typeof job.failedReason === "string"
+    ? job.failedReason
+    : "";
+}
+
+function getSyncJobData(job: unknown): {
+  readonly platform: string;
+  readonly resource: string;
+  readonly storeId: string;
+} {
+  if (typeof job !== "object" || job === null || !("data" in job)) {
+    return { platform: "unknown", resource: "unknown", storeId: "unknown" };
+  }
+
+  const data = job.data as {
+    readonly platform?: unknown;
+    readonly resource?: unknown;
+    readonly storeId?: unknown;
+  };
+
+  return {
+    platform: typeof data.platform === "string" ? data.platform : "unknown",
+    resource: typeof data.resource === "string" ? data.resource : "unknown",
+    storeId: typeof data.storeId === "string" ? data.storeId : "unknown",
+  };
+}
+
+function toSafeFailureCategory(reason: string): string {
+  const normalizedReason = reason.toLowerCase();
+
+  if (normalizedReason.includes("auth")) {
+    return "AUTHENTICATION";
+  }
+
+  if (
+    normalizedReason.includes("decrypt") ||
+    normalizedReason.includes("encrypt") ||
+    normalizedReason.includes("credential")
+  ) {
+    return "CREDENTIAL_CONFIGURATION";
+  }
+
+  if (
+    normalizedReason.includes("unreachable") ||
+    normalizedReason.includes("url") ||
+    normalizedReason.includes("timeout") ||
+    normalizedReason.includes("timed out")
+  ) {
+    return "STORE_REACHABILITY";
+  }
+
+  if (normalizedReason.includes("rate limit")) {
+    return "RATE_LIMIT";
+  }
+
+  return "SYNC_FAILED";
 }

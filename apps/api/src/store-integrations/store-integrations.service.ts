@@ -77,7 +77,10 @@ interface StoreIntegrationsPrismaClient {
   };
   readonly connectedStore: {
     findMany(args: {
-      readonly where: { readonly business: { readonly ownerId: string } };
+      readonly where: {
+        readonly business: { readonly ownerId: string };
+        readonly disconnectedAt?: null;
+      };
       readonly orderBy: { readonly createdAt: "asc" };
       readonly select: ConnectedStoreSelect;
     }): Promise<readonly ConnectedStoreRecord[]>;
@@ -272,7 +275,7 @@ export class StoreIntegrationsService {
   async listConnectedStores(userId: string): Promise<readonly ConnectedStoreResponse[]> {
     const prisma = this.prismaService.client as unknown as StoreIntegrationsPrismaClient;
     const stores = await prisma.connectedStore.findMany({
-      where: { business: { ownerId: userId } },
+      where: { business: { ownerId: userId }, disconnectedAt: null },
       orderBy: { createdAt: "asc" },
       select: connectedStoreSelect,
     });
@@ -389,6 +392,11 @@ export class StoreIntegrationsService {
         storeId: connectedStore.id,
         userId,
       });
+
+      await this.queueInitialSyncAfterConnection(
+        toConnectedStoreActionRecord(validatedStore as ConnectedStoreRecord),
+        userId,
+      );
 
       return toConnectedStoreResponse(validatedStore as ConnectedStoreRecord);
     } catch (error) {
@@ -797,6 +805,45 @@ export class StoreIntegrationsService {
     }
   }
 
+  private async queueInitialSyncAfterConnection(
+    store: ConnectedStoreActionRecord,
+    userId: string,
+  ): Promise<void> {
+    try {
+      const queuedAt = new Date();
+      const queuedJob = await this.enqueueManualSyncJob(store, userId, queuedAt);
+
+      await this.recordStoreIntegrationAuditEvent({
+        action: AuditAction.ManualSyncJobQueued,
+        affectedPlatform: store.platform,
+        businessId: store.businessId,
+        metadata: {
+          initialSync: true,
+          jobId: queuedJob.jobId,
+          queuedAt: queuedJob.queuedAt,
+          resource: "all",
+        },
+        result: AuditLogResult.Success,
+        storeId: store.id,
+        userId,
+      });
+    } catch (error) {
+      await this.recordStoreIntegrationAuditEvent({
+        action: AuditAction.ManualSyncJobQueued,
+        affectedPlatform: store.platform,
+        businessId: store.businessId,
+        metadata: {
+          errorName: error instanceof Error ? error.name : "UnknownError",
+          initialSync: true,
+          resource: "all",
+        },
+        result: AuditLogResult.Failure,
+        storeId: store.id,
+        userId,
+      });
+    }
+  }
+
   private assertSupportedPlatform(platform: string): asserts platform is StorePlatform {
     if (!isSupportedStorePlatform(platform)) {
       throw new BadRequestException("Unsupported store platform.");
@@ -931,6 +978,17 @@ function toConnectedStoreResponse(store: ConnectedStoreRecord): ConnectedStoreRe
   };
 }
 
+function toConnectedStoreActionRecord(store: ConnectedStoreRecord): ConnectedStoreActionRecord {
+  return {
+    businessId: store.businessId,
+    connectionStatus: store.connectionStatus,
+    disconnectedAt: null,
+    id: store.id,
+    lastSynchronisedAt: store.lastSynchronisedAt,
+    platform: store.platform,
+  };
+}
+
 function toDisconnectStoreResponse(store: ConnectedStoreActionRecord): DisconnectStoreResponse {
   return {
     disconnectedAt: store.disconnectedAt,
@@ -1007,7 +1065,9 @@ function toManualSyncJobStatusResponse(
   jobStatus: SyncJobStatusResult,
 ): ManualSyncJobStatusResponse {
   return {
-    ...(jobStatus.failedReason ? { failedReason: jobStatus.failedReason } : {}),
+    ...(jobStatus.failedReason
+      ? { failedReason: toSafeSyncFailureReason(jobStatus.failedReason) }
+      : {}),
     ...(jobStatus.finishedAt ? { finishedAt: jobStatus.finishedAt } : {}),
     jobId: jobStatus.jobId,
     platform: jobStatus.platform,
@@ -1061,7 +1121,9 @@ function toStoreSyncJobStatusResponse(
   jobStatus: StoreSyncJobStatusResult,
 ): StoreSyncJobStatusResponse {
   return {
-    ...(jobStatus.failedReason ? { failedReason: jobStatus.failedReason } : {}),
+    ...(jobStatus.failedReason
+      ? { failedReason: toSafeSyncFailureReason(jobStatus.failedReason) }
+      : {}),
     ...(jobStatus.finishedAt ? { finishedAt: jobStatus.finishedAt } : {}),
     jobId: jobStatus.jobId,
     platform: jobStatus.platform,
@@ -1069,4 +1131,35 @@ function toStoreSyncJobStatusResponse(
     status: jobStatus.status,
     storeId: jobStatus.storeId,
   };
+}
+
+function toSafeSyncFailureReason(reason: string): string {
+  const normalizedReason = reason.toLowerCase();
+
+  if (normalizedReason.includes("auth")) {
+    return "WooCommerce rejected the credentials. Check the read-only REST API key and secret.";
+  }
+
+  if (
+    normalizedReason.includes("decrypt") ||
+    normalizedReason.includes("encrypt") ||
+    normalizedReason.includes("credential")
+  ) {
+    return "The worker could not decrypt stored credentials. Restart API and worker with the same encryption key.";
+  }
+
+  if (
+    normalizedReason.includes("unreachable") ||
+    normalizedReason.includes("url") ||
+    normalizedReason.includes("timeout") ||
+    normalizedReason.includes("timed out")
+  ) {
+    return "The WooCommerce store URL could not be reached. Check the URL and store availability.";
+  }
+
+  if (normalizedReason.includes("rate limit")) {
+    return "WooCommerce rate limited the sync request. Retry synchronization shortly.";
+  }
+
+  return "WooCommerce sync failed. Please retry synchronization.";
 }

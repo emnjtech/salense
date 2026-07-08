@@ -42,6 +42,7 @@ function createStoreIntegrationsServiceMocks(): {
   readonly disconnect: jest.Mock;
   readonly synchroniseOrders: jest.Mock;
   readonly enqueueAmazonSellerSyncJob: jest.Mock;
+  readonly enqueueShopifySyncJob: jest.Mock;
   readonly enqueueTikTokShopSyncJob: jest.Mock;
   readonly enqueueWooCommerceSyncJob: jest.Mock;
   readonly getAmazonSellerStoreJobStatuses: jest.Mock;
@@ -69,9 +70,34 @@ function createStoreIntegrationsServiceMocks(): {
   const validateConnection = jest.fn();
   const disconnect = jest.fn();
   const synchroniseOrders = jest.fn();
-  const enqueueAmazonSellerSyncJob = jest.fn();
-  const enqueueTikTokShopSyncJob = jest.fn();
-  const enqueueWooCommerceSyncJob = jest.fn();
+  const enqueueAmazonSellerSyncJob = jest.fn().mockResolvedValue({
+    jobId: "job_amazon_1",
+    platform: StorePlatform.AmazonSeller,
+    queuedAt: new Date("2026-07-03T11:00:02.000Z"),
+    status: "QUEUED",
+    storeId: "store_amazon_1",
+  });
+  const enqueueShopifySyncJob = jest.fn().mockResolvedValue({
+    jobId: "job_shopify_1",
+    platform: StorePlatform.Shopify,
+    queuedAt: new Date("2026-07-03T11:00:02.000Z"),
+    status: "QUEUED",
+    storeId: "store_shopify_1",
+  });
+  const enqueueTikTokShopSyncJob = jest.fn().mockResolvedValue({
+    jobId: "job_tiktok_1",
+    platform: StorePlatform.TikTokShop,
+    queuedAt: new Date("2026-07-03T11:00:02.000Z"),
+    status: "QUEUED",
+    storeId: "store_tiktok_1",
+  });
+  const enqueueWooCommerceSyncJob = jest.fn().mockResolvedValue({
+    jobId: "job_woo_1",
+    platform: StorePlatform.WooCommerce,
+    queuedAt: new Date("2026-07-03T11:00:02.000Z"),
+    status: "QUEUED",
+    storeId: "store_1",
+  });
   const getJobStatus = jest.fn();
   const getAmazonSellerStoreJobStatuses = jest.fn().mockResolvedValue([]);
   const getTikTokShopStoreJobStatuses = jest.fn().mockResolvedValue([]);
@@ -122,6 +148,7 @@ function createStoreIntegrationsServiceMocks(): {
   const credentialEncryption = { encrypt } as unknown as AesCredentialEncryptionService;
   const syncQueue = {
     enqueueAmazonSellerSyncJob,
+    enqueueShopifySyncJob,
     enqueueTikTokShopSyncJob,
     enqueueWooCommerceSyncJob,
     getAmazonSellerStoreJobStatuses,
@@ -155,6 +182,7 @@ function createStoreIntegrationsServiceMocks(): {
     disconnect,
     encrypt,
     enqueueAmazonSellerSyncJob,
+    enqueueShopifySyncJob,
     enqueueTikTokShopSyncJob,
     enqueueWooCommerceSyncJob,
     getAmazonSellerStoreJobStatuses,
@@ -230,6 +258,11 @@ describe("StoreIntegrationsService", () => {
 
     const response = await service.listConnectedStores("user_1");
 
+    expect(findManyConnectedStores).toHaveBeenCalledWith({
+      orderBy: { createdAt: "asc" },
+      select: expect.objectContaining({ id: true }),
+      where: { business: { ownerId: "user_1" }, disconnectedAt: null },
+    });
     expect(response).toEqual([
       {
         id: "store_1",
@@ -523,6 +556,7 @@ describe("StoreIntegrationsService", () => {
       validateConnection,
       encrypt,
       recordAuditLog,
+      enqueueWooCommerceSyncJob,
     } =
       createStoreIntegrationsServiceMocks();
     const createdAt = new Date("2026-07-03T11:00:00.000Z");
@@ -660,6 +694,28 @@ describe("StoreIntegrationsService", () => {
       result: AuditLogResult.Success,
       userId: "user_1",
     });
+    expect(enqueueWooCommerceSyncJob).toHaveBeenCalledWith(
+      WooCommerceSyncJobName.ManualFullSync,
+      expect.objectContaining({
+        platform: StorePlatform.WooCommerce,
+        requestedByUserId: "user_1",
+        resource: "all",
+        storeId: "store_1",
+      }),
+    );
+    expect(recordAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: AuditAction.ManualSyncJobQueued,
+        affectedPlatform: StorePlatform.WooCommerce,
+        affectedStoreId: "store_1",
+        metadata: expect.objectContaining({
+          initialSync: true,
+          jobId: "job_woo_1",
+          resource: "all",
+        }),
+        result: AuditLogResult.Success,
+      }),
+    );
     expect(JSON.stringify(recordAuditLog.mock.calls)).not.toContain("ck_live_placeholder");
     expect(JSON.stringify(recordAuditLog.mock.calls)).not.toContain("cs_live_placeholder");
     expect(JSON.stringify(recordAuditLog.mock.calls)).not.toContain("stored-key-hash");
@@ -1220,7 +1276,7 @@ describe("StoreIntegrationsService", () => {
     const queuedAt = new Date("2026-07-03T14:00:00.000Z");
     const finishedAt = new Date("2026-07-03T14:01:00.000Z");
     getJobStatus.mockResolvedValue({
-      failedReason: "WooCommerce timeout",
+      failedReason: "WooCommerce request timed out with accessTokenHash should-not-leak",
       finishedAt,
       jobId: "job_1",
       platform: StorePlatform.WooCommerce,
@@ -1241,7 +1297,8 @@ describe("StoreIntegrationsService", () => {
     const response = await service.getManualSyncJobStatus("user_1", "job_1");
 
     expect(response).toEqual({
-      failedReason: "WooCommerce timeout",
+      failedReason:
+        "The WooCommerce store URL could not be reached. Check the URL and store availability.",
       finishedAt,
       jobId: "job_1",
       platform: StorePlatform.WooCommerce,
@@ -1311,9 +1368,10 @@ describe("StoreIntegrationsService", () => {
       },
       {
         errorMetadata: {
+          category: "SYNC_FAILED",
           encryptedCredential: "should-not-leak",
           errorName: "Error",
-          message: "WooCommerce sync failed.",
+          message: "WooCommerce sync failed. Please retry synchronization.",
           rawMarketplacePayload: { id: 1 },
         },
         lastAttemptedSyncedAt,
@@ -1324,7 +1382,7 @@ describe("StoreIntegrationsService", () => {
     ]);
     getWooCommerceStoreJobStatuses.mockResolvedValue([
       {
-        failedReason: "WooCommerce timeout",
+        failedReason: "WooCommerce request timed out with accessTokenHash should-not-leak",
         jobId: "job_1",
         platform: StorePlatform.WooCommerce,
         queuedAt,
@@ -1350,7 +1408,8 @@ describe("StoreIntegrationsService", () => {
       connectionStatus: StoreConnectionStatus.Connected,
       jobs: [
         {
-          failedReason: "WooCommerce timeout",
+          failedReason:
+            "The WooCommerce store URL could not be reached. Check the URL and store availability.",
           jobId: "job_1",
           platform: StorePlatform.WooCommerce,
           queuedAt,
@@ -1374,8 +1433,9 @@ describe("StoreIntegrationsService", () => {
         },
         {
           errorSummary: {
+            category: "SYNC_FAILED",
             errorName: "Error",
-            message: "WooCommerce sync failed.",
+            message: "WooCommerce sync failed. Please retry synchronization.",
           },
           lastAttemptedSyncedAt,
           lastSuccessfulSyncedAt: null,

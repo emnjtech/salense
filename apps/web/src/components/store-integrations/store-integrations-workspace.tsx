@@ -20,6 +20,7 @@ import {
   WooCommerceApiVersion,
   createStoreIntegrationsApiClient,
   type ConnectedStore,
+  type StoreSyncJobStatus,
   type StoreSyncStatus,
   type SupportedStorePlatform,
 } from "../../lib/api/store-integrations-client";
@@ -190,7 +191,7 @@ export function StoreIntegrationsWorkspace() {
         storeUrl: formState.storeUrl,
       });
 
-      setNotice(`${connectedStore.storeName} was submitted for WooCommerce validation.`);
+      setNotice(getConnectionNotice(connectedStore, "WooCommerce"));
       setFormState(emptyWooCommerceForm);
       await loadWorkspace();
     } catch (caughtError) {
@@ -216,7 +217,7 @@ export function StoreIntegrationsWorkspace() {
         storeName: amazonFormState.storeName,
       });
 
-      setNotice(`${connectedStore.storeName} was submitted for Amazon Seller validation.`);
+      setNotice(getConnectionNotice(connectedStore, "Amazon Seller"));
       setAmazonFormState(emptyAmazonSellerForm);
       await loadWorkspace();
     } catch (caughtError) {
@@ -242,7 +243,7 @@ export function StoreIntegrationsWorkspace() {
         storeName: tikTokFormState.storeName,
       });
 
-      setNotice(`${connectedStore.storeName} was submitted for TikTok Shop validation.`);
+      setNotice(getConnectionNotice(connectedStore, "TikTok Shop"));
       setTikTokFormState(emptyTikTokShopForm);
       await loadWorkspace();
     } catch (caughtError) {
@@ -267,7 +268,7 @@ export function StoreIntegrationsWorkspace() {
         storeUrl: shopifyFormState.storeUrl,
       });
 
-      setNotice(`${connectedStore.storeName} was submitted for Shopify validation.`);
+      setNotice(getConnectionNotice(connectedStore, "Shopify"));
       setShopifyFormState(emptyShopifyForm);
       await loadWorkspace();
     } catch (caughtError) {
@@ -1102,6 +1103,7 @@ function StoreRow({
   const isSyncEnabled = isSyncEnabledPlatform(store.platform);
   const isConnected = store.connectionStatus === StoreConnectionStatus.Connected;
   const isBusy = actionStoreId === store.id;
+  const syncAttention = getSyncAttention(syncStatus);
 
   return (
     <article className="store-row">
@@ -1137,7 +1139,7 @@ function StoreRow({
           ) : (
             <RefreshCcw size={16} aria-hidden="true" />
           )}
-          Sync
+          {syncAttention ? "Retry sync" : "Sync"}
         </button>
         <button
           disabled={!isConnected || isBusy || !isSyncEnabled}
@@ -1174,17 +1176,21 @@ function SyncSummary({ syncStatus }: { readonly syncStatus: StoreSyncStatus | un
     );
   }
 
-  const failedCursors = syncStatus.cursors.filter((cursor) => cursor.status === "FAILED").length;
+  const failedCursors = syncStatus.cursors.filter((cursor) => cursor.status === "ERROR").length;
   const activeJobs = syncStatus.jobs.filter((job) =>
     ["ACTIVE", "QUEUED"].includes(job.status),
   ).length;
+  const latestJob = getLatestSyncJob(syncStatus.jobs);
+  const latestFailure = getSyncAttention(syncStatus);
 
   return (
-    <div className="sync-summary">
+    <div className={latestFailure ? "sync-summary attention" : "sync-summary"}>
       <strong>{getPlatformLabel(syncStatus.platform)} sync</strong>
       <span>{syncStatus.cursors.length} resources tracked</span>
       <span>{activeJobs} queued or running jobs</span>
       <span>{failedCursors} resources need attention</span>
+      {latestJob ? <span>Latest job: {formatJobStatus(latestJob.status)}</span> : null}
+      {latestFailure ? <span className="sync-failure-reason">{latestFailure}</span> : null}
     </div>
   );
 }
@@ -1286,6 +1292,61 @@ function getFriendlyErrorMessage(error: unknown): string {
   }
 
   return "Something went wrong while loading store integrations.";
+}
+
+function getConnectionNotice(store: ConnectedStore, platformLabel: string): string {
+  if (store.connectionStatus === StoreConnectionStatus.Connected) {
+    return `${store.storeName} connected to ${platformLabel}. Initial read-only sync has been queued.`;
+  }
+
+  if (store.connectionStatus === StoreConnectionStatus.Error) {
+    return `${store.storeName} could not be validated. Please check the credentials and try again.`;
+  }
+
+  return `${store.storeName} was submitted for ${platformLabel} validation.`;
+}
+
+function getSyncAttention(syncStatus: StoreSyncStatus | undefined): string | null {
+  if (!syncStatus) {
+    return null;
+  }
+
+  const failedJob = getLatestSyncJob(syncStatus.jobs.filter((job) => job.status === "FAILED"));
+
+  if (failedJob?.failedReason) {
+    return failedJob.failedReason;
+  }
+
+  const failedCursor = syncStatus.cursors.find((cursor) => cursor.status === "ERROR");
+  const cursorMessage = failedCursor?.errorSummary?.message;
+
+  return typeof cursorMessage === "string" && cursorMessage.trim() ? cursorMessage : null;
+}
+
+function getLatestSyncJob(
+  jobs: readonly StoreSyncJobStatus[],
+): StoreSyncJobStatus | undefined {
+  return [...jobs].sort((first, second) => {
+    const firstTime = new Date(first.finishedAt ?? first.queuedAt).getTime();
+    const secondTime = new Date(second.finishedAt ?? second.queuedAt).getTime();
+
+    return secondTime - firstTime;
+  })[0];
+}
+
+function formatJobStatus(status: StoreSyncJobStatus["status"]): string {
+  switch (status) {
+    case "ACTIVE":
+      return "Running";
+    case "COMPLETED":
+      return "Completed";
+    case "FAILED":
+      return "Failed";
+    case "QUEUED":
+      return "Queued";
+    case "UNKNOWN":
+      return "Unknown";
+  }
 }
 
 function isSyncEnabledPlatform(platform: StorePlatform): boolean {

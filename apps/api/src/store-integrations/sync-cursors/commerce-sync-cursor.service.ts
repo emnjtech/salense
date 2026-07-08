@@ -129,9 +129,11 @@ export class CommerceSyncCursorService {
     readonly resource: CommerceSyncCursorResource;
     readonly attemptedAt: Date;
   }): Promise<void> {
+    const failureSummary = getSafeSyncFailureSummary(input.error);
     const errorMetadata = sanitizeAuditMetadata({
+      category: failureSummary.category,
       errorName: input.error instanceof Error ? input.error.name : "UnknownError",
-      message: "WooCommerce sync failed.",
+      message: failureSummary.message,
     });
 
     await this.prisma.commerceSyncCursor.upsert({
@@ -162,4 +164,57 @@ export class CommerceSyncCursorService {
   private get prisma(): CommerceSyncCursorPrismaClient {
     return this.prismaService.client as unknown as CommerceSyncCursorPrismaClient;
   }
+}
+
+function getSafeSyncFailureSummary(error: unknown): {
+  readonly category: string;
+  readonly message: string;
+} {
+  if (!(error instanceof Error)) {
+    return {
+      category: "UNKNOWN",
+      message: "WooCommerce sync failed. Please retry synchronization.",
+    };
+  }
+
+  const message = error.message.toLowerCase();
+
+  if (error.name.includes("Authentication") || message.includes("auth")) {
+    return {
+      category: "AUTHENTICATION",
+      message: "WooCommerce rejected the credentials. Check the read-only REST API key and secret.",
+    };
+  }
+
+  if (message.includes("encrypt") || message.includes("decrypt") || message.includes("credential")) {
+    return {
+      category: "CREDENTIAL_CONFIGURATION",
+      message:
+        "The worker could not decrypt stored credentials. Restart API and worker with the same encryption key.",
+    };
+  }
+
+  if (
+    message.includes("unreachable") ||
+    message.includes("url") ||
+    message.includes("timed out") ||
+    message.includes("timeout")
+  ) {
+    return {
+      category: "STORE_REACHABILITY",
+      message: "The WooCommerce store URL could not be reached. Check the URL and store availability.",
+    };
+  }
+
+  if (message.includes("rate limit")) {
+    return {
+      category: "RATE_LIMIT",
+      message: "WooCommerce rate limited the sync request. Retry synchronization shortly.",
+    };
+  }
+
+  return {
+    category: "SYNC_FAILED",
+    message: "WooCommerce sync failed. Please retry synchronization.",
+  };
 }

@@ -13,5 +13,6 @@ Operational notes:
 - [MVP demo seed data](./mvp-demo-seed.md)
 - [Sync scheduling](./sync-scheduling.md)
 - [Store authorization setup](./store-authorization-setup.md)
+- [WooCommerce real-store testing](./woocommerce-real-store-testing.md)
 - [Multi-platform MVP integration checkpoint](./woocommerce-integration-checkpoint.md)
 - [Frontend authentication demo policy](./frontend-auth-demo.md)

@@ -104,12 +104,20 @@ describe("CommerceSyncCursorService", () => {
         },
       },
       create: expect.objectContaining({
-        errorMetadata: { errorName: "Error", message: "WooCommerce sync failed." },
+        errorMetadata: {
+          category: "SYNC_FAILED",
+          errorName: "Error",
+          message: "WooCommerce sync failed. Please retry synchronization.",
+        },
         lastAttemptedSyncedAt: attemptedAt,
         status: CommerceSyncCursorStatus.Error,
       }),
       update: {
-        errorMetadata: { errorName: "Error", message: "WooCommerce sync failed." },
+        errorMetadata: {
+          category: "SYNC_FAILED",
+          errorName: "Error",
+          message: "WooCommerce sync failed. Please retry synchronization.",
+        },
         lastAttemptedSyncedAt: attemptedAt,
         status: CommerceSyncCursorStatus.Error,
       },

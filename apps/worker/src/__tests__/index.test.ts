@@ -34,9 +34,24 @@ describe("worker bootstrap", () => {
     );
     expect(on).toHaveBeenCalledWith("failed", expect.any(Function));
     const failedListener = on.mock.calls.find(([event]) => event === "failed")?.[1] as
-      | ((job: { readonly id: string }) => void)
+      | ((job: {
+          readonly data?: {
+            readonly platform?: string;
+            readonly resource?: string;
+            readonly storeId?: string;
+          };
+          readonly failedReason?: string;
+          readonly id: string;
+        }) => void)
       | undefined;
-    failedListener?.({ id: "job_1" });
+    failedListener?.({
+      data: { platform: "WOOCOMMERCE", resource: "all", storeId: "store_1" },
+      failedReason: "WooCommerce credentials are not configured.",
+      id: "job_1",
+    });
+    expect(consoleError).toHaveBeenCalledWith(
+      "Sync job failed: job_1 platform=WOOCOMMERCE store=store_1 resource=all category=CREDENTIAL_CONFIGURATION",
+    );
     expect(JSON.stringify(consoleError.mock.calls)).not.toContain("super-secret");
 
     await runningWorker.close();
