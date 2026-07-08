@@ -23,6 +23,7 @@ import {
 import { StorePlatform } from "../../lib/api/store-integrations-client";
 import { getFriendlyAuthErrorMessage, readDemoSession } from "../../lib/auth-session";
 import { PlatformIcon } from "../brand/platform-icon";
+import { OrderStatusBadge } from "../orders/order-status-badge";
 
 export function PlatformDetailWorkspace({ platform }: { readonly platform: StorePlatform }) {
   const platformsClient = useMemo(() => createPlatformsApiClient(), []);
@@ -191,7 +192,12 @@ function PlatformDetailContent({ summary }: { readonly summary: PlatformSummary 
                       {order.storeName} - {formatDate(order.orderDate)}
                     </span>
                   </div>
-                  <strong>{formatCurrency(order.totalValue ?? 0, order.currency ?? "GBP")}</strong>
+                  <div className="platform-detail-order-value">
+                    <OrderStatusBadge status={order.status} />
+                    <strong>
+                      {formatCurrency(order.totalValue ?? 0, order.currency ?? "GBP")}
+                    </strong>
+                  </div>
                 </article>
               ))
             ) : (
@@ -209,10 +215,10 @@ function PlatformDetailContent({ summary }: { readonly summary: PlatformSummary 
           </div>
           <div className="platform-detail-list">
             {summary.topProducts.length > 0 ? (
-              summary.topProducts.map((product) => (
+              summary.topProducts.map((product, index) => (
                 <article
                   className="platform-detail-row"
-                  key={product.platformProductId ?? product.name}
+                  key={`${product.platformProductId ?? product.name}:${index}`}
                 >
                   <div>
                     <strong>{product.name}</strong>

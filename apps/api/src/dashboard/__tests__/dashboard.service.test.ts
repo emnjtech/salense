@@ -1,5 +1,6 @@
 import { UnauthorizedException } from "@nestjs/common";
 import type { PrismaService } from "../../database/prisma.service.js";
+import { StoreConnectionStatus } from "../../store-integrations/types/store-connection-status.enum.js";
 import { StorePlatform } from "../../store-integrations/types/store-platform.enum.js";
 import { DashboardService } from "../dashboard.service.js";
 
@@ -150,6 +151,41 @@ describe("DashboardService", () => {
     ]);
   });
 
+  it("excludes failed and pending orders from revenue while keeping order counts visible", async () => {
+    const { service } = createService({
+      activeStores: [{ id: "store_1", platform: StorePlatform.WooCommerce }],
+      todayOrders: [
+        {
+          id: "completed",
+          orderStatus: "completed",
+          platform: StorePlatform.WooCommerce,
+          totalAmount: 100,
+        },
+        {
+          id: "failed",
+          orderStatus: "failed",
+          platform: StorePlatform.WooCommerce,
+          totalAmount: 80,
+        },
+        {
+          id: "pending",
+          orderStatus: "pending",
+          platform: StorePlatform.WooCommerce,
+          totalAmount: 50,
+        },
+      ],
+    });
+
+    const dashboard = await service.getTodayDashboard("user_1");
+
+    expect(dashboard.ordersToday).toBe(3);
+    expect(dashboard.todayRevenue).toBe(100);
+    expect(dashboard.averageOrderValueToday).toBe(100);
+    expect(dashboard.revenueByPlatform).toEqual([
+      { platform: StorePlatform.WooCommerce, value: 100 },
+    ]);
+  });
+
   it("calculates negative revenue change and business health score", async () => {
     const { service } = createService({
       activeStores: [{ id: "store_1", platform: StorePlatform.WooCommerce }],
@@ -208,16 +244,48 @@ describe("DashboardService", () => {
       select: { id: true, name: true },
     });
     expect(prisma.commerceOrder.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ businessId: business.id }) }),
+      expect.objectContaining({
+        where: expect.objectContaining({
+          businessId: business.id,
+          connectedStore: {
+            connectionStatus: StoreConnectionStatus.Connected,
+            disconnectedAt: null,
+          },
+        }),
+      }),
     );
     expect(prisma.commerceOrderItem.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ businessId: business.id }) }),
+      expect.objectContaining({
+        where: expect.objectContaining({
+          businessId: business.id,
+          connectedStore: {
+            connectionStatus: StoreConnectionStatus.Connected,
+            disconnectedAt: null,
+          },
+        }),
+      }),
     );
     expect(prisma.commerceRefund.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ businessId: business.id }) }),
+      expect.objectContaining({
+        where: expect.objectContaining({
+          businessId: business.id,
+          connectedStore: {
+            connectionStatus: StoreConnectionStatus.Connected,
+            disconnectedAt: null,
+          },
+        }),
+      }),
     );
     expect(prisma.commerceProduct.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { businessId: business.id } }),
+      expect.objectContaining({
+        where: {
+          businessId: business.id,
+          connectedStore: {
+            connectionStatus: StoreConnectionStatus.Connected,
+            disconnectedAt: null,
+          },
+        },
+      }),
     );
   });
 
@@ -255,6 +323,7 @@ function createService(
     }[];
     readonly todayItems?: readonly {
       readonly name: string | null;
+      readonly order?: { readonly orderStatus: string | null };
       readonly platform: StorePlatform;
       readonly quantity: number | null;
       readonly sku: string | null;
@@ -262,12 +331,14 @@ function createService(
     }[];
     readonly todayOrders?: readonly {
       readonly id: string;
+      readonly orderStatus?: string | null;
       readonly platform: StorePlatform;
       readonly totalAmount: unknown;
     }[];
     readonly todayRefunds?: readonly { readonly id: string }[];
     readonly yesterdayOrders?: readonly {
       readonly id: string;
+      readonly orderStatus?: string | null;
       readonly platform: StorePlatform;
       readonly totalAmount: unknown;
     }[];
@@ -282,10 +353,17 @@ function createService(
     commerceOrder: {
       findMany: jest
         .fn()
-        .mockResolvedValueOnce(input.todayOrders ?? [])
-        .mockResolvedValueOnce(input.yesterdayOrders ?? []),
+        .mockResolvedValueOnce((input.todayOrders ?? []).map(withRevenueEligibleStatus))
+        .mockResolvedValueOnce((input.yesterdayOrders ?? []).map(withRevenueEligibleStatus)),
     },
-    commerceOrderItem: { findMany: jest.fn().mockResolvedValue(input.todayItems ?? []) },
+    commerceOrderItem: {
+      findMany: jest.fn().mockResolvedValue(
+        (input.todayItems ?? []).map((item) => ({
+          order: { orderStatus: "processing" },
+          ...item,
+        })),
+      ),
+    },
     commerceProduct: { findMany: jest.fn().mockResolvedValue(input.products ?? []) },
     commerceRefund: { findMany: jest.fn().mockResolvedValue(input.todayRefunds ?? []) },
     connectedStore: { findMany: jest.fn().mockResolvedValue(input.activeStores ?? []) },
@@ -293,4 +371,10 @@ function createService(
   const prismaService = { client: prisma } as unknown as PrismaService;
 
   return { prisma, service: new DashboardService(prismaService) };
+}
+
+function withRevenueEligibleStatus<T extends { readonly orderStatus?: string | null }>(
+  order: T,
+): T & { readonly orderStatus: string | null } {
+  return { orderStatus: "processing", ...order };
 }

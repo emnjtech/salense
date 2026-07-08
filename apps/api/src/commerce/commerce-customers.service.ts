@@ -1,7 +1,9 @@
 import { Inject, Injectable, UnauthorizedException } from "@nestjs/common";
 import { PrismaService } from "../database/prisma.service.js";
+import { StoreConnectionStatus } from "../store-integrations/types/store-connection-status.enum.js";
 import type { StorePlatform } from "../store-integrations/types/store-platform.enum.js";
 import type { ListCommerceCustomersQueryDto } from "./dto/list-commerce-customers-query.dto.js";
+import { isRevenueEligibleOrderStatus } from "./order-revenue.js";
 import type {
   CommerceCustomerListItemResponse,
   CommerceCustomerListResponse,
@@ -33,12 +35,19 @@ interface CommerceCustomersPrismaClient {
 
 interface CommerceCustomerWhereInput {
   readonly businessId: string;
+  readonly connectedStore: ActiveConnectedStoreWhereInput;
   readonly platform?: StorePlatform;
 }
 
 interface CommerceOrderWhereInput {
   readonly businessId: string;
+  readonly connectedStore: ActiveConnectedStoreWhereInput;
   readonly platform?: StorePlatform;
+}
+
+interface ActiveConnectedStoreWhereInput {
+  readonly connectionStatus: StoreConnectionStatus.Connected;
+  readonly disconnectedAt: null;
 }
 
 interface CommerceCustomerSelect {
@@ -57,6 +66,7 @@ interface CommerceOrderSelect {
   readonly connectedStoreId: true;
   readonly id: true;
   readonly orderedAt: true;
+  readonly orderStatus: true;
   readonly platform: true;
   readonly sourceMetadata: true;
   readonly totalAmount: true;
@@ -78,6 +88,7 @@ interface CommerceOrderRecord {
   readonly connectedStoreId: string;
   readonly id: string;
   readonly orderedAt: Date | null;
+  readonly orderStatus: string | null;
   readonly platform: StorePlatform;
   readonly sourceMetadata: unknown;
   readonly totalAmount: unknown;
@@ -86,6 +97,7 @@ interface CommerceOrderRecord {
 interface CustomerOrderSummary {
   readonly lastPurchaseDate: Date | null;
   readonly lifetimeSpend: number;
+  readonly revenueOrders: number;
   readonly totalOrders: number;
 }
 
@@ -105,6 +117,7 @@ const orderSelect = {
   connectedStoreId: true,
   id: true,
   orderedAt: true,
+  orderStatus: true,
   platform: true,
   sourceMetadata: true,
   totalAmount: true,
@@ -161,6 +174,7 @@ function buildCustomerWhere(
 ): CommerceCustomerWhereInput {
   return {
     businessId,
+    connectedStore: activeConnectedStoreWhere(),
     ...(query.platform ? { platform: query.platform } : {}),
   };
 }
@@ -171,7 +185,15 @@ function buildOrderWhere(
 ): CommerceOrderWhereInput {
   return {
     businessId,
+    connectedStore: activeConnectedStoreWhere(),
     ...(query.platform ? { platform: query.platform } : {}),
+  };
+}
+
+function activeConnectedStoreWhere(): ActiveConnectedStoreWhereInput {
+  return {
+    connectionStatus: StoreConnectionStatus.Connected,
+    disconnectedAt: null,
   };
 }
 
@@ -205,12 +227,17 @@ function summarizeOrdersByCustomer(
     const current = totals.get(key) ?? {
       lastPurchaseDate: null,
       lifetimeSpend: 0,
+      revenueOrders: 0,
       totalOrders: 0,
     };
+    const revenueEligible = isRevenueEligibleOrderStatus(order.orderStatus);
 
     totals.set(key, {
       lastPurchaseDate: getLatestDate(current.lastPurchaseDate, order.orderedAt),
-      lifetimeSpend: roundMoney(current.lifetimeSpend + (toNumberOrNull(order.totalAmount) ?? 0)),
+      lifetimeSpend: roundMoney(
+        current.lifetimeSpend + (revenueEligible ? (toNumberOrNull(order.totalAmount) ?? 0) : 0),
+      ),
+      revenueOrders: current.revenueOrders + (revenueEligible ? 1 : 0),
       totalOrders: current.totalOrders + 1,
     });
   });
@@ -235,9 +262,10 @@ function toCustomerListItem(
         );
   const totalOrders = summary?.totalOrders ?? 0;
   const lifetimeSpend = summary?.lifetimeSpend ?? 0;
+  const revenueOrders = summary?.revenueOrders ?? 0;
 
   return {
-    averageOrderValue: totalOrders > 0 ? roundMoney(lifetimeSpend / totalOrders) : 0,
+    averageOrderValue: revenueOrders > 0 ? roundMoney(lifetimeSpend / revenueOrders) : 0,
     city: location.city,
     country: location.country,
     customerEmail: customer.email,

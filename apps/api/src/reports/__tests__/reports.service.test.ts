@@ -1,5 +1,6 @@
 import { UnauthorizedException } from "@nestjs/common";
 import type { PrismaService } from "../../database/prisma.service.js";
+import { StoreConnectionStatus } from "../../store-integrations/types/store-connection-status.enum.js";
 import { StorePlatform } from "../../store-integrations/types/store-platform.enum.js";
 import { ReportsService } from "../reports.service.js";
 
@@ -29,6 +30,7 @@ describe("ReportsService", () => {
           sku: "LAMP-1",
           totalAmount: "120.00",
           commerceOrderId: "order_1",
+          order: { orderStatus: "processing" },
         },
       ],
       orders: [
@@ -36,6 +38,7 @@ describe("ReportsService", () => {
           connectedStoreId: "store_1",
           id: "order_1",
           orderedAt: new Date("2026-07-01T10:00:00.000Z"),
+          orderStatus: "processing",
           platform: StorePlatform.Shopify,
           sourceMetadata: { raw: { billing: { email: "ada@example.com" } } },
           totalAmount: "120.00",
@@ -44,6 +47,7 @@ describe("ReportsService", () => {
           connectedStoreId: "store_1",
           id: "order_2",
           orderedAt: new Date("2026-07-02T10:00:00.000Z"),
+          orderStatus: "processing",
           platform: StorePlatform.AmazonSeller,
           sourceMetadata: { raw: { billing: { email: "guest@example.com" } } },
           totalAmount: "80.00",
@@ -161,6 +165,10 @@ describe("ReportsService", () => {
       expect.objectContaining({
         where: expect.objectContaining({
           businessId: business.id,
+          connectedStore: {
+            connectionStatus: StoreConnectionStatus.Connected,
+            disconnectedAt: null,
+          },
           orderedAt: {
             gte: new Date("2026-07-01T00:00:00.000Z"),
             lte: new Date("2026-07-03T23:59:59.999Z"),
@@ -182,11 +190,66 @@ describe("ReportsService", () => {
       expect.objectContaining({
         where: expect.objectContaining({
           businessId: business.id,
+          connectedStore: {
+            connectionStatus: StoreConnectionStatus.Connected,
+            disconnectedAt: null,
+          },
           connectedStoreId: "store_2",
           platform: StorePlatform.TikTokShop,
         }),
       }),
     );
+  });
+
+  it("excludes failed and pending orders from revenue metrics", async () => {
+    const { service } = createService({
+      orders: [
+        {
+          connectedStoreId: "store_1",
+          id: "order_paid",
+          orderedAt: new Date("2026-07-01T10:00:00.000Z"),
+          orderStatus: "paid",
+          platform: StorePlatform.WooCommerce,
+          sourceMetadata: { raw: { billing: { email: "buyer@example.com" } } },
+          totalAmount: "100.00",
+        },
+        {
+          connectedStoreId: "store_1",
+          id: "order_failed",
+          orderedAt: new Date("2026-07-01T11:00:00.000Z"),
+          orderStatus: "failed",
+          platform: StorePlatform.WooCommerce,
+          sourceMetadata: { raw: { billing: { email: "buyer@example.com" } } },
+          totalAmount: "80.00",
+        },
+        {
+          connectedStoreId: "store_1",
+          id: "order_pending",
+          orderedAt: new Date("2026-07-01T12:00:00.000Z"),
+          orderStatus: "pending",
+          platform: StorePlatform.WooCommerce,
+          sourceMetadata: { raw: { billing: { email: "buyer@example.com" } } },
+          totalAmount: "50.00",
+        },
+      ],
+    });
+
+    const response = await service.getOverview("user_1", {
+      dateFrom: "2026-07-01T00:00:00.000Z",
+      dateTo: "2026-07-01T23:59:59.999Z",
+    });
+
+    expect(response.kpis.orders).toBe(3);
+    expect(response.kpis.revenue).toBe(100);
+    expect(response.kpis.averageOrderValue).toBe(100);
+    expect(response.revenueByPlatform).toEqual([
+      { platform: StorePlatform.WooCommerce, value: 100 },
+    ]);
+    expect(response.topCustomers[0]).toMatchObject({
+      averageOrderValue: 100,
+      lifetimeSpend: 100,
+      orders: 3,
+    });
   });
 
   it("does not expose credentials, token material, hashes, or raw payloads", async () => {
@@ -196,6 +259,7 @@ describe("ReportsService", () => {
           connectedStoreId: "store_1",
           id: "order_1",
           orderedAt: new Date("2026-07-01T10:00:00.000Z"),
+          orderStatus: "completed",
           platform: StorePlatform.WooCommerce,
           sourceMetadata: { raw: { billing: { email: "safe@example.com" }, token: "hidden" } },
           totalAmount: "15.00",
@@ -240,8 +304,21 @@ function createService(
         .mockResolvedValue(input.businessRecord === undefined ? business : input.businessRecord),
     },
     commerceCustomer: { findMany: jest.fn().mockResolvedValue(input.customers ?? []) },
-    commerceOrder: { findMany: jest.fn().mockResolvedValue(input.orders ?? []) },
-    commerceOrderItem: { findMany: jest.fn().mockResolvedValue(input.orderItems ?? []) },
+    commerceOrder: {
+      findMany: jest
+        .fn()
+        .mockResolvedValue(
+          (input.orders ?? []).map((order) => ({ orderStatus: "processing", ...order })),
+        ),
+    },
+    commerceOrderItem: {
+      findMany: jest.fn().mockResolvedValue(
+        (input.orderItems ?? []).map((item) => ({
+          order: { orderStatus: "processing" },
+          ...item,
+        })),
+      ),
+    },
     commerceProduct: { findMany: jest.fn().mockResolvedValue(input.products ?? []) },
     commerceRefund: { findMany: jest.fn().mockResolvedValue(input.refunds ?? []) },
     connectedStore: { findMany: jest.fn().mockResolvedValue(input.stores ?? []) },
@@ -261,6 +338,7 @@ interface ReportsOrderTestRecord {
   readonly connectedStoreId: string;
   readonly id: string;
   readonly orderedAt: Date | null;
+  readonly orderStatus?: string | null;
   readonly platform: StorePlatform;
   readonly sourceMetadata: unknown;
   readonly totalAmount: unknown;
@@ -270,6 +348,7 @@ interface ReportsOrderItemTestRecord {
   readonly commerceOrderId: string;
   readonly connectedStoreId: string;
   readonly name: string | null;
+  readonly order?: { readonly orderStatus: string | null };
   readonly platform: StorePlatform;
   readonly platformProductId: string | null;
   readonly quantity: number | null;

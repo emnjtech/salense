@@ -10,6 +10,7 @@ export interface CommerceOrderListItemResponse {
   readonly orderNumber: string;
   readonly platform: StorePlatform;
   readonly platformOrderId: string;
+  readonly revenueEligible: boolean;
   readonly status: string | null;
   readonly storeName: string;
   readonly totalValue: number | null;

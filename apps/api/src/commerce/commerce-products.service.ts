@@ -1,7 +1,9 @@
 import { Inject, Injectable, UnauthorizedException } from "@nestjs/common";
 import { PrismaService } from "../database/prisma.service.js";
+import { StoreConnectionStatus } from "../store-integrations/types/store-connection-status.enum.js";
 import type { StorePlatform } from "../store-integrations/types/store-platform.enum.js";
 import type { ListCommerceProductsQueryDto } from "./dto/list-commerce-products-query.dto.js";
+import { isRevenueEligibleOrderStatus } from "./order-revenue.js";
 import type {
   CommerceProductListItemResponse,
   CommerceProductListResponse,
@@ -32,6 +34,7 @@ interface CommerceProductsPrismaClient {
 
 interface CommerceProductWhereInput {
   readonly businessId: string;
+  readonly connectedStore: ActiveConnectedStoreWhereInput;
   readonly platform?: StorePlatform;
   readonly stockStatus?: string;
   readonly OR?: readonly {
@@ -43,7 +46,19 @@ interface CommerceProductWhereInput {
 
 interface CommerceOrderItemWhereInput {
   readonly businessId: string;
-  readonly platformProductId: { readonly in: readonly string[] };
+  readonly connectedStore: ActiveConnectedStoreWhereInput;
+  readonly platform?: StorePlatform;
+  readonly platformProductId?: { readonly in: readonly string[] };
+  readonly OR?: readonly {
+    readonly name?: { readonly contains: string; readonly mode: "insensitive" };
+    readonly sku?: { readonly contains: string; readonly mode: "insensitive" };
+    readonly platformProductId?: { readonly contains: string; readonly mode: "insensitive" };
+  }[];
+}
+
+interface ActiveConnectedStoreWhereInput {
+  readonly connectionStatus: StoreConnectionStatus.Connected;
+  readonly disconnectedAt: null;
 }
 
 interface CommerceProductSelect {
@@ -57,14 +72,26 @@ interface CommerceProductSelect {
   readonly stockStatus: true;
   readonly currentStockQuantity: true;
   readonly sourceMetadata: true;
-  readonly connectedStore: { readonly select: { readonly id: true; readonly storeName: true } };
+  readonly connectedStore: {
+    readonly select: { readonly id: true; readonly storeName: true; readonly storeUrl: true };
+  };
 }
 
 interface CommerceOrderItemSelect {
   readonly connectedStoreId: true;
+  readonly connectedStore?: {
+    readonly select: { readonly id: true; readonly storeName: true; readonly storeUrl: true };
+  };
   readonly platform: true;
+  readonly platformOrderItemId?: true;
   readonly platformProductId: true;
+  readonly order?: {
+    readonly select: { readonly orderStatus: true; readonly platformOrderId: true };
+  };
+  readonly sku?: true;
+  readonly name?: true;
   readonly quantity: true;
+  readonly unitPriceAmount?: true;
   readonly totalAmount: true;
 }
 
@@ -79,14 +106,28 @@ interface CommerceProductRecord {
   readonly stockStatus: string | null;
   readonly currentStockQuantity: number | null;
   readonly sourceMetadata: unknown;
-  readonly connectedStore: { readonly id: string; readonly storeName: string };
+  readonly connectedStore: {
+    readonly id: string;
+    readonly storeName: string;
+    readonly storeUrl: string | null;
+  };
 }
 
 interface CommerceOrderItemRecord {
   readonly connectedStoreId: string;
+  readonly connectedStore?: {
+    readonly id: string;
+    readonly storeName: string;
+    readonly storeUrl: string | null;
+  };
   readonly platform: StorePlatform;
+  readonly platformOrderItemId?: string | null;
   readonly platformProductId: string | null;
+  readonly order?: { readonly orderStatus: string | null; readonly platformOrderId: string | null };
+  readonly sku?: string | null;
+  readonly name?: string | null;
   readonly quantity: number | null;
+  readonly unitPriceAmount?: unknown;
   readonly totalAmount: unknown;
 }
 
@@ -106,7 +147,7 @@ const productSelect = {
   stockStatus: true,
   currentStockQuantity: true,
   sourceMetadata: true,
-  connectedStore: { select: { id: true, storeName: true } },
+  connectedStore: { select: { id: true, storeName: true, storeUrl: true } },
 } as const;
 
 @Injectable()
@@ -135,15 +176,45 @@ export class CommerceProductsService {
       take: 100,
       select: productSelect,
     });
+    if (products.length === 0 && !query.stockStatus?.trim()) {
+      const fallbackItems = await prisma.commerceOrderItem.findMany({
+        where: buildOrderItemFallbackWhere(business.id, query),
+        select: {
+          connectedStoreId: true,
+          connectedStore: { select: { id: true, storeName: true, storeUrl: true } },
+          platform: true,
+          platformOrderItemId: true,
+          platformProductId: true,
+          order: { select: { orderStatus: true, platformOrderId: true } },
+          sku: true,
+          name: true,
+          quantity: true,
+          unitPriceAmount: true,
+          totalAmount: true,
+        },
+      });
+
+      return {
+        products: toFallbackProductListItems(fallbackItems).slice(0, 100),
+      };
+    }
+
     const productIds = [...new Set(products.map((product) => product.platformProductId))];
     const orderItems =
       productIds.length > 0
         ? await prisma.commerceOrderItem.findMany({
-            where: { businessId: business.id, platformProductId: { in: productIds } },
+            where: {
+              businessId: business.id,
+              connectedStore: activeConnectedStoreWhere(),
+              platformProductId: { in: productIds },
+            },
             select: {
               connectedStoreId: true,
+              connectedStore: { select: { id: true, storeName: true, storeUrl: true } },
               platform: true,
+              platformOrderItemId: true,
               platformProductId: true,
+              order: { select: { orderStatus: true, platformOrderId: true } },
               quantity: true,
               totalAmount: true,
             },
@@ -163,8 +234,29 @@ function buildProductWhere(
 ): CommerceProductWhereInput {
   return {
     businessId,
+    connectedStore: activeConnectedStoreWhere(),
     ...(query.platform ? { platform: query.platform } : {}),
     ...(query.stockStatus ? { stockStatus: query.stockStatus } : {}),
+    ...(query.search?.trim()
+      ? {
+          OR: [
+            { name: { contains: query.search.trim(), mode: "insensitive" } },
+            { sku: { contains: query.search.trim(), mode: "insensitive" } },
+            { platformProductId: { contains: query.search.trim(), mode: "insensitive" } },
+          ],
+        }
+      : {}),
+  };
+}
+
+function buildOrderItemFallbackWhere(
+  businessId: string,
+  query: ListCommerceProductsQueryDto,
+): CommerceOrderItemWhereInput {
+  return {
+    businessId,
+    connectedStore: activeConnectedStoreWhere(),
+    ...(query.platform ? { platform: query.platform } : {}),
     ...(query.search?.trim()
       ? {
           OR: [
@@ -200,18 +292,93 @@ function toProductListItem(
   };
 }
 
+function toFallbackProductListItems(
+  orderItems: readonly CommerceOrderItemRecord[],
+): readonly CommerceProductListItemResponse[] {
+  const products = new Map<string, CommerceProductListItemResponse>();
+  const seenSourceLineItems = new Set<string>();
+
+  orderItems.forEach((item) => {
+    if (!isRevenueEligibleOrderStatus(item.order?.orderStatus)) {
+      return;
+    }
+
+    const sourceLineItemKey = toSourceLineItemKey(item);
+
+    if (sourceLineItemKey && seenSourceLineItems.has(sourceLineItemKey)) {
+      return;
+    }
+
+    const productIdentity = item.platformProductId ?? item.sku ?? item.name;
+
+    if (!productIdentity) {
+      return;
+    }
+
+    if (sourceLineItemKey) {
+      seenSourceLineItems.add(sourceLineItemKey);
+    }
+
+    const key = toSalesKey({
+      sourceStoreIdentity: toSourceStoreIdentity(item),
+      platform: item.platform,
+      platformProductId: productIdentity,
+    });
+    const current = products.get(key);
+    const revenue = roundMoney((current?.revenue ?? 0) + (toNumberOrNull(item.totalAmount) ?? 0));
+    const unitsSold = (current?.unitsSold ?? 0) + Math.max(item.quantity ?? 0, 0);
+
+    products.set(key, {
+      category: null,
+      currency: null,
+      currentStock: null,
+      platform: item.platform,
+      platformProductId: productIdentity,
+      price: toNumberOrNull(item.unitPriceAmount),
+      productId: `order-item:${key}`,
+      productName: item.name ?? productIdentity,
+      revenue,
+      sku: item.sku ?? null,
+      stockStatus: "Unknown",
+      storeName: item.connectedStore?.storeName ?? "Connected store",
+      unitsSold,
+    });
+  });
+
+  return [...products.values()].sort(
+    (first, second) =>
+      second.revenue - first.revenue ||
+      (first.productName ?? "").localeCompare(second.productName ?? ""),
+  );
+}
+
 function summarizeSales(
   orderItems: readonly CommerceOrderItemRecord[],
 ): ReadonlyMap<string, ProductSalesSummary> {
   const totals = new Map<string, ProductSalesSummary>();
+  const seenSourceLineItems = new Set<string>();
 
   orderItems.forEach((item) => {
     if (!item.platformProductId) {
       return;
     }
 
+    if (!isRevenueEligibleOrderStatus(item.order?.orderStatus)) {
+      return;
+    }
+
+    const sourceLineItemKey = toSourceLineItemKey(item);
+
+    if (sourceLineItemKey && seenSourceLineItems.has(sourceLineItemKey)) {
+      return;
+    }
+
+    if (sourceLineItemKey) {
+      seenSourceLineItems.add(sourceLineItemKey);
+    }
+
     const key = toSalesKey({
-      connectedStoreId: item.connectedStoreId,
+      sourceStoreIdentity: toSourceStoreIdentity(item),
       platform: item.platform,
       platformProductId: item.platformProductId,
     });
@@ -228,18 +395,63 @@ function summarizeSales(
 
 function toProductSalesKey(product: CommerceProductRecord): string {
   return toSalesKey({
-    connectedStoreId: product.connectedStore.id,
+    sourceStoreIdentity: toSourceStoreIdentity(product),
     platform: product.platform,
     platformProductId: product.platformProductId,
   });
 }
 
 function toSalesKey(input: {
-  readonly connectedStoreId: string;
+  readonly sourceStoreIdentity: string;
   readonly platform: StorePlatform;
   readonly platformProductId: string;
 }): string {
-  return `${input.connectedStoreId}:${input.platform}:${input.platformProductId}`;
+  return `${input.sourceStoreIdentity}:${input.platform}:${input.platformProductId}`;
+}
+
+function activeConnectedStoreWhere(): ActiveConnectedStoreWhereInput {
+  return {
+    connectionStatus: StoreConnectionStatus.Connected,
+    disconnectedAt: null,
+  };
+}
+
+function toSourceStoreIdentity(input: {
+  readonly connectedStoreId?: string;
+  readonly connectedStore?: { readonly id?: string; readonly storeUrl: string | null };
+}): string {
+  return (
+    normalizeStoreUrl(input.connectedStore?.storeUrl) ??
+    input.connectedStore?.id ??
+    input.connectedStoreId ??
+    "unknown-store"
+  );
+}
+
+function normalizeStoreUrl(value: string | null | undefined): string | null {
+  if (!value?.trim()) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(value.trim());
+    return `${parsed.protocol}//${parsed.host}${parsed.pathname.replace(/\/$/, "")}`.toLowerCase();
+  } catch {
+    return value.trim().replace(/\/$/, "").toLowerCase();
+  }
+}
+
+function toSourceLineItemKey(item: CommerceOrderItemRecord): string | null {
+  const sourceOrderId = item.order?.platformOrderId;
+
+  if (!sourceOrderId || !item.platformOrderItemId) {
+    return null;
+  }
+
+  const sourceStoreIdentity =
+    normalizeStoreUrl(item.connectedStore?.storeUrl) ?? item.connectedStoreId;
+
+  return `${item.platform}:${sourceStoreIdentity}:${sourceOrderId}:${item.platformOrderItemId}`;
 }
 
 function extractCategory(sourceMetadata: unknown): string | null {

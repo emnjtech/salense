@@ -1,5 +1,6 @@
 import { UnauthorizedException } from "@nestjs/common";
 import type { PrismaService } from "../../database/prisma.service.js";
+import { StoreConnectionStatus } from "../../store-integrations/types/store-connection-status.enum.js";
 import { StorePlatform } from "../../store-integrations/types/store-platform.enum.js";
 import { CommerceCustomersService } from "../commerce-customers.service.js";
 
@@ -70,6 +71,10 @@ describe("CommerceCustomersService", () => {
       expect.objectContaining({
         where: {
           businessId: business.id,
+          connectedStore: {
+            connectionStatus: StoreConnectionStatus.Connected,
+            disconnectedAt: null,
+          },
           platform: StorePlatform.AmazonSeller,
         },
       }),
@@ -78,6 +83,10 @@ describe("CommerceCustomersService", () => {
       expect.objectContaining({
         where: {
           businessId: business.id,
+          connectedStore: {
+            connectionStatus: StoreConnectionStatus.Connected,
+            disconnectedAt: null,
+          },
           platform: StorePlatform.AmazonSeller,
         },
       }),
@@ -136,6 +145,43 @@ describe("CommerceCustomersService", () => {
     expect(serialized).not.toContain("hash");
   });
 
+  it("excludes failed and pending orders from lifetime spend while keeping order count visible", async () => {
+    const { service } = createService({
+      customers: [
+        {
+          connectedStoreId: "store_1",
+          email: "ada@example.com",
+          firstName: "Ada",
+          id: "customer_db_1",
+          lastName: "Lovelace",
+          platform: StorePlatform.WooCommerce,
+          platformCustomerId: "woo_cust_1",
+          sourceMetadata: { raw: { billing: { city: "London", country: "GB" } } },
+          username: "ada",
+        },
+      ],
+      orders: [
+        order("order_1", "store_1", StorePlatform.WooCommerce, "ada@example.com", "120.00"),
+        {
+          ...order("order_2", "store_1", StorePlatform.WooCommerce, "ada@example.com", "80.00"),
+          orderStatus: "failed",
+        },
+        {
+          ...order("order_3", "store_1", StorePlatform.WooCommerce, "ada@example.com", "50.00"),
+          orderStatus: "pending",
+        },
+      ],
+    });
+
+    const response = await service.listCustomers("user_1", {});
+
+    expect(response.customers[0]).toMatchObject({
+      averageOrderValue: 120,
+      lifetimeSpend: 120,
+      totalOrders: 3,
+    });
+  });
+
   it("rejects users without a business profile", async () => {
     const { service } = createService({ businessRecord: null });
 
@@ -177,6 +223,7 @@ function order(
     connectedStoreId,
     id,
     orderedAt: new Date(id === "order_1" ? "2026-07-02T09:00:00.000Z" : "2026-07-03T10:15:00.000Z"),
+    orderStatus: "processing",
     platform,
     sourceMetadata: { raw: { billing: { email } } },
     totalAmount,
@@ -199,6 +246,7 @@ interface CommerceOrderTestRecord {
   readonly connectedStoreId: string;
   readonly id: string;
   readonly orderedAt: Date | null;
+  readonly orderStatus: string | null;
   readonly platform: StorePlatform;
   readonly sourceMetadata: unknown;
   readonly totalAmount: unknown;

@@ -671,8 +671,8 @@ function TopProductsTable({ products }: { readonly products: readonly ReportsTop
               </tr>
             </thead>
             <tbody>
-              {products.map((product) => (
-                <tr key={`${product.platform}:${product.productId ?? product.productName}`}>
+              {products.map((product, index) => (
+                <tr key={toReportProductRowKey(product, index)}>
                   <td>
                     <Link
                       href={`/products?platform=${product.platform}&search=${encodeURIComponent(product.productName)}`}
@@ -723,8 +723,8 @@ function TopCustomersTable({ customers }: { readonly customers: readonly Reports
               </tr>
             </thead>
             <tbody>
-              {customers.map((customer) => (
-                <tr key={customer.customerId ?? customer.customerName}>
+              {customers.map((customer, index) => (
+                <tr key={customer.customerId ?? `${customer.customerName}:${index}`}>
                   <td>
                     <Link href={`/customers?search=${encodeURIComponent(customer.customerName)}`}>
                       <strong>{customer.customerName}</strong>
@@ -743,6 +743,12 @@ function TopCustomersTable({ customers }: { readonly customers: readonly Reports
       )}
     </section>
   );
+}
+
+function toReportProductRowKey(product: ReportsTopProduct, index: number): string {
+  return [product.platform, product.productId, product.sku, product.productName, index]
+    .filter((part) => part !== null && part !== undefined && String(part).trim())
+    .join(":");
 }
 
 function ReportsLoadingState() {

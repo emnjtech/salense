@@ -1,5 +1,6 @@
 import { UnauthorizedException } from "@nestjs/common";
 import type { PrismaService } from "../../database/prisma.service.js";
+import { StoreConnectionStatus } from "../../store-integrations/types/store-connection-status.enum.js";
 import { StorePlatform } from "../../store-integrations/types/store-platform.enum.js";
 import { CommerceInventoryService } from "../commerce-inventory.service.js";
 
@@ -88,6 +89,10 @@ describe("CommerceInventoryService", () => {
             { platformProductId: { contains: "lamp", mode: "insensitive" } },
           ],
           businessId: business.id,
+          connectedStore: {
+            connectionStatus: StoreConnectionStatus.Connected,
+            disconnectedAt: null,
+          },
           platform: StorePlatform.AmazonSeller,
           stockStatus: "instock",
         },
@@ -158,7 +163,14 @@ function createService(
         .mockResolvedValue(input.businessRecord === undefined ? business : input.businessRecord),
     },
     commerceInventorySnapshot: { findMany: jest.fn().mockResolvedValue(input.snapshots ?? []) },
-    commerceOrderItem: { findMany: jest.fn().mockResolvedValue(input.orderItems ?? []) },
+    commerceOrderItem: {
+      findMany: jest.fn().mockResolvedValue(
+        (input.orderItems ?? []).map((item) => ({
+          order: { orderStatus: "processing" },
+          ...item,
+        })),
+      ),
+    },
     commerceProduct: { findMany: jest.fn().mockResolvedValue(input.products ?? []) },
   };
   const prismaService = { client: prisma } as unknown as PrismaService;
@@ -198,6 +210,7 @@ interface CommerceProductTestRecord {
 
 interface CommerceOrderItemTestRecord {
   readonly connectedStoreId: string;
+  readonly order?: { readonly orderStatus: string | null };
   readonly platform: StorePlatform;
   readonly platformProductId: string | null;
   readonly quantity: number | null;

@@ -12,6 +12,7 @@ import { StorePlatform } from "../../lib/api/store-integrations-client";
 import { getFriendlyAuthErrorMessage, readDemoSession } from "../../lib/auth-session";
 import { PlatformIcon } from "../brand/platform-icon";
 import { WorkspaceContextBanner } from "../workspace/workspace-context-banner";
+import { OrderStatusBadge, isRevenueEligibleOrderStatus } from "./order-status-badge";
 
 const allPlatforms = "ALL";
 
@@ -90,7 +91,14 @@ export function OrdersWorkspace() {
     () => applySearch(orders, filters.search),
     [filters.search, orders],
   );
-  const totalValue = visibleOrders.reduce((total, order) => total + (order.totalValue ?? 0), 0);
+  const revenueValue = visibleOrders.reduce(
+    (total, order) =>
+      total +
+      (order.revenueEligible || isRevenueEligibleOrderStatus(order.status)
+        ? (order.totalValue ?? 0)
+        : 0),
+    0,
+  );
   const uniquePlatforms = new Set(visibleOrders.map((order) => order.platform)).size;
 
   function updateFilter<Key extends keyof OrdersFilterState>(
@@ -132,8 +140,8 @@ export function OrdersWorkspace() {
             <section className="overview-grid" aria-label="Orders summary">
               <MetricTile label="Visible orders" value={visibleOrders.length.toString()} />
               <MetricTile
-                label="Visible value"
-                value={formatCurrency(totalValue, getPrimaryCurrency(visibleOrders))}
+                label="Revenue value"
+                value={formatCurrency(revenueValue, getPrimaryCurrency(visibleOrders))}
               />
               <MetricTile label="Platforms" value={uniquePlatforms.toString()} />
               <MetricTile
@@ -238,7 +246,7 @@ function OrdersTable({ orders }: { readonly orders: readonly CommerceOrderListIt
               <td>{order.storeName}</td>
               <td>{formatDate(order.orderDate)}</td>
               <td>
-                <span className="order-status">{order.status ?? "Unknown"}</span>
+                <OrderStatusBadge status={order.status} />
               </td>
               <td>{order.itemCount}</td>
               <td>{formatCurrency(order.totalValue, order.currency)}</td>

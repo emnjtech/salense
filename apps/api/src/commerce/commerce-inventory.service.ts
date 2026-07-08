@@ -1,7 +1,9 @@
 import { Inject, Injectable, UnauthorizedException } from "@nestjs/common";
 import { PrismaService } from "../database/prisma.service.js";
+import { StoreConnectionStatus } from "../store-integrations/types/store-connection-status.enum.js";
 import type { StorePlatform } from "../store-integrations/types/store-platform.enum.js";
 import type { ListCommerceInventoryQueryDto } from "./dto/list-commerce-inventory-query.dto.js";
+import { isRevenueEligibleOrderStatus } from "./order-revenue.js";
 import type {
   CommerceInventoryInsightResponse,
   CommerceInventoryListItemResponse,
@@ -41,6 +43,7 @@ interface CommerceInventoryPrismaClient {
 
 interface CommerceProductWhereInput {
   readonly businessId: string;
+  readonly connectedStore: ActiveConnectedStoreWhereInput;
   readonly platform?: StorePlatform;
   readonly stockStatus?: string;
   readonly OR?: readonly {
@@ -52,14 +55,21 @@ interface CommerceProductWhereInput {
 
 interface CommerceOrderItemWhereInput {
   readonly businessId: string;
+  readonly connectedStore: ActiveConnectedStoreWhereInput;
   readonly platformProductId: { readonly in: readonly string[] };
   readonly order: { readonly orderedAt: { readonly gte: Date } };
 }
 
 interface CommerceInventorySnapshotWhereInput {
   readonly businessId: string;
+  readonly connectedStore: ActiveConnectedStoreWhereInput;
   readonly platformProductId: { readonly in: readonly string[] };
   readonly capturedAt: { readonly gte: Date };
+}
+
+interface ActiveConnectedStoreWhereInput {
+  readonly connectionStatus: StoreConnectionStatus.Connected;
+  readonly disconnectedAt: null;
 }
 
 interface CommerceProductSelect {
@@ -78,6 +88,7 @@ interface CommerceProductSelect {
 
 interface CommerceOrderItemSelect {
   readonly connectedStoreId: true;
+  readonly order?: { readonly select: { readonly orderStatus: true } };
   readonly platform: true;
   readonly platformProductId: true;
   readonly quantity: true;
@@ -107,6 +118,7 @@ interface CommerceProductRecord {
 
 interface CommerceOrderItemRecord {
   readonly connectedStoreId: string;
+  readonly order?: { readonly orderStatus: string | null };
   readonly platform: StorePlatform;
   readonly platformProductId: string | null;
   readonly quantity: number | null;
@@ -146,6 +158,7 @@ const productSelect = {
 
 const orderItemSelect = {
   connectedStoreId: true,
+  order: { select: { orderStatus: true } },
   platform: true,
   platformProductId: true,
   quantity: true,
@@ -198,6 +211,7 @@ export class CommerceInventoryService {
             prisma.commerceOrderItem.findMany({
               where: {
                 businessId: business.id,
+                connectedStore: activeConnectedStoreWhere(),
                 platformProductId: { in: productIds },
                 order: { orderedAt: { gte: salesWindowStart } },
               },
@@ -206,6 +220,7 @@ export class CommerceInventoryService {
             prisma.commerceInventorySnapshot.findMany({
               where: {
                 businessId: business.id,
+                connectedStore: activeConnectedStoreWhere(),
                 platformProductId: { in: productIds },
                 capturedAt: { gte: snapshotWindowStart },
               },
@@ -233,6 +248,7 @@ function buildProductWhere(
 ): CommerceProductWhereInput {
   return {
     businessId,
+    connectedStore: activeConnectedStoreWhere(),
     ...(query.platform ? { platform: query.platform } : {}),
     ...(query.stockStatus ? { stockStatus: query.stockStatus } : {}),
     ...(query.search?.trim()
@@ -247,6 +263,13 @@ function buildProductWhere(
   };
 }
 
+function activeConnectedStoreWhere(): ActiveConnectedStoreWhereInput {
+  return {
+    connectionStatus: StoreConnectionStatus.Connected,
+    disconnectedAt: null,
+  };
+}
+
 function summarizeSales(
   orderItems: readonly CommerceOrderItemRecord[],
 ): ReadonlyMap<string, SalesSummary> {
@@ -254,6 +277,10 @@ function summarizeSales(
 
   orderItems.forEach((item) => {
     if (!item.platformProductId) {
+      return;
+    }
+
+    if (!isRevenueEligibleOrderStatus(item.order?.orderStatus)) {
       return;
     }
 

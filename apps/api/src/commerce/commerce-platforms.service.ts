@@ -1,7 +1,8 @@
 import { Inject, Injectable, UnauthorizedException } from "@nestjs/common";
 import { PrismaService } from "../database/prisma.service.js";
-import type { StoreConnectionStatus } from "../store-integrations/types/store-connection-status.enum.js";
+import { StoreConnectionStatus } from "../store-integrations/types/store-connection-status.enum.js";
 import { StorePlatform } from "../store-integrations/types/store-platform.enum.js";
+import { isRevenueEligibleOrderStatus } from "./order-revenue.js";
 import type {
   CommercePlatformInventoryAlert,
   CommercePlatformRecentOrder,
@@ -19,7 +20,12 @@ interface CommercePlatformsPrismaClient {
   };
   readonly connectedStore: {
     findMany(args: {
-      readonly where: { readonly businessId: string; readonly platform: StorePlatform };
+      readonly where: {
+        readonly businessId: string;
+        readonly connectionStatus: StoreConnectionStatus.Connected;
+        readonly disconnectedAt: null;
+        readonly platform: StorePlatform;
+      };
       readonly orderBy: { readonly storeName: "asc" };
       readonly select: {
         readonly id: true;
@@ -33,7 +39,11 @@ interface CommercePlatformsPrismaClient {
   };
   readonly commerceOrder: {
     findMany(args: {
-      readonly where: { readonly businessId: string; readonly platform: StorePlatform };
+      readonly where: {
+        readonly businessId: string;
+        readonly connectedStore: ActiveConnectedStoreWhereInput;
+        readonly platform: StorePlatform;
+      };
       readonly orderBy: { readonly orderedAt: "desc" };
       readonly take?: number;
       readonly select: CommerceOrderSelect;
@@ -41,26 +51,42 @@ interface CommercePlatformsPrismaClient {
   };
   readonly commerceOrderItem: {
     findMany(args: {
-      readonly where: { readonly businessId: string; readonly platform: StorePlatform };
+      readonly where: {
+        readonly businessId: string;
+        readonly connectedStore: ActiveConnectedStoreWhereInput;
+        readonly platform: StorePlatform;
+      };
       readonly select: CommerceOrderItemSelect;
     }): Promise<readonly CommerceOrderItemRecord[]>;
   };
   readonly commerceRefund: {
     findMany(args: {
-      readonly where: { readonly businessId: string; readonly platform: StorePlatform };
+      readonly where: {
+        readonly businessId: string;
+        readonly connectedStore: ActiveConnectedStoreWhereInput;
+        readonly platform: StorePlatform;
+      };
       readonly select: { readonly id: true };
     }): Promise<readonly { readonly id: string }[]>;
   };
   readonly commerceProduct: {
     findMany(args: {
-      readonly where: { readonly businessId: string; readonly platform: StorePlatform };
+      readonly where: {
+        readonly businessId: string;
+        readonly connectedStore: ActiveConnectedStoreWhereInput;
+        readonly platform: StorePlatform;
+      };
       readonly orderBy: { readonly name: "asc" };
       readonly select: CommerceProductSelect;
     }): Promise<readonly CommerceProductRecord[]>;
   };
   readonly commerceSyncCursor: {
     findMany(args: {
-      readonly where: { readonly businessId: string; readonly platform: StorePlatform };
+      readonly where: {
+        readonly businessId: string;
+        readonly connectedStore: ActiveConnectedStoreWhereInput;
+        readonly platform: StorePlatform;
+      };
       readonly orderBy: { readonly resource: "asc" };
       readonly select: CommerceSyncCursorSelect;
     }): Promise<readonly CommerceSyncCursorRecord[]>;
@@ -74,6 +100,11 @@ interface ConnectedStoreRecord {
   readonly region: string | null;
   readonly storeName: string;
   readonly storeUrl: string | null;
+}
+
+interface ActiveConnectedStoreWhereInput {
+  readonly connectionStatus: StoreConnectionStatus.Connected;
+  readonly disconnectedAt: null;
 }
 
 interface CommerceOrderSelect {
@@ -100,6 +131,7 @@ interface CommerceOrderRecord {
 
 interface CommerceOrderItemSelect {
   readonly name: true;
+  readonly order?: { readonly select: { readonly orderStatus: true } };
   readonly platformProductId: true;
   readonly quantity: true;
   readonly sku: true;
@@ -108,6 +140,7 @@ interface CommerceOrderItemSelect {
 
 interface CommerceOrderItemRecord {
   readonly name: string | null;
+  readonly order?: { readonly orderStatus: string | null };
   readonly platformProductId: string | null;
   readonly quantity: number | null;
   readonly sku: string | null;
@@ -159,6 +192,7 @@ const orderSelect = {
 
 const orderItemSelect = {
   name: true,
+  order: { select: { orderStatus: true } },
   platformProductId: true,
   quantity: true,
   sku: true,
@@ -205,7 +239,12 @@ export class CommercePlatformsService {
 
     const [stores, orders, orderItems, refunds, products, syncCursors] = await Promise.all([
       prisma.connectedStore.findMany({
-        where: { businessId: business.id, platform },
+        where: {
+          businessId: business.id,
+          connectionStatus: StoreConnectionStatus.Connected,
+          disconnectedAt: null,
+          platform,
+        },
         orderBy: { storeName: "asc" },
         select: {
           id: true,
@@ -217,25 +256,45 @@ export class CommercePlatformsService {
         },
       }),
       prisma.commerceOrder.findMany({
-        where: { businessId: business.id, platform },
+        where: {
+          businessId: business.id,
+          connectedStore: activeConnectedStoreWhere(),
+          platform,
+        },
         orderBy: { orderedAt: "desc" },
         select: orderSelect,
       }),
       prisma.commerceOrderItem.findMany({
-        where: { businessId: business.id, platform },
+        where: {
+          businessId: business.id,
+          connectedStore: activeConnectedStoreWhere(),
+          platform,
+        },
         select: orderItemSelect,
       }),
       prisma.commerceRefund.findMany({
-        where: { businessId: business.id, platform },
+        where: {
+          businessId: business.id,
+          connectedStore: activeConnectedStoreWhere(),
+          platform,
+        },
         select: { id: true },
       }),
       prisma.commerceProduct.findMany({
-        where: { businessId: business.id, platform },
+        where: {
+          businessId: business.id,
+          connectedStore: activeConnectedStoreWhere(),
+          platform,
+        },
         orderBy: { name: "asc" },
         select: productSelect,
       }),
       prisma.commerceSyncCursor.findMany({
-        where: { businessId: business.id, platform },
+        where: {
+          businessId: business.id,
+          connectedStore: activeConnectedStoreWhere(),
+          platform,
+        },
         orderBy: { resource: "asc" },
         select: syncCursorSelect,
       }),
@@ -249,11 +308,17 @@ export class CommercePlatformsService {
       })),
       inventoryAlerts: products.filter(isLowStockProduct).slice(0, 8).map(toInventoryAlert),
       metrics: {
-        averageOrderValue: roundMetric(orders.length > 0 ? revenue / orders.length : 0),
+        averageOrderValue: roundMetric(
+          countRevenueEligibleOrders(orders) > 0 ? revenue / countRevenueEligibleOrders(orders) : 0,
+        ),
         lowStockCount: products.filter(isLowStockProduct).length,
         orders: orders.length,
         productsSold: orderItems.reduce(
-          (total, item) => total + Math.max(item.quantity ?? 0, 0),
+          (total, item) =>
+            total +
+            (isRevenueEligibleOrderStatus(item.order?.orderStatus)
+              ? Math.max(item.quantity ?? 0, 0)
+              : 0),
           0,
         ),
         refunds: refunds.length,
@@ -268,12 +333,20 @@ export class CommercePlatformsService {
   }
 }
 
+function activeConnectedStoreWhere(): ActiveConnectedStoreWhereInput {
+  return {
+    connectionStatus: StoreConnectionStatus.Connected,
+    disconnectedAt: null,
+  };
+}
+
 function toRecentOrder(order: CommerceOrderRecord): CommercePlatformRecentOrder {
   return {
     currency: order.currency,
     orderDate: order.orderedAt?.toISOString() ?? null,
     orderId: order.id,
     orderNumber: order.platformOrderNumber ?? order.platformOrderId,
+    revenueEligible: isRevenueEligibleOrderStatus(order.orderStatus),
     status: order.orderStatus,
     storeName: order.connectedStore.storeName,
     totalValue: toNumberOrNull(order.totalAmount),
@@ -306,6 +379,10 @@ function toTopProducts(
   const products = new Map<string, CommercePlatformTopProduct>();
 
   items.forEach((item) => {
+    if (!isRevenueEligibleOrderStatus(item.order?.orderStatus)) {
+      return;
+    }
+
     const name = item.name?.trim() || "Unknown product";
     const key = item.platformProductId ?? item.sku ?? name;
     const current = products.get(key);
@@ -334,8 +411,19 @@ function toTopProducts(
 
 function sumOrders(orders: readonly CommerceOrderRecord[]): number {
   return roundMetric(
-    orders.reduce((total, order) => total + (toNumberOrNull(order.totalAmount) ?? 0), 0),
+    orders.reduce(
+      (total, order) =>
+        total +
+        (isRevenueEligibleOrderStatus(order.orderStatus)
+          ? (toNumberOrNull(order.totalAmount) ?? 0)
+          : 0),
+      0,
+    ),
   );
+}
+
+function countRevenueEligibleOrders(orders: readonly CommerceOrderRecord[]): number {
+  return orders.filter((order) => isRevenueEligibleOrderStatus(order.orderStatus)).length;
 }
 
 function isLowStockProduct(product: CommerceProductRecord): boolean {

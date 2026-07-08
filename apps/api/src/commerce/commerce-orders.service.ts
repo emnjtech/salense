@@ -1,7 +1,9 @@
 import { Inject, Injectable, UnauthorizedException } from "@nestjs/common";
 import { PrismaService } from "../database/prisma.service.js";
+import { StoreConnectionStatus } from "../store-integrations/types/store-connection-status.enum.js";
 import type { StorePlatform } from "../store-integrations/types/store-platform.enum.js";
 import type { ListCommerceOrdersQueryDto } from "./dto/list-commerce-orders-query.dto.js";
+import { isRevenueEligibleOrderStatus } from "./order-revenue.js";
 import type {
   CommerceOrderListItemResponse,
   CommerceOrderListResponse,
@@ -26,12 +28,18 @@ interface CommerceOrdersPrismaClient {
 
 interface CommerceOrderWhereInput {
   readonly businessId: string;
+  readonly connectedStore: ActiveConnectedStoreWhereInput;
   readonly platform?: StorePlatform;
   readonly orderStatus?: string;
   readonly orderedAt?: {
     readonly gte?: Date;
     readonly lte?: Date;
   };
+}
+
+interface ActiveConnectedStoreWhereInput {
+  readonly connectionStatus: StoreConnectionStatus.Connected;
+  readonly disconnectedAt: null;
 }
 
 interface CommerceOrderSelect {
@@ -118,6 +126,7 @@ function buildOrderWhere(
 ): CommerceOrderWhereInput {
   return {
     businessId,
+    connectedStore: activeConnectedStoreWhere(),
     ...(query.platform ? { platform: query.platform } : {}),
     ...(query.status ? { orderStatus: query.status } : {}),
     ...(query.dateFrom || query.dateTo
@@ -128,6 +137,13 @@ function buildOrderWhere(
           },
         }
       : {}),
+  };
+}
+
+function activeConnectedStoreWhere(): ActiveConnectedStoreWhereInput {
+  return {
+    connectionStatus: StoreConnectionStatus.Connected,
+    disconnectedAt: null,
   };
 }
 
@@ -144,6 +160,7 @@ function toOrderListItem(order: CommerceOrderRecord): CommerceOrderListItemRespo
     orderNumber: order.platformOrderNumber ?? order.platformOrderId,
     platform: order.platform,
     platformOrderId: order.platformOrderId,
+    revenueEligible: isRevenueEligibleOrderStatus(order.orderStatus),
     status: order.orderStatus,
     storeName: order.connectedStore.storeName,
     totalValue: toNumberOrNull(order.totalAmount),

@@ -1,6 +1,8 @@
 import { Inject, Injectable, UnauthorizedException } from "@nestjs/common";
 import { PrismaService } from "../database/prisma.service.js";
+import { StoreConnectionStatus } from "../store-integrations/types/store-connection-status.enum.js";
 import type { StorePlatform } from "../store-integrations/types/store-platform.enum.js";
+import { isRevenueEligibleOrderStatus } from "../commerce/order-revenue.js";
 import type { ReportsOverviewQueryDto } from "./dto/reports-overview-query.dto.js";
 import type {
   ReportsInventorySummary,
@@ -21,7 +23,12 @@ interface ReportsPrismaClient {
   };
   readonly connectedStore: {
     findMany(args: {
-      readonly where: { readonly businessId: string; readonly platform?: StorePlatform };
+      readonly where: {
+        readonly businessId: string;
+        readonly connectionStatus: StoreConnectionStatus.Connected;
+        readonly disconnectedAt: null;
+        readonly platform?: StorePlatform;
+      };
       readonly orderBy: { readonly storeName: "asc" };
       readonly select: {
         readonly id: true;
@@ -65,8 +72,14 @@ interface ReportsPrismaClient {
 
 interface ReportsStoreScopedWhereInput {
   readonly businessId: string;
+  readonly connectedStore: ActiveConnectedStoreWhereInput;
   readonly connectedStoreId?: string;
   readonly platform?: StorePlatform;
+}
+
+interface ActiveConnectedStoreWhereInput {
+  readonly connectionStatus: StoreConnectionStatus.Connected;
+  readonly disconnectedAt: null;
 }
 
 interface ReportsDateScopedWhereInput extends ReportsStoreScopedWhereInput {
@@ -102,6 +115,7 @@ interface ReportsOrderSelect {
   readonly connectedStoreId: true;
   readonly id: true;
   readonly orderedAt: true;
+  readonly orderStatus: true;
   readonly platform: true;
   readonly sourceMetadata: true;
   readonly totalAmount: true;
@@ -111,6 +125,7 @@ interface ReportsOrderRecord {
   readonly connectedStoreId: string;
   readonly id: string;
   readonly orderedAt: Date | null;
+  readonly orderStatus: string | null;
   readonly platform: StorePlatform;
   readonly sourceMetadata: unknown;
   readonly totalAmount: unknown;
@@ -120,6 +135,7 @@ interface ReportsOrderItemSelect {
   readonly commerceOrderId: true;
   readonly connectedStoreId: true;
   readonly name: true;
+  readonly order?: { readonly select: { readonly orderStatus: true } };
   readonly platform: true;
   readonly platformProductId: true;
   readonly quantity: true;
@@ -131,6 +147,7 @@ interface ReportsOrderItemRecord {
   readonly commerceOrderId: string;
   readonly connectedStoreId: string;
   readonly name: string | null;
+  readonly order?: { readonly orderStatus: string | null };
   readonly platform: StorePlatform;
   readonly platformProductId: string | null;
   readonly quantity: number | null;
@@ -192,6 +209,7 @@ interface CustomerSummaryAccumulator {
   readonly customerName: string;
   lifetimeSpend: number;
   orders: number;
+  revenueOrders: number;
 }
 
 interface DailyTrendBucket {
@@ -199,6 +217,7 @@ interface DailyTrendBucket {
   readonly platforms: Map<StorePlatform, number>;
   readonly products: Map<string, DailyTrendProductAccumulator>;
   orders: number;
+  revenueOrders: number;
   revenue: number;
 }
 
@@ -214,6 +233,7 @@ const orderSelect = {
   connectedStoreId: true,
   id: true,
   orderedAt: true,
+  orderStatus: true,
   platform: true,
   sourceMetadata: true,
   totalAmount: true,
@@ -223,6 +243,7 @@ const orderItemSelect = {
   commerceOrderId: true,
   connectedStoreId: true,
   name: true,
+  order: { select: { orderStatus: true } },
   platform: true,
   platformProductId: true,
   quantity: true,
@@ -280,6 +301,8 @@ export class ReportsService {
       prisma.connectedStore.findMany({
         where: {
           businessId: business.id,
+          connectionStatus: StoreConnectionStatus.Connected,
+          disconnectedAt: null,
           ...(query.platform ? { platform: query.platform } : {}),
         },
         orderBy: { storeName: "asc" },
@@ -324,7 +347,9 @@ export class ReportsService {
       },
       inventory: summarizeInventory(products),
       kpis: {
-        averageOrderValue: roundMetric(orders.length > 0 ? revenue / orders.length : 0),
+        averageOrderValue: roundMetric(
+          countRevenueEligibleOrders(orders) > 0 ? revenue / countRevenueEligibleOrders(orders) : 0,
+        ),
         businessHealthScore: calculateBusinessHealthScore({
           inventoryRisk: summarizeInventory(products).inventoryRisk,
           orders: orders.length,
@@ -352,8 +377,16 @@ function buildStoreScopedWhere(
 ): ReportsStoreScopedWhereInput {
   return {
     businessId,
+    connectedStore: activeConnectedStoreWhere(),
     ...(query.platform ? { platform: query.platform } : {}),
     ...(query.store?.trim() ? { connectedStoreId: query.store.trim() } : {}),
+  };
+}
+
+function activeConnectedStoreWhere(): ActiveConnectedStoreWhereInput {
+  return {
+    connectionStatus: StoreConnectionStatus.Connected,
+    disconnectedAt: null,
   };
 }
 
@@ -405,7 +438,14 @@ function createDailyTrendBuckets(
 
   while (cursor <= dateRange.dateTo) {
     const date = toDateKey(cursor);
-    buckets.set(date, { date, orders: 0, platforms: new Map(), products: new Map(), revenue: 0 });
+    buckets.set(date, {
+      date,
+      orders: 0,
+      platforms: new Map(),
+      products: new Map(),
+      revenue: 0,
+      revenueOrders: 0,
+    });
     cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
 
@@ -422,17 +462,26 @@ function createDailyTrendBuckets(
     }
 
     const orderRevenue = toNumber(order.totalAmount);
+    const revenueEligible = isRevenueEligibleOrderStatus(order.orderStatus);
 
     orderDateById.set(order.id, dateKey);
     bucket.orders += 1;
-    bucket.revenue = roundMetric(bucket.revenue + orderRevenue);
-    bucket.platforms.set(
-      order.platform,
-      roundMetric((bucket.platforms.get(order.platform) ?? 0) + orderRevenue),
-    );
+
+    if (revenueEligible) {
+      bucket.revenueOrders += 1;
+      bucket.revenue = roundMetric(bucket.revenue + orderRevenue);
+      bucket.platforms.set(
+        order.platform,
+        roundMetric((bucket.platforms.get(order.platform) ?? 0) + orderRevenue),
+      );
+    }
   });
 
   orderItems.forEach((item) => {
+    if (!isRevenueEligibleOrderStatus(item.order?.orderStatus)) {
+      return;
+    }
+
     const dateKey = orderDateById.get(item.commerceOrderId);
 
     if (!dateKey) {
@@ -463,7 +512,9 @@ function createDailyTrendBuckets(
 
 function toTrendPoint(bucket: DailyTrendBucket, value: number): ReportsTrendPoint {
   return {
-    averageOrderValue: roundMetric(bucket.orders > 0 ? bucket.revenue / bucket.orders : 0),
+    averageOrderValue: roundMetric(
+      bucket.revenueOrders > 0 ? bucket.revenue / bucket.revenueOrders : 0,
+    ),
     bestPlatform: getTrendBestPlatform(bucket.platforms),
     date: bucket.date,
     orders: bucket.orders,
@@ -513,6 +564,10 @@ function toRevenueByPlatform(
   const totals = new Map<StorePlatform, number>();
 
   orders.forEach((order) => {
+    if (!isRevenueEligibleOrderStatus(order.orderStatus)) {
+      return;
+    }
+
     totals.set(
       order.platform,
       roundMetric((totals.get(order.platform) ?? 0) + toNumber(order.totalAmount)),
@@ -551,6 +606,10 @@ function toTopProducts(
   const summaries = new Map<string, ReportsTopProduct>();
 
   items.forEach((item) => {
+    if (!isRevenueEligibleOrderStatus(item.order?.orderStatus)) {
+      return;
+    }
+
     const name = item.name?.trim() || "Unknown product";
     const key = item.platformProductId
       ? toProductKey({
@@ -612,9 +671,14 @@ function toTopCustomers(
       customerName: customer ? formatCustomerName(customer) : (email ?? "Guest customer"),
       lifetimeSpend: 0,
       orders: 0,
+      revenueOrders: 0,
     };
 
-    current.lifetimeSpend = roundMetric(current.lifetimeSpend + toNumber(order.totalAmount));
+    if (isRevenueEligibleOrderStatus(order.orderStatus)) {
+      current.lifetimeSpend = roundMetric(current.lifetimeSpend + toNumber(order.totalAmount));
+      current.revenueOrders += 1;
+    }
+
     current.orders += 1;
     summaries.set(key, current);
   });
@@ -622,7 +686,7 @@ function toTopCustomers(
   return [...summaries.values()]
     .map((customer) => ({
       averageOrderValue: roundMetric(
-        customer.orders > 0 ? customer.lifetimeSpend / customer.orders : 0,
+        customer.revenueOrders > 0 ? customer.lifetimeSpend / customer.revenueOrders : 0,
       ),
       customerId: customer.customerId,
       customerName: customer.customerName,
@@ -688,7 +752,17 @@ function toSortedPlatformMetrics(
 }
 
 function sumOrders(orders: readonly ReportsOrderRecord[]): number {
-  return roundMetric(orders.reduce((total, order) => total + toNumber(order.totalAmount), 0));
+  return roundMetric(
+    orders.reduce(
+      (total, order) =>
+        total + (isRevenueEligibleOrderStatus(order.orderStatus) ? toNumber(order.totalAmount) : 0),
+      0,
+    ),
+  );
+}
+
+function countRevenueEligibleOrders(orders: readonly ReportsOrderRecord[]): number {
+  return orders.filter((order) => isRevenueEligibleOrderStatus(order.orderStatus)).length;
 }
 
 function toStoreFilterOption(store: ReportsStoreRecord): ReportsStoreFilterOption {

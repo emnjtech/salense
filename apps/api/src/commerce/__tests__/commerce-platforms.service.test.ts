@@ -115,6 +115,7 @@ describe("CommercePlatformsService", () => {
           orderDate: "2026-07-05T09:30:00.000Z",
           orderId: "order_db_1",
           orderNumber: "#1001",
+          revenueEligible: true,
           status: "paid",
           storeName: "Shopify London",
           totalValue: 135,
@@ -124,6 +125,7 @@ describe("CommercePlatformsService", () => {
           orderDate: "2026-07-05T08:00:00.000Z",
           orderId: "order_db_2",
           orderNumber: "1000",
+          revenueEligible: true,
           status: "paid",
           storeName: "Shopify London",
           totalValue: 65,
@@ -150,7 +152,14 @@ describe("CommercePlatformsService", () => {
 
     expect(prisma.commerceOrder.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { businessId: business.id, platform: StorePlatform.Shopify },
+        where: {
+          businessId: business.id,
+          connectedStore: {
+            connectionStatus: StoreConnectionStatus.Connected,
+            disconnectedAt: null,
+          },
+          platform: StorePlatform.Shopify,
+        },
       }),
     );
     expect(prisma.connectedStore.findMany).toHaveBeenCalledWith(
@@ -226,7 +235,14 @@ function createService(
         .mockResolvedValue(input.businessRecord === undefined ? business : input.businessRecord),
     },
     commerceOrder: { findMany: jest.fn().mockResolvedValue(input.orders ?? []) },
-    commerceOrderItem: { findMany: jest.fn().mockResolvedValue(input.orderItems ?? []) },
+    commerceOrderItem: {
+      findMany: jest.fn().mockResolvedValue(
+        (input.orderItems ?? []).map((item) => ({
+          order: { orderStatus: "paid" },
+          ...item,
+        })),
+      ),
+    },
     commerceProduct: { findMany: jest.fn().mockResolvedValue(input.products ?? []) },
     commerceRefund: { findMany: jest.fn().mockResolvedValue(input.refunds ?? []) },
     commerceSyncCursor: { findMany: jest.fn().mockResolvedValue(input.syncCursors ?? []) },
@@ -259,6 +275,7 @@ interface CommerceOrderTestRecord {
 
 interface CommerceOrderItemTestRecord {
   readonly name: string | null;
+  readonly order?: { readonly orderStatus: string | null };
   readonly platformProductId: string | null;
   readonly quantity: number | null;
   readonly sku: string | null;

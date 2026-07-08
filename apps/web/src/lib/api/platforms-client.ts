@@ -37,6 +37,7 @@ export interface PlatformRecentOrder {
   readonly orderDate: string | null;
   readonly orderId: string;
   readonly orderNumber: string;
+  readonly revenueEligible: boolean;
   readonly status: string | null;
   readonly storeName: string;
   readonly totalValue: number | null;

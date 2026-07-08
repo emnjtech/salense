@@ -1,5 +1,6 @@
 import { UnauthorizedException } from "@nestjs/common";
 import type { PrismaService } from "../../database/prisma.service.js";
+import { StoreConnectionStatus } from "../../store-integrations/types/store-connection-status.enum.js";
 import { StorePlatform } from "../../store-integrations/types/store-platform.enum.js";
 import { CommerceOrdersService } from "../commerce-orders.service.js";
 
@@ -45,6 +46,7 @@ describe("CommerceOrdersService", () => {
           orderNumber: "#1001",
           platform: StorePlatform.WooCommerce,
           platformOrderId: "1001",
+          revenueEligible: true,
           status: "processing",
           storeName: "Main Store",
           totalValue: 129.95,
@@ -67,6 +69,10 @@ describe("CommerceOrdersService", () => {
       expect.objectContaining({
         where: {
           businessId: business.id,
+          connectedStore: {
+            connectionStatus: StoreConnectionStatus.Connected,
+            disconnectedAt: null,
+          },
           orderedAt: {
             gte: new Date("2026-07-01T00:00:00.000Z"),
             lte: new Date("2026-07-03T23:59:59.000Z"),
@@ -116,8 +122,52 @@ describe("CommerceOrdersService", () => {
       customerEmail: null,
       customerName: null,
       orderNumber: "tt_1",
+      revenueEligible: true,
       totalValue: null,
     });
+  });
+
+  it("marks failed and pending orders as non-revenue while keeping them visible", async () => {
+    const { service } = createService({
+      orders: [
+        {
+          _count: { items: 1 },
+          connectedStore: { storeName: "Main Store" },
+          currency: "GBP",
+          id: "failed_order",
+          orderStatus: "failed",
+          orderedAt: new Date("2026-07-03T10:15:00.000Z"),
+          platform: StorePlatform.WooCommerce,
+          platformOrderId: "1002",
+          platformOrderNumber: "#1002",
+          sourceMetadata: null,
+          totalAmount: "99.00",
+        },
+        {
+          _count: { items: 1 },
+          connectedStore: { storeName: "Main Store" },
+          currency: "GBP",
+          id: "pending_order",
+          orderStatus: "pending",
+          orderedAt: new Date("2026-07-03T10:16:00.000Z"),
+          platform: StorePlatform.WooCommerce,
+          platformOrderId: "1003",
+          platformOrderNumber: "#1003",
+          sourceMetadata: null,
+          totalAmount: "49.00",
+        },
+      ],
+    });
+
+    const response = await service.listOrders("user_1", {});
+
+    expect(response.orders).toHaveLength(2);
+    expect(response.orders).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ orderId: "failed_order", revenueEligible: false }),
+        expect.objectContaining({ orderId: "pending_order", revenueEligible: false }),
+      ]),
+    );
   });
 });
 

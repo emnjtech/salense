@@ -1,5 +1,6 @@
 import { Inject, Injectable, UnauthorizedException } from "@nestjs/common";
 import { PrismaService } from "../database/prisma.service.js";
+import { isRevenueEligibleOrderStatus } from "../commerce/order-revenue.js";
 import { StoreConnectionStatus } from "../store-integrations/types/store-connection-status.enum.js";
 import { StorePlatform } from "../store-integrations/types/store-platform.enum.js";
 import type {
@@ -21,6 +22,7 @@ interface DashboardPrismaClient {
       readonly where: {
         readonly businessId: string;
         readonly connectionStatus?: StoreConnectionStatus;
+        readonly disconnectedAt?: null;
       };
       readonly select: {
         readonly id: true;
@@ -32,10 +34,12 @@ interface DashboardPrismaClient {
     findMany(args: {
       readonly where: {
         readonly businessId: string;
+        readonly connectedStore: ActiveConnectedStoreWhereInput;
         readonly orderedAt: { readonly gte: Date; readonly lt: Date };
       };
       readonly select: {
         readonly id: true;
+        readonly orderStatus: true;
         readonly platform: true;
         readonly totalAmount: true;
       };
@@ -45,12 +49,14 @@ interface DashboardPrismaClient {
     findMany(args: {
       readonly where: {
         readonly businessId: string;
+        readonly connectedStore: ActiveConnectedStoreWhereInput;
         readonly order: {
           readonly orderedAt: { readonly gte: Date; readonly lt: Date };
         };
       };
       readonly select: {
         readonly name: true;
+        readonly order: { readonly select: { readonly orderStatus: true } };
         readonly platform: true;
         readonly quantity: true;
         readonly sku: true;
@@ -62,6 +68,7 @@ interface DashboardPrismaClient {
     findMany(args: {
       readonly where: {
         readonly businessId: string;
+        readonly connectedStore: ActiveConnectedStoreWhereInput;
         readonly refundedAt: { readonly gte: Date; readonly lt: Date };
       };
       readonly select: { readonly id: true };
@@ -69,7 +76,10 @@ interface DashboardPrismaClient {
   };
   readonly commerceProduct: {
     findMany(args: {
-      readonly where: { readonly businessId: string };
+      readonly where: {
+        readonly businessId: string;
+        readonly connectedStore: ActiveConnectedStoreWhereInput;
+      };
       readonly select: {
         readonly currentStockQuantity: true;
         readonly stockStatus: true;
@@ -85,12 +95,14 @@ interface ConnectedStoreDashboardRecord {
 
 interface CommerceOrderDashboardRecord {
   readonly id: string;
+  readonly orderStatus: string | null;
   readonly platform: StorePlatform;
   readonly totalAmount: unknown;
 }
 
 interface CommerceOrderItemDashboardRecord {
   readonly name: string | null;
+  readonly order?: { readonly orderStatus: string | null };
   readonly platform: StorePlatform;
   readonly quantity: number | null;
   readonly sku: string | null;
@@ -105,6 +117,11 @@ interface CommerceProductDashboardRecord {
 interface DateRange {
   readonly gte: Date;
   readonly lt: Date;
+}
+
+interface ActiveConnectedStoreWhereInput {
+  readonly connectionStatus: StoreConnectionStatus.Connected;
+  readonly disconnectedAt: null;
 }
 
 const lowStockThreshold = 5;
@@ -130,27 +147,57 @@ export class DashboardService {
     const [activeStores, todayOrders, yesterdayOrders, todayOrderItems, todayRefunds, products] =
       await Promise.all([
         prisma.connectedStore.findMany({
-          where: { businessId: business.id, connectionStatus: StoreConnectionStatus.Connected },
+          where: {
+            businessId: business.id,
+            connectionStatus: StoreConnectionStatus.Connected,
+            disconnectedAt: null,
+          },
           select: { id: true, platform: true },
         }),
         prisma.commerceOrder.findMany({
-          where: { businessId: business.id, orderedAt: today },
-          select: { id: true, platform: true, totalAmount: true },
+          where: {
+            businessId: business.id,
+            connectedStore: activeConnectedStoreWhere(),
+            orderedAt: today,
+          },
+          select: { id: true, orderStatus: true, platform: true, totalAmount: true },
         }),
         prisma.commerceOrder.findMany({
-          where: { businessId: business.id, orderedAt: yesterday },
-          select: { id: true, platform: true, totalAmount: true },
+          where: {
+            businessId: business.id,
+            connectedStore: activeConnectedStoreWhere(),
+            orderedAt: yesterday,
+          },
+          select: { id: true, orderStatus: true, platform: true, totalAmount: true },
         }),
         prisma.commerceOrderItem.findMany({
-          where: { businessId: business.id, order: { orderedAt: today } },
-          select: { name: true, platform: true, quantity: true, sku: true, totalAmount: true },
+          where: {
+            businessId: business.id,
+            connectedStore: activeConnectedStoreWhere(),
+            order: { orderedAt: today },
+          },
+          select: {
+            name: true,
+            order: { select: { orderStatus: true } },
+            platform: true,
+            quantity: true,
+            sku: true,
+            totalAmount: true,
+          },
         }),
         prisma.commerceRefund.findMany({
-          where: { businessId: business.id, refundedAt: today },
+          where: {
+            businessId: business.id,
+            connectedStore: activeConnectedStoreWhere(),
+            refundedAt: today,
+          },
           select: { id: true },
         }),
         prisma.commerceProduct.findMany({
-          where: { businessId: business.id },
+          where: {
+            businessId: business.id,
+            connectedStore: activeConnectedStoreWhere(),
+          },
           select: { currentStockQuantity: true, stockStatus: true },
         }),
       ]);
@@ -162,7 +209,11 @@ export class DashboardService {
     const lowStockCount = products.filter(isLowStockProduct).length;
     const connectedPlatforms = [...new Set(activeStores.map((store) => store.platform))].sort();
     const productsSoldToday = todayOrderItems.reduce(
-      (total, item) => total + Math.max(item.quantity ?? 0, 0),
+      (total, item) =>
+        total +
+        (isRevenueEligibleOrderStatus(item.order?.orderStatus)
+          ? Math.max(item.quantity ?? 0, 0)
+          : 0),
       0,
     );
     const hasCommerceData =
@@ -185,7 +236,9 @@ export class DashboardService {
     return {
       activeStores: activeStores.length,
       averageOrderValueToday: roundMetric(
-        todayOrders.length > 0 ? todayRevenue / todayOrders.length : 0,
+        countRevenueEligibleOrders(todayOrders) > 0
+          ? todayRevenue / countRevenueEligibleOrders(todayOrders)
+          : 0,
       ),
       basicBusinessHealthScore,
       basicRuleBasedInsights: createRuleBasedInsights({
@@ -214,6 +267,13 @@ export class DashboardService {
   }
 }
 
+function activeConnectedStoreWhere(): ActiveConnectedStoreWhereInput {
+  return {
+    connectionStatus: StoreConnectionStatus.Connected,
+    disconnectedAt: null,
+  };
+}
+
 function getDashboardDateRanges(now: Date): {
   readonly today: DateRange;
   readonly yesterday: DateRange;
@@ -232,7 +292,17 @@ function getDashboardDateRanges(now: Date): {
 }
 
 function sumOrders(orders: readonly CommerceOrderDashboardRecord[]): number {
-  return roundMetric(orders.reduce((total, order) => total + toNumber(order.totalAmount), 0));
+  return roundMetric(
+    orders.reduce(
+      (total, order) =>
+        total + (isRevenueEligibleOrderStatus(order.orderStatus) ? toNumber(order.totalAmount) : 0),
+      0,
+    ),
+  );
+}
+
+function countRevenueEligibleOrders(orders: readonly CommerceOrderDashboardRecord[]): number {
+  return orders.filter((order) => isRevenueEligibleOrderStatus(order.orderStatus)).length;
 }
 
 function toRevenueByPlatform(
@@ -241,6 +311,10 @@ function toRevenueByPlatform(
   const totals = new Map<StorePlatform, number>();
 
   orders.forEach((order) => {
+    if (!isRevenueEligibleOrderStatus(order.orderStatus)) {
+      return;
+    }
+
     totals.set(order.platform, (totals.get(order.platform) ?? 0) + toNumber(order.totalAmount));
   });
 
@@ -269,6 +343,10 @@ function getTopProductToday(
   const products = new Map<string, TopProductToday>();
 
   items.forEach((item) => {
+    if (!isRevenueEligibleOrderStatus(item.order?.orderStatus)) {
+      return;
+    }
+
     const name = item.name?.trim() || "Unknown product";
     const key = `${item.platform}:${item.sku ?? name}`;
     const current = products.get(key);

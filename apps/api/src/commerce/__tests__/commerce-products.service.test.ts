@@ -1,5 +1,6 @@
 import { UnauthorizedException } from "@nestjs/common";
 import type { PrismaService } from "../../database/prisma.service.js";
+import { StoreConnectionStatus } from "../../store-integrations/types/store-connection-status.enum.js";
 import { StorePlatform } from "../../store-integrations/types/store-platform.enum.js";
 import { CommerceProductsService } from "../commerce-products.service.js";
 
@@ -26,7 +27,11 @@ describe("CommerceProductsService", () => {
       ],
       products: [
         {
-          connectedStore: { id: "store_1", storeName: "Main Store" },
+          connectedStore: {
+            id: "store_1",
+            storeName: "Main Store",
+            storeUrl: "https://woo.example",
+          },
           currency: "GBP",
           currentStockQuantity: 14,
           id: "product_db_1",
@@ -80,6 +85,10 @@ describe("CommerceProductsService", () => {
             { platformProductId: { contains: "wax", mode: "insensitive" } },
           ],
           businessId: business.id,
+          connectedStore: {
+            connectionStatus: StoreConnectionStatus.Connected,
+            disconnectedAt: null,
+          },
           platform: StorePlatform.AmazonSeller,
           stockStatus: "lowstock",
         },
@@ -107,7 +116,11 @@ describe("CommerceProductsService", () => {
       ],
       products: [
         {
-          connectedStore: { id: "store_1", storeName: "Woo Store" },
+          connectedStore: {
+            id: "store_1",
+            storeName: "Woo Store",
+            storeUrl: "https://woo.example",
+          },
           currency: "GBP",
           currentStockQuantity: null,
           id: "woo_product",
@@ -127,6 +140,106 @@ describe("CommerceProductsService", () => {
     expect(response.products[0]).toMatchObject({ revenue: 50, unitsSold: 2 });
   });
 
+  it("does not double count duplicate source order items imported through duplicate store records", async () => {
+    const { service } = createService({
+      orderItems: [
+        {
+          connectedStore: {
+            id: "store_old",
+            storeName: "Ivonmelda LTD",
+            storeUrl: "https://ivonmelda.com/",
+          },
+          connectedStoreId: "store_old",
+          order: { platformOrderId: "order_7444" },
+          platform: StorePlatform.WooCommerce,
+          platformOrderItemId: "line_1",
+          platformProductId: "7444",
+          quantity: 1,
+          totalAmount: 39,
+        },
+        {
+          connectedStore: {
+            id: "store_new",
+            storeName: "Ivonmelda Hair",
+            storeUrl: "https://ivonmelda.com",
+          },
+          connectedStoreId: "store_new",
+          order: { platformOrderId: "order_7444" },
+          platform: StorePlatform.WooCommerce,
+          platformOrderItemId: "line_1",
+          platformProductId: "7444",
+          quantity: 1,
+          totalAmount: 39,
+        },
+      ],
+      products: [],
+    });
+
+    const response = await service.listProducts("user_1", {});
+
+    expect(response.products).toHaveLength(1);
+    expect(response.products[0]).toMatchObject({
+      platform: StorePlatform.WooCommerce,
+      platformProductId: "7444",
+      revenue: 39,
+      unitsSold: 1,
+    });
+  });
+
+  it("excludes failed and pending order items from product revenue", async () => {
+    const { service } = createService({
+      orderItems: [
+        {
+          connectedStoreId: "store_1",
+          order: { orderStatus: "processing", platformOrderId: "paid_order" },
+          platform: StorePlatform.WooCommerce,
+          platformProductId: "woo_10",
+          quantity: 2,
+          totalAmount: 70,
+        },
+        {
+          connectedStoreId: "store_1",
+          order: { orderStatus: "failed", platformOrderId: "failed_order" },
+          platform: StorePlatform.WooCommerce,
+          platformProductId: "woo_10",
+          quantity: 3,
+          totalAmount: 105,
+        },
+        {
+          connectedStoreId: "store_1",
+          order: { orderStatus: "pending", platformOrderId: "pending_order" },
+          platform: StorePlatform.WooCommerce,
+          platformProductId: "woo_10",
+          quantity: 1,
+          totalAmount: 35,
+        },
+      ],
+      products: [
+        {
+          connectedStore: {
+            id: "store_1",
+            storeName: "Main Store",
+            storeUrl: "https://woo.example",
+          },
+          currency: "GBP",
+          currentStockQuantity: 14,
+          id: "product_db_1",
+          name: "Trail Shoe",
+          platform: StorePlatform.WooCommerce,
+          platformProductId: "woo_10",
+          priceAmount: "35.00",
+          sku: "SHOE-TRAIL",
+          sourceMetadata: null,
+          stockStatus: "instock",
+        },
+      ],
+    });
+
+    const response = await service.listProducts("user_1", {});
+
+    expect(response.products[0]).toMatchObject({ revenue: 70, unitsSold: 2 });
+  });
+
   it("rejects users without a business profile", async () => {
     const { service } = createService({ businessRecord: null });
 
@@ -139,7 +252,11 @@ describe("CommerceProductsService", () => {
     const { service } = createService({
       products: [
         {
-          connectedStore: { id: "store_1", storeName: "Safe Store" },
+          connectedStore: {
+            id: "store_1",
+            storeName: "Safe Store",
+            storeUrl: "https://safe.example",
+          },
           currency: "GBP",
           currentStockQuantity: 1,
           id: "product_db_1",
@@ -177,7 +294,9 @@ function createService(
         .fn()
         .mockResolvedValue(input.businessRecord === undefined ? business : input.businessRecord),
     },
-    commerceOrderItem: { findMany: jest.fn().mockResolvedValue(input.orderItems ?? []) },
+    commerceOrderItem: {
+      findMany: jest.fn().mockResolvedValue((input.orderItems ?? []).map(withRevenueEligibleOrder)),
+    },
     commerceProduct: { findMany: jest.fn().mockResolvedValue(input.products ?? []) },
   };
   const prismaService = { client: prisma } as unknown as PrismaService;
@@ -185,8 +304,22 @@ function createService(
   return { prisma, service: new CommerceProductsService(prismaService) };
 }
 
+function withRevenueEligibleOrder(item: CommerceOrderItemTestRecord): CommerceOrderItemTestRecord {
+  return {
+    ...item,
+    order: {
+      orderStatus: item.order?.orderStatus ?? "processing",
+      platformOrderId: item.order?.platformOrderId ?? null,
+    },
+  };
+}
+
 interface CommerceProductTestRecord {
-  readonly connectedStore: { readonly id: string; readonly storeName: string };
+  readonly connectedStore: {
+    readonly id: string;
+    readonly storeName: string;
+    readonly storeUrl: string | null;
+  };
   readonly currency: string | null;
   readonly currentStockQuantity: number | null;
   readonly id: string;
@@ -200,8 +333,18 @@ interface CommerceProductTestRecord {
 }
 
 interface CommerceOrderItemTestRecord {
+  readonly connectedStore?: {
+    readonly id: string;
+    readonly storeName: string;
+    readonly storeUrl: string | null;
+  };
   readonly connectedStoreId: string;
+  readonly order?: {
+    readonly orderStatus?: string | null;
+    readonly platformOrderId: string | null;
+  };
   readonly platform: StorePlatform;
+  readonly platformOrderItemId?: string | null;
   readonly platformProductId: string | null;
   readonly quantity: number | null;
   readonly totalAmount: unknown;

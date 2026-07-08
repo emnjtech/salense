@@ -1152,6 +1152,13 @@ button:disabled {
   font-size: 12px;
 }
 
+.platform-detail-order-value {
+  align-items: end;
+  display: grid;
+  gap: 6px;
+  justify-items: end;
+}
+
 .compact-empty {
   min-height: 126px;
 }
@@ -1805,6 +1812,42 @@ button:disabled {
   width: max-content;
 }
 
+.order-status--completed,
+.order-status--paid {
+  background: #e8f7ef;
+  color: #087a4a !important;
+}
+
+.order-status--processing {
+  background: #e6f5f1;
+  color: #0f766e !important;
+}
+
+.order-status--fulfilled {
+  background: #e8f1ff;
+  color: #1d4ed8 !important;
+}
+
+.order-status--pending {
+  background: #fff7df;
+  color: #9a5b00 !important;
+}
+
+.order-status--failed {
+  background: #ffe9e9;
+  color: #b42318 !important;
+}
+
+.order-status--refunded {
+  background: #fff0e6;
+  color: #b54708 !important;
+}
+
+.order-status--unknown {
+  background: #eef0ed;
+  color: #566158 !important;
+}
+
 .orders-empty-state {
   min-height: 220px;
 }
@@ -1959,8 +2002,7 @@ button:disabled {
 
 .admin-auth-page {
   align-items: center;
-  background:
-    radial-gradient(circle at 20% 20%, rgb(167 243 208 / 16%), transparent 34%),
+  background: radial-gradient(circle at 20% 20%, rgb(167 243 208 / 16%), transparent 34%),
     linear-gradient(135deg, #0e3d2e 0%, #063426 100%);
   display: grid;
   min-height: 100vh;
@@ -3190,8 +3232,7 @@ button:disabled {
 
 .landing-hero {
   align-items: center;
-  background:
-    radial-gradient(circle at 18% 18%, rgb(167 243 208 / 16%), transparent 32%),
+  background: radial-gradient(circle at 18% 18%, rgb(167 243 208 / 16%), transparent 32%),
     radial-gradient(circle at 78% 36%, rgb(22 163 74 / 18%), transparent 38%),
     linear-gradient(135deg, #0e3d2e 0%, #07563a 54%, #063426 100%);
   box-shadow: 0 0 0 100vmax #0e3d2e;
@@ -3507,9 +3548,7 @@ button:disabled {
 }
 
 .landing-cta {
-  background:
-    radial-gradient(circle at 90% 85%, rgb(151 210 157 / 28%), transparent 28%),
-    #005138;
+  background: radial-gradient(circle at 90% 85%, rgb(151 210 157 / 28%), transparent 28%), #005138;
   border-radius: 8px;
   color: #ffffff;
   display: grid;
