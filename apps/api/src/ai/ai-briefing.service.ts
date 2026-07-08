@@ -1,6 +1,7 @@
 import { Inject, Injectable, UnauthorizedException } from "@nestjs/common";
 import { PrismaService } from "../database/prisma.service.js";
 import { StoreConnectionStatus } from "../store-integrations/types/store-connection-status.enum.js";
+import { ContextBuilderService } from "./context-builder.service.js";
 import { BusinessHealthEngine } from "./engines/business-health.engine.js";
 import { ConfidenceEngine } from "./engines/confidence.engine.js";
 import { DiagnosticEngine } from "./engines/diagnostic.engine.js";
@@ -10,6 +11,7 @@ import { ForecastingEngine } from "./engines/forecasting.engine.js";
 import { buildAiMetrics, hasSufficientAiData } from "./engines/metrics.js";
 import { ObservationEngine } from "./engines/observation.engine.js";
 import { RecommendationEngine } from "./engines/recommendation.engine.js";
+import { NarrativeGeneratorService } from "./narrative-generator.service.js";
 import type { AiBriefingTodayResponse } from "./types/ai-objects.type.js";
 import type {
   AiBusinessRecord,
@@ -141,6 +143,9 @@ export class AiBriefingService {
     @Inject(ConfidenceEngine) private readonly confidenceEngine: ConfidenceEngine,
     @Inject(ExplainabilityEngine) private readonly explainabilityEngine: ExplainabilityEngine,
     @Inject(ExecutiveSummaryEngine) private readonly executiveSummaryEngine: ExecutiveSummaryEngine,
+    @Inject(ContextBuilderService) private readonly contextBuilder: ContextBuilderService,
+    @Inject(NarrativeGeneratorService)
+    private readonly narrativeGenerator: NarrativeGeneratorService,
   ) {}
 
   async getTodayBriefing(userId: string): Promise<AiBriefingTodayResponse> {
@@ -176,30 +181,55 @@ export class AiBriefingService {
     const confidence = this.confidenceEngine.generate(data, metrics);
     const explainability = this.explainabilityEngine.generate();
 
-    return {
-      status: "READY",
+    const businessOverview = {
+      businessId: data.business.id,
+      businessName: data.business.name,
+      connectedStores: data.connectedStores.length,
+      connectedPlatforms: metrics.connectedPlatforms,
+      synchronizedStores: metrics.synchronizedStores,
+      revenueToday: metrics.revenueToday,
+      revenueYesterday: metrics.revenueYesterday,
+      ordersToday: metrics.ordersToday,
+      refundsToday: metrics.refundsToday,
+      productsTracked: metrics.productsTracked,
+      customersTracked: metrics.customersTracked,
+      lowStockProducts: metrics.lowStockProducts,
+      outOfStockProducts: metrics.outOfStockProducts,
+    } as const;
+    const deterministicSummary = this.executiveSummaryEngine.generate(data, metrics);
+    const context = this.contextBuilder.build({
       generatedAt,
-      businessOverview: {
-        businessId: data.business.id,
-        businessName: data.business.name,
-        connectedStores: data.connectedStores.length,
-        connectedPlatforms: metrics.connectedPlatforms,
-        synchronizedStores: metrics.synchronizedStores,
-        revenueToday: metrics.revenueToday,
-        revenueYesterday: metrics.revenueYesterday,
-        ordersToday: metrics.ordersToday,
-        refundsToday: metrics.refundsToday,
-        productsTracked: metrics.productsTracked,
-        customersTracked: metrics.customersTracked,
-        lowStockProducts: metrics.lowStockProducts,
-        outOfStockProducts: metrics.outOfStockProducts,
-      },
-      executiveSummary: this.executiveSummaryEngine.generate(data, metrics),
+      businessOverview,
+      businessHealth,
       observations,
       risks,
       opportunities,
       recommendations,
       forecasts: this.forecastingEngine.generate(metrics),
+      confidence,
+      explainability,
+    });
+    const narrative = await this.narrativeGenerator.generateDailyBriefing(
+      context,
+      deterministicSummary,
+    );
+
+    return {
+      status: "READY",
+      generatedAt,
+      narrative: {
+        provider: narrative.provider,
+        model: narrative.model,
+        promptVersion: narrative.promptVersion,
+        fallbackUsed: narrative.fallbackUsed,
+      },
+      businessOverview,
+      executiveSummary: narrative.narrative,
+      observations,
+      risks,
+      opportunities,
+      recommendations,
+      forecasts: context.forecasts,
       businessHealth,
       confidence,
       explainability,

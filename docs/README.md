@@ -14,5 +14,6 @@ Operational notes:
 - [Sync scheduling](./sync-scheduling.md)
 - [Store authorization setup](./store-authorization-setup.md)
 - [WooCommerce real-store testing](./woocommerce-real-store-testing.md)
+- [AI narrative generation](./ai-narrative-generation.md)
 - [Multi-platform MVP integration checkpoint](./woocommerce-integration-checkpoint.md)
 - [Frontend authentication demo policy](./frontend-auth-demo.md)

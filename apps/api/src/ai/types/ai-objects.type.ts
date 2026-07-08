@@ -89,6 +89,12 @@ export interface AiBriefingTodayResponse {
   readonly status: "READY" | "INSUFFICIENT_DATA";
   readonly message?: string;
   readonly generatedAt: string;
+  readonly narrative?: {
+    readonly provider: string;
+    readonly model: string;
+    readonly promptVersion: string;
+    readonly fallbackUsed: boolean;
+  };
   readonly businessOverview?: AiBusinessOverview;
   readonly executiveSummary?: string;
   readonly observations: readonly ObservationObject[];

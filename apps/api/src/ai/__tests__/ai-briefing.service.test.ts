@@ -3,6 +3,7 @@ import type { PrismaService } from "../../database/prisma.service.js";
 import { StoreConnectionStatus } from "../../store-integrations/types/store-connection-status.enum.js";
 import { StorePlatform } from "../../store-integrations/types/store-platform.enum.js";
 import { AiBriefingService } from "../ai-briefing.service.js";
+import { ContextBuilderService } from "../context-builder.service.js";
 import { BusinessHealthEngine } from "../engines/business-health.engine.js";
 import { ConfidenceEngine } from "../engines/confidence.engine.js";
 import { DiagnosticEngine } from "../engines/diagnostic.engine.js";
@@ -11,6 +12,7 @@ import { ExplainabilityEngine } from "../engines/explainability.engine.js";
 import { ForecastingEngine } from "../engines/forecasting.engine.js";
 import { ObservationEngine } from "../engines/observation.engine.js";
 import { RecommendationEngine } from "../engines/recommendation.engine.js";
+import type { NarrativeGeneratorService } from "../narrative-generator.service.js";
 
 const business = { id: "business_1", name: "Ivonmelda Hair" } as const;
 
@@ -70,6 +72,10 @@ describe("AiBriefingService", () => {
       "observation-revenue-today",
     );
     expect(response.executiveSummary).toContain("Ivonmelda Hair has 1 orders");
+    expect(response.narrative).toMatchObject({
+      fallbackUsed: true,
+      provider: "deterministic",
+    });
   });
 
   it("creates inventory recommendations when synchronized products are at risk", async () => {
@@ -194,9 +200,19 @@ function createService(input: {
       findMany: jest.fn().mockResolvedValue(input.refunds ?? []),
     },
   };
+  const narrativeGenerator = {
+    generateDailyBriefing: jest.fn(async (_context: unknown, fallbackNarrative: string) => ({
+      narrative: fallbackNarrative,
+      provider: "deterministic",
+      model: "business-reasoning",
+      promptVersion: "prompt-v1",
+      fallbackUsed: true,
+    })),
+  } as unknown as NarrativeGeneratorService;
 
   return {
     prisma,
+    narrativeGenerator,
     service: new AiBriefingService(
       { client: prisma } as unknown as PrismaService,
       new ObservationEngine(),
@@ -207,6 +223,8 @@ function createService(input: {
       new ConfidenceEngine(),
       new ExplainabilityEngine(),
       new ExecutiveSummaryEngine(),
+      new ContextBuilderService(),
+      narrativeGenerator,
     ),
   };
 }
