@@ -5,13 +5,16 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   BarChart3,
+  Brain,
   CalendarDays,
   CheckCircle2,
   ChevronRight,
+  CircleHelp,
   Loader2,
   PackageSearch,
   RefreshCcw,
   RotateCcw,
+  ShieldCheck,
   ShoppingBag,
   ShoppingCart,
   Store,
@@ -26,12 +29,24 @@ import {
   type PlatformMetric,
   type TodayDashboardResponse,
 } from "../../lib/api/dashboard-client";
+import {
+  AiClientError,
+  createAiApiClient,
+  type AiBriefingTodayResponse,
+  type DiagnosticObject,
+  type IntelligenceEvidence,
+  type ObservationObject,
+  type RecommendationObject,
+} from "../../lib/api/ai-client";
 import { StorePlatform } from "../../lib/api/store-integrations-client";
 import { getFriendlyAuthErrorMessage, readDemoSession } from "../../lib/auth-session";
 import { PlatformIcon } from "../brand/platform-icon";
 
 export function TodayDashboard() {
   const dashboardClient = useMemo(() => createDashboardApiClient(), []);
+  const aiClient = useMemo(() => createAiApiClient(), []);
+  const [aiBriefing, setAiBriefing] = useState<AiBriefingTodayResponse | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
   const [dashboard, setDashboard] = useState<TodayDashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -44,20 +59,40 @@ export function TodayDashboard() {
 
     if (!session) {
       setDashboard(null);
+      setAiBriefing(null);
+      setAiError(null);
       setError("Sign in to view today's commerce intelligence.");
       setLoading(false);
       return;
     }
 
     try {
-      setDashboard(await dashboardClient.getTodayDashboard(session.accessToken));
+      const [dashboardResponse, aiResponse] = await Promise.allSettled([
+        dashboardClient.getTodayDashboard(session.accessToken),
+        aiClient.getTodayBriefing(session.accessToken),
+      ]);
+
+      if (dashboardResponse.status === "fulfilled") {
+        setDashboard(dashboardResponse.value);
+      } else {
+        setDashboard(null);
+        setError(getFriendlyError(dashboardResponse.reason));
+      }
+
+      if (aiResponse.status === "fulfilled") {
+        setAiBriefing(aiResponse.value);
+        setAiError(null);
+      } else {
+        setAiBriefing(null);
+        setAiError(getFriendlyAiError(aiResponse.reason));
+      }
     } catch (caughtError) {
       setDashboard(null);
       setError(getFriendlyError(caughtError));
     } finally {
       setLoading(false);
     }
-  }, [dashboardClient]);
+  }, [aiClient, dashboardClient]);
 
   useEffect(() => {
     void loadDashboard();
@@ -88,14 +123,29 @@ export function TodayDashboard() {
 
       {loading ? <TodayLoadingState /> : null}
       {!loading && error ? <TodayErrorState message={error} /> : null}
-      {!loading && !error && dashboard ? <TodayDashboardContent dashboard={dashboard} /> : null}
+      {!loading && !error && dashboard ? (
+        <TodayDashboardContent aiBriefing={aiBriefing} aiError={aiError} dashboard={dashboard} />
+      ) : null}
     </main>
   );
 }
 
-function TodayDashboardContent({ dashboard }: { readonly dashboard: TodayDashboardResponse }) {
+function TodayDashboardContent({
+  aiBriefing,
+  aiError,
+  dashboard,
+}: {
+  readonly aiBriefing: AiBriefingTodayResponse | null;
+  readonly aiError: string | null;
+  readonly dashboard: TodayDashboardResponse;
+}) {
   if (!dashboard.hasCommerceData) {
-    return <TodayOnboardingEmptyState dashboard={dashboard} />;
+    return (
+      <>
+        <TodayOnboardingEmptyState dashboard={dashboard} />
+        <AiBusinessBriefingSection briefing={aiBriefing} error={aiError} />
+      </>
+    );
   }
 
   return (
@@ -198,7 +248,272 @@ function TodayDashboardContent({ dashboard }: { readonly dashboard: TodayDashboa
           />
         </div>
       </section>
+
+      <AiBusinessBriefingSection briefing={aiBriefing} error={aiError} />
     </>
+  );
+}
+
+export function AiBusinessBriefingSection({
+  briefing,
+  error,
+}: {
+  readonly briefing: AiBriefingTodayResponse | null;
+  readonly error?: string | null;
+}) {
+  if (error) {
+    return (
+      <section className="panel ai-briefing-panel" aria-label="Salense Intelligence">
+        <AiBriefingHeading confidence={null} />
+        <div className="ai-briefing-empty warning">
+          <AlertTriangle size={20} aria-hidden="true" />
+          <strong>Salense Intelligence could not be loaded.</strong>
+          <span>{error}</span>
+        </div>
+      </section>
+    );
+  }
+
+  if (!briefing || briefing.status === "INSUFFICIENT_DATA") {
+    return (
+      <section className="panel ai-briefing-panel" aria-label="Salense Intelligence">
+        <AiBriefingHeading confidence={briefing?.confidence ?? null} />
+        <div className="ai-briefing-empty">
+          <Brain size={22} aria-hidden="true" />
+          <strong>
+            Salense Intelligence will become available after your first successful store
+            synchronization.
+          </strong>
+          <span>
+            Connect a store and run a sync to unlock deterministic observations, risks,
+            opportunities, and recommendations.
+          </span>
+        </div>
+        {briefing?.explainability ? (
+          <ExplainabilityDetails explainability={briefing.explainability} />
+        ) : null}
+      </section>
+    );
+  }
+
+  return (
+    <section className="panel ai-briefing-panel" aria-label="Salense Intelligence">
+      <AiBriefingHeading confidence={briefing.confidence ?? null} />
+      <div className="ai-briefing-hero">
+        <div>
+          <span>AI Business Briefing</span>
+          <h2>{briefing.businessOverview?.businessName ?? "Commerce intelligence"}</h2>
+          <p>{briefing.executiveSummary}</p>
+        </div>
+        <div className="ai-overview-grid">
+          <AiOverviewMetric label="Revenue today" value={formatCurrency(briefing.businessOverview?.revenueToday ?? 0)} />
+          <AiOverviewMetric label="Orders today" value={(briefing.businessOverview?.ordersToday ?? 0).toString()} />
+          <AiOverviewMetric label="Platforms" value={(briefing.businessOverview?.connectedPlatforms.length ?? 0).toString()} />
+          <AiOverviewMetric label="Health" value={briefing.businessHealth?.score === null || briefing.businessHealth?.score === undefined ? "Reviewing" : briefing.businessHealth.score.toString()} />
+        </div>
+      </div>
+
+      <div className="ai-briefing-grid">
+        <AiInsightColumn
+          items={briefing.observations}
+          title="Key observations"
+          emptyText="No observations available yet."
+        />
+        <AiInsightColumn
+          items={briefing.risks}
+          title="Risks"
+          emptyText="No material risks detected in synchronized data."
+        />
+        <AiInsightColumn
+          items={briefing.opportunities}
+          title="Opportunities"
+          emptyText="No opportunities detected yet."
+        />
+      </div>
+
+      <section className="ai-recommendations" aria-label="AI recommendations">
+        <div className="panel-heading compact-heading">
+          <div>
+            <h3>Recommended next actions</h3>
+            <p>Evidence-based actions from deterministic commerce reasoning.</p>
+          </div>
+        </div>
+        <div className="ai-recommendation-list">
+          {briefing.recommendations.length > 0 ? (
+            briefing.recommendations.map((recommendation) => (
+              <AiEvidenceCard
+                confidence={briefing.confidence ?? null}
+                item={recommendation}
+                key={recommendation.id}
+                label={recommendation.priority}
+              />
+            ))
+          ) : (
+            <div className="ai-briefing-empty compact-empty">
+              <ShieldCheck size={18} aria-hidden="true" />
+              <strong>No recommended action yet</strong>
+              <span>Salense will add actions when synchronized data shows a clear risk or opportunity.</span>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {briefing.explainability ? (
+        <ExplainabilityDetails explainability={briefing.explainability} />
+      ) : null}
+    </section>
+  );
+}
+
+function AiBriefingHeading({
+  confidence,
+}: {
+  readonly confidence: AiBriefingTodayResponse["confidence"] | null;
+}) {
+  return (
+    <div className="panel-heading ai-briefing-heading">
+      <div>
+        <span className="eyebrow">Salense Intelligence</span>
+        <h2>Business reasoning from synchronized commerce data.</h2>
+        <p>Deterministic observations, risks, and recommendations with evidence attached.</p>
+      </div>
+      {confidence ? (
+        <div className={`confidence-pill confidence-${confidence.level.toLowerCase()}`}>
+          <ShieldCheck size={16} aria-hidden="true" />
+          <span>{confidence.level.toLowerCase()} confidence</span>
+          <strong>{confidence.score}%</strong>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function AiOverviewMetric({ label, value }: { readonly label: string; readonly value: string }) {
+  return (
+    <div>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function AiInsightColumn<TItem extends ObservationObject | DiagnosticObject>({
+  emptyText,
+  items,
+  title,
+}: {
+  readonly emptyText: string;
+  readonly items: readonly TItem[];
+  readonly title: string;
+}) {
+  return (
+    <div className="ai-insight-column">
+      <h3>{title}</h3>
+      {items.length > 0 ? (
+        <div className="ai-insight-list">
+          {items.map((item) => (
+            <AiEvidenceCard item={item} key={item.id} label={item.severity} />
+          ))}
+        </div>
+      ) : (
+        <p className="ai-muted">{emptyText}</p>
+      )}
+    </div>
+  );
+}
+
+function AiEvidenceCard({
+  confidence,
+  item,
+  label,
+}: {
+  readonly confidence?: AiBriefingTodayResponse["confidence"] | null;
+  readonly item: ObservationObject | DiagnosticObject | RecommendationObject;
+  readonly label: string;
+}) {
+  return (
+    <article className={`ai-evidence-card severity-${item.severity.toLowerCase()}`}>
+      <div>
+        <span>{label.toLowerCase()}</span>
+        <h4>{item.title}</h4>
+        <p>{item.summary}</p>
+      </div>
+      <details>
+        <summary>
+          <CircleHelp size={15} aria-hidden="true" />
+          View evidence
+        </summary>
+        <div className="ai-evidence-details">
+          <strong>Reasoning basis</strong>
+          <p>{item.summary}</p>
+          {confidence ? (
+            <p>
+              Confidence: {confidence.level.toLowerCase()} ({confidence.score}%)
+            </p>
+          ) : null}
+          <EvidenceList evidence={item.evidence} />
+        </div>
+      </details>
+    </article>
+  );
+}
+
+function EvidenceList({ evidence }: { readonly evidence: readonly IntelligenceEvidence[] }) {
+  if (evidence.length === 0) {
+    return <p>No supporting metric was required for this signal.</p>;
+  }
+
+  return (
+    <ul className="ai-evidence-list">
+      {evidence.map((item) => (
+        <li key={`${item.source}-${item.metric}-${item.value}`}>
+          <span>{formatEvidenceSource(item.source)}</span>
+          <strong>
+            {item.metric}: {item.value}
+          </strong>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function ExplainabilityDetails({
+  explainability,
+}: {
+  readonly explainability: NonNullable<AiBriefingTodayResponse["explainability"]>;
+}) {
+  return (
+    <details className="ai-explainability">
+      <summary>
+        <CircleHelp size={16} aria-hidden="true" />
+        Why this briefing?
+      </summary>
+      <div className="ai-explainability-grid">
+        <ExplainabilityList items={explainability.dataSources} title="Data used" />
+        <ExplainabilityList items={explainability.rulesApplied} title="Rules applied" />
+        <ExplainabilityList items={explainability.limitations} title="Limitations" />
+        <ExplainabilityList items={explainability.safetyConstraints} title="Safety constraints" />
+      </div>
+    </details>
+  );
+}
+
+function ExplainabilityList({
+  items,
+  title,
+}: {
+  readonly items: readonly string[];
+  readonly title: string;
+}) {
+  return (
+    <div>
+      <h4>{title}</h4>
+      <ul>
+        {items.map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -578,6 +893,37 @@ function getFriendlyError(error: unknown): string {
   }
 
   return "Unable to load today's dashboard.";
+}
+
+function getFriendlyAiError(error: unknown): string {
+  const authMessage = getFriendlyAuthErrorMessage(error);
+
+  if (authMessage) {
+    return authMessage;
+  }
+
+  if (error instanceof AiClientError) {
+    return error.message;
+  }
+
+  return "Salense Intelligence is temporarily unavailable.";
+}
+
+function formatEvidenceSource(source: IntelligenceEvidence["source"]): string {
+  switch (source) {
+    case "connected_stores":
+      return "Connected stores";
+    case "normalized_customers":
+      return "Customers";
+    case "normalized_inventory":
+      return "Inventory";
+    case "normalized_orders":
+      return "Orders";
+    case "normalized_products":
+      return "Products";
+    case "normalized_refunds":
+      return "Refunds";
+  }
 }
 
 function formatCurrency(value: number): string {
