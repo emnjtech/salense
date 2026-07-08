@@ -124,6 +124,11 @@ export function StoreIntegrationsWorkspace() {
       }),
     [],
   );
+  const platformConnectionState = useMemo(() => toPlatformConnectionState(stores), [stores]);
+  const wooCommerceConnection = platformConnectionState[StorePlatform.WooCommerce] ?? null;
+  const amazonSellerConnection = platformConnectionState[StorePlatform.AmazonSeller] ?? null;
+  const tikTokShopConnection = platformConnectionState[StorePlatform.TikTokShop] ?? null;
+  const shopifyConnection = platformConnectionState[StorePlatform.Shopify] ?? null;
 
   const loadWorkspace = useCallback(async () => {
     setError(null);
@@ -183,6 +188,12 @@ export function StoreIntegrationsWorkspace() {
 
   async function handleWooCommerceConnect(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (!canInitiateStoreConnection(wooCommerceConnection)) {
+      setNotice(getDuplicateConnectionNotice("WooCommerce"));
+      return;
+    }
+
     setActionStoreId("connect-woocommerce");
     setError(null);
     setNotice(null);
@@ -208,6 +219,12 @@ export function StoreIntegrationsWorkspace() {
 
   async function handleAmazonSellerConnect(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (!canInitiateStoreConnection(amazonSellerConnection)) {
+      setNotice(getDuplicateConnectionNotice("Amazon Seller"));
+      return;
+    }
+
     setActionStoreId("connect-amazon-seller");
     setError(null);
     setNotice(null);
@@ -234,6 +251,12 @@ export function StoreIntegrationsWorkspace() {
 
   async function handleTikTokShopConnect(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (!canInitiateStoreConnection(tikTokShopConnection)) {
+      setNotice(getDuplicateConnectionNotice("TikTok Shop"));
+      return;
+    }
+
     setActionStoreId("connect-tiktok-shop");
     setError(null);
     setNotice(null);
@@ -260,6 +283,12 @@ export function StoreIntegrationsWorkspace() {
 
   async function handleShopifyConnect(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (!canInitiateStoreConnection(shopifyConnection)) {
+      setNotice(getDuplicateConnectionNotice("Shopify"));
+      return;
+    }
+
     setActionStoreId("connect-shopify");
     setError(null);
     setNotice(null);
@@ -284,6 +313,11 @@ export function StoreIntegrationsWorkspace() {
   }
 
   async function startShopifyAuthorization() {
+    if (!canInitiateStoreConnection(shopifyConnection)) {
+      setNotice(getDuplicateConnectionNotice("Shopify"));
+      return;
+    }
+
     setActionStoreId("oauth-shopify");
     setError(null);
     setNotice(null);
@@ -301,6 +335,11 @@ export function StoreIntegrationsWorkspace() {
   }
 
   async function startAmazonSellerAuthorization() {
+    if (!canInitiateStoreConnection(amazonSellerConnection)) {
+      setNotice(getDuplicateConnectionNotice("Amazon Seller"));
+      return;
+    }
+
     setActionStoreId("oauth-amazon-seller");
     setError(null);
     setNotice(null);
@@ -318,6 +357,11 @@ export function StoreIntegrationsWorkspace() {
   }
 
   async function startTikTokShopAuthorization() {
+    if (!canInitiateStoreConnection(tikTokShopConnection)) {
+      setNotice(getDuplicateConnectionNotice("TikTok Shop"));
+      return;
+    }
+
     setActionStoreId("oauth-tiktok-shop");
     setError(null);
     setNotice(null);
@@ -436,13 +480,17 @@ export function StoreIntegrationsWorkspace() {
 
           <div className="authorization-card-actions">
             <button
-              className="primary-button"
-              disabled={!hasAccessToken}
+              className={getConnectionButtonClassName(wooCommerceConnection)}
+              disabled={
+                !hasAccessToken ||
+                actionStoreId === "connect-woocommerce" ||
+                !canInitiateStoreConnection(wooCommerceConnection)
+              }
               onClick={showWooCommerceGuidedSetup}
               type="button"
             >
               <PlugZap size={16} aria-hidden="true" />
-              Connect WooCommerce
+              {getConnectionButtonLabel("WooCommerce", wooCommerceConnection)}
             </button>
             <span>Generate read-only REST API keys in WooCommerce, then store them securely.</span>
           </div>
@@ -458,72 +506,76 @@ export function StoreIntegrationsWorkspace() {
               className="integration-form"
               onSubmit={(event) => void handleWooCommerceConnect(event)}
             >
-            <label>
-              Store name
-              <input
-                autoComplete="organization"
-                name="storeName"
-                onChange={(event) =>
-                  setFormState((current) => ({ ...current, storeName: event.target.value }))
+              <label>
+                Store name
+                <input
+                  autoComplete="organization"
+                  name="storeName"
+                  onChange={(event) =>
+                    setFormState((current) => ({ ...current, storeName: event.target.value }))
+                  }
+                  placeholder="Sarah's Shop"
+                  required
+                  value={formState.storeName}
+                />
+              </label>
+              <label>
+                Store URL
+                <input
+                  autoComplete="url"
+                  inputMode="url"
+                  name="storeUrl"
+                  onChange={(event) =>
+                    setFormState((current) => ({ ...current, storeUrl: event.target.value }))
+                  }
+                  placeholder="https://store.example.com"
+                  required
+                  type="url"
+                  value={formState.storeUrl}
+                />
+              </label>
+              <label>
+                Consumer key
+                <input
+                  autoComplete="off"
+                  name="consumerKey"
+                  onChange={(event) =>
+                    setFormState((current) => ({ ...current, consumerKey: event.target.value }))
+                  }
+                  required
+                  type="password"
+                  value={formState.consumerKey}
+                />
+              </label>
+              <label>
+                Consumer secret
+                <input
+                  autoComplete="off"
+                  name="consumerSecret"
+                  onChange={(event) =>
+                    setFormState((current) => ({ ...current, consumerSecret: event.target.value }))
+                  }
+                  required
+                  type="password"
+                  value={formState.consumerSecret}
+                />
+              </label>
+              <button
+                className={getConnectionButtonClassName(wooCommerceConnection)}
+                disabled={
+                  !hasAccessToken ||
+                  actionStoreId === "connect-woocommerce" ||
+                  !canInitiateStoreConnection(wooCommerceConnection)
                 }
-                placeholder="Sarah's Shop"
-                required
-                value={formState.storeName}
-              />
-            </label>
-            <label>
-              Store URL
-              <input
-                autoComplete="url"
-                inputMode="url"
-                name="storeUrl"
-                onChange={(event) =>
-                  setFormState((current) => ({ ...current, storeUrl: event.target.value }))
-                }
-                placeholder="https://store.example.com"
-                required
-                type="url"
-                value={formState.storeUrl}
-              />
-            </label>
-            <label>
-              Consumer key
-              <input
-                autoComplete="off"
-                name="consumerKey"
-                onChange={(event) =>
-                  setFormState((current) => ({ ...current, consumerKey: event.target.value }))
-                }
-                required
-                type="password"
-                value={formState.consumerKey}
-              />
-            </label>
-            <label>
-              Consumer secret
-              <input
-                autoComplete="off"
-                name="consumerSecret"
-                onChange={(event) =>
-                  setFormState((current) => ({ ...current, consumerSecret: event.target.value }))
-                }
-                required
-                type="password"
-                value={formState.consumerSecret}
-              />
-            </label>
-            <button
-              className="primary-button"
-              disabled={!hasAccessToken || actionStoreId === "connect-woocommerce"}
-              type="submit"
-            >
-              {actionStoreId === "connect-woocommerce" ? (
-                <Loader2 className="spin" size={16} aria-hidden="true" />
-              ) : (
-                <PlugZap size={16} aria-hidden="true" />
-              )}
-              Connect WooCommerce
-            </button>
+                type="submit"
+              >
+                {actionStoreId === "connect-woocommerce" ? (
+                  <Loader2 className="spin" size={16} aria-hidden="true" />
+                ) : (
+                  <PlugZap size={16} aria-hidden="true" />
+                )}
+                {getConnectionButtonLabel("WooCommerce", wooCommerceConnection)}
+              </button>
             </form>
           </details>
         </section>
@@ -532,9 +584,7 @@ export function StoreIntegrationsWorkspace() {
           <div className="panel-heading">
             <div>
               <h2>Connect Amazon Seller</h2>
-              <p>
-                Connect securely through Amazon authorization when your SP-API app is approved.
-              </p>
+              <p>Connect securely through Amazon authorization when your SP-API app is approved.</p>
             </div>
           </div>
 
@@ -567,8 +617,12 @@ export function StoreIntegrationsWorkspace() {
           </div>
           <div className="authorization-card-actions">
             <button
-              className="primary-button"
-              disabled={!hasAccessToken || actionStoreId === "oauth-amazon-seller"}
+              className={getConnectionButtonClassName(amazonSellerConnection)}
+              disabled={
+                !hasAccessToken ||
+                actionStoreId === "oauth-amazon-seller" ||
+                !canInitiateStoreConnection(amazonSellerConnection)
+              }
               onClick={() => void startAmazonSellerAuthorization()}
               type="button"
             >
@@ -577,7 +631,7 @@ export function StoreIntegrationsWorkspace() {
               ) : (
                 <ExternalLink size={16} aria-hidden="true" />
               )}
-              Connect Amazon Seller
+              {getConnectionButtonLabel("Amazon Seller", amazonSellerConnection)}
             </button>
             <span>Requires Amazon SP-API app registration and read-only authorization scopes.</span>
           </div>
@@ -592,107 +646,111 @@ export function StoreIntegrationsWorkspace() {
               className="integration-form"
               onSubmit={(event) => void handleAmazonSellerConnect(event)}
             >
-            <label>
-              Store name
-              <input
-                autoComplete="organization"
-                name="amazonStoreName"
-                onChange={(event) =>
-                  setAmazonFormState((current) => ({
-                    ...current,
-                    storeName: event.target.value,
-                  }))
+              <label>
+                Store name
+                <input
+                  autoComplete="organization"
+                  name="amazonStoreName"
+                  onChange={(event) =>
+                    setAmazonFormState((current) => ({
+                      ...current,
+                      storeName: event.target.value,
+                    }))
+                  }
+                  placeholder="Amazon UK"
+                  required
+                  value={amazonFormState.storeName}
+                />
+              </label>
+              <label>
+                Region
+                <input
+                  autoComplete="country"
+                  name="amazonRegion"
+                  onChange={(event) =>
+                    setAmazonFormState((current) => ({ ...current, region: event.target.value }))
+                  }
+                  placeholder="GB"
+                  required
+                  value={amazonFormState.region}
+                />
+              </label>
+              <label>
+                Seller ID
+                <input
+                  autoComplete="off"
+                  name="amazonSellerId"
+                  onChange={(event) =>
+                    setAmazonFormState((current) => ({ ...current, sellerId: event.target.value }))
+                  }
+                  required
+                  value={amazonFormState.sellerId}
+                />
+              </label>
+              <label>
+                Marketplace ID
+                <input
+                  autoComplete="off"
+                  name="amazonMarketplaceId"
+                  onChange={(event) =>
+                    setAmazonFormState((current) => ({
+                      ...current,
+                      marketplaceId: event.target.value,
+                    }))
+                  }
+                  placeholder="A1F83G8C2ARO7P"
+                  required
+                  value={amazonFormState.marketplaceId}
+                />
+              </label>
+              <label>
+                Access token
+                <input
+                  autoComplete="off"
+                  name="amazonAccessToken"
+                  onChange={(event) =>
+                    setAmazonFormState((current) => ({
+                      ...current,
+                      accessToken: event.target.value,
+                    }))
+                  }
+                  required
+                  type="password"
+                  value={amazonFormState.accessToken}
+                />
+              </label>
+              <label>
+                Refresh token
+                <input
+                  autoComplete="off"
+                  name="amazonRefreshToken"
+                  onChange={(event) =>
+                    setAmazonFormState((current) => ({
+                      ...current,
+                      refreshToken: event.target.value,
+                    }))
+                  }
+                  required
+                  type="password"
+                  value={amazonFormState.refreshToken}
+                />
+              </label>
+              <button
+                className={getConnectionButtonClassName(amazonSellerConnection)}
+                disabled={
+                  !hasAccessToken ||
+                  actionStoreId === "connect-amazon-seller" ||
+                  !canInitiateStoreConnection(amazonSellerConnection)
                 }
-                placeholder="Amazon UK"
-                required
-                value={amazonFormState.storeName}
-              />
-            </label>
-            <label>
-              Region
-              <input
-                autoComplete="country"
-                name="amazonRegion"
-                onChange={(event) =>
-                  setAmazonFormState((current) => ({ ...current, region: event.target.value }))
-                }
-                placeholder="GB"
-                required
-                value={amazonFormState.region}
-              />
-            </label>
-            <label>
-              Seller ID
-              <input
-                autoComplete="off"
-                name="amazonSellerId"
-                onChange={(event) =>
-                  setAmazonFormState((current) => ({ ...current, sellerId: event.target.value }))
-                }
-                required
-                value={amazonFormState.sellerId}
-              />
-            </label>
-            <label>
-              Marketplace ID
-              <input
-                autoComplete="off"
-                name="amazonMarketplaceId"
-                onChange={(event) =>
-                  setAmazonFormState((current) => ({
-                    ...current,
-                    marketplaceId: event.target.value,
-                  }))
-                }
-                placeholder="A1F83G8C2ARO7P"
-                required
-                value={amazonFormState.marketplaceId}
-              />
-            </label>
-            <label>
-              Access token
-              <input
-                autoComplete="off"
-                name="amazonAccessToken"
-                onChange={(event) =>
-                  setAmazonFormState((current) => ({
-                    ...current,
-                    accessToken: event.target.value,
-                  }))
-                }
-                required
-                type="password"
-                value={amazonFormState.accessToken}
-              />
-            </label>
-            <label>
-              Refresh token
-              <input
-                autoComplete="off"
-                name="amazonRefreshToken"
-                onChange={(event) =>
-                  setAmazonFormState((current) => ({
-                    ...current,
-                    refreshToken: event.target.value,
-                  }))
-                }
-                required
-                type="password"
-                value={amazonFormState.refreshToken}
-              />
-            </label>
-            <button
-              className="primary-button"
-              disabled={!hasAccessToken || actionStoreId === "connect-amazon-seller"}
-              type="submit"
-            >
-              {actionStoreId === "connect-amazon-seller" ? (
-                <Loader2 className="spin" size={16} aria-hidden="true" />
-              ) : (
-                <PlugZap size={16} aria-hidden="true" />
-              )}
-              Connect Amazon Seller
-            </button>
+                type="submit"
+              >
+                {actionStoreId === "connect-amazon-seller" ? (
+                  <Loader2 className="spin" size={16} aria-hidden="true" />
+                ) : (
+                  <PlugZap size={16} aria-hidden="true" />
+                )}
+                {getConnectionButtonLabel("Amazon Seller", amazonSellerConnection)}
+              </button>
             </form>
           </details>
         </section>
@@ -701,9 +759,7 @@ export function StoreIntegrationsWorkspace() {
           <div className="panel-heading">
             <div>
               <h2>Connect TikTok Shop</h2>
-              <p>
-                Connect securely through TikTok Shop authorization when your app is approved.
-              </p>
+              <p>Connect securely through TikTok Shop authorization when your app is approved.</p>
             </div>
           </div>
 
@@ -736,8 +792,12 @@ export function StoreIntegrationsWorkspace() {
           </div>
           <div className="authorization-card-actions">
             <button
-              className="primary-button"
-              disabled={!hasAccessToken || actionStoreId === "oauth-tiktok-shop"}
+              className={getConnectionButtonClassName(tikTokShopConnection)}
+              disabled={
+                !hasAccessToken ||
+                actionStoreId === "oauth-tiktok-shop" ||
+                !canInitiateStoreConnection(tikTokShopConnection)
+              }
               onClick={() => void startTikTokShopAuthorization()}
               type="button"
             >
@@ -746,7 +806,7 @@ export function StoreIntegrationsWorkspace() {
               ) : (
                 <ExternalLink size={16} aria-hidden="true" />
               )}
-              Connect TikTok Shop
+              {getConnectionButtonLabel("TikTok Shop", tikTokShopConnection)}
             </button>
             <span>Requires TikTok Shop app approval before token exchange can be completed.</span>
           </div>
@@ -760,106 +820,110 @@ export function StoreIntegrationsWorkspace() {
               className="integration-form"
               onSubmit={(event) => void handleTikTokShopConnect(event)}
             >
-            <label>
-              Store name
-              <input
-                autoComplete="organization"
-                name="tikTokStoreName"
-                onChange={(event) =>
-                  setTikTokFormState((current) => ({
-                    ...current,
-                    storeName: event.target.value,
-                  }))
+              <label>
+                Store name
+                <input
+                  autoComplete="organization"
+                  name="tikTokStoreName"
+                  onChange={(event) =>
+                    setTikTokFormState((current) => ({
+                      ...current,
+                      storeName: event.target.value,
+                    }))
+                  }
+                  placeholder="TikTok UK"
+                  required
+                  value={tikTokFormState.storeName}
+                />
+              </label>
+              <label>
+                Region
+                <input
+                  autoComplete="country"
+                  name="tikTokRegion"
+                  onChange={(event) =>
+                    setTikTokFormState((current) => ({ ...current, region: event.target.value }))
+                  }
+                  placeholder="GB"
+                  required
+                  value={tikTokFormState.region}
+                />
+              </label>
+              <label>
+                Shop ID
+                <input
+                  autoComplete="off"
+                  name="tikTokShopId"
+                  onChange={(event) =>
+                    setTikTokFormState((current) => ({ ...current, shopId: event.target.value }))
+                  }
+                  required
+                  value={tikTokFormState.shopId}
+                />
+              </label>
+              <label>
+                Shop cipher
+                <input
+                  autoComplete="off"
+                  name="tikTokShopCipher"
+                  onChange={(event) =>
+                    setTikTokFormState((current) => ({
+                      ...current,
+                      shopCipher: event.target.value,
+                    }))
+                  }
+                  required
+                  value={tikTokFormState.shopCipher}
+                />
+              </label>
+              <label>
+                Access token
+                <input
+                  autoComplete="off"
+                  name="tikTokAccessToken"
+                  onChange={(event) =>
+                    setTikTokFormState((current) => ({
+                      ...current,
+                      accessToken: event.target.value,
+                    }))
+                  }
+                  required
+                  type="password"
+                  value={tikTokFormState.accessToken}
+                />
+              </label>
+              <label>
+                Refresh token
+                <input
+                  autoComplete="off"
+                  name="tikTokRefreshToken"
+                  onChange={(event) =>
+                    setTikTokFormState((current) => ({
+                      ...current,
+                      refreshToken: event.target.value,
+                    }))
+                  }
+                  required
+                  type="password"
+                  value={tikTokFormState.refreshToken}
+                />
+              </label>
+              <button
+                className={getConnectionButtonClassName(tikTokShopConnection)}
+                disabled={
+                  !hasAccessToken ||
+                  actionStoreId === "connect-tiktok-shop" ||
+                  !canInitiateStoreConnection(tikTokShopConnection)
                 }
-                placeholder="TikTok UK"
-                required
-                value={tikTokFormState.storeName}
-              />
-            </label>
-            <label>
-              Region
-              <input
-                autoComplete="country"
-                name="tikTokRegion"
-                onChange={(event) =>
-                  setTikTokFormState((current) => ({ ...current, region: event.target.value }))
-                }
-                placeholder="GB"
-                required
-                value={tikTokFormState.region}
-              />
-            </label>
-            <label>
-              Shop ID
-              <input
-                autoComplete="off"
-                name="tikTokShopId"
-                onChange={(event) =>
-                  setTikTokFormState((current) => ({ ...current, shopId: event.target.value }))
-                }
-                required
-                value={tikTokFormState.shopId}
-              />
-            </label>
-            <label>
-              Shop cipher
-              <input
-                autoComplete="off"
-                name="tikTokShopCipher"
-                onChange={(event) =>
-                  setTikTokFormState((current) => ({
-                    ...current,
-                    shopCipher: event.target.value,
-                  }))
-                }
-                required
-                value={tikTokFormState.shopCipher}
-              />
-            </label>
-            <label>
-              Access token
-              <input
-                autoComplete="off"
-                name="tikTokAccessToken"
-                onChange={(event) =>
-                  setTikTokFormState((current) => ({
-                    ...current,
-                    accessToken: event.target.value,
-                  }))
-                }
-                required
-                type="password"
-                value={tikTokFormState.accessToken}
-              />
-            </label>
-            <label>
-              Refresh token
-              <input
-                autoComplete="off"
-                name="tikTokRefreshToken"
-                onChange={(event) =>
-                  setTikTokFormState((current) => ({
-                    ...current,
-                    refreshToken: event.target.value,
-                  }))
-                }
-                required
-                type="password"
-                value={tikTokFormState.refreshToken}
-              />
-            </label>
-            <button
-              className="primary-button"
-              disabled={!hasAccessToken || actionStoreId === "connect-tiktok-shop"}
-              type="submit"
-            >
-              {actionStoreId === "connect-tiktok-shop" ? (
-                <Loader2 className="spin" size={16} aria-hidden="true" />
-              ) : (
-                <PlugZap size={16} aria-hidden="true" />
-              )}
-              Connect TikTok Shop
-            </button>
+                type="submit"
+              >
+                {actionStoreId === "connect-tiktok-shop" ? (
+                  <Loader2 className="spin" size={16} aria-hidden="true" />
+                ) : (
+                  <PlugZap size={16} aria-hidden="true" />
+                )}
+                {getConnectionButtonLabel("TikTok Shop", tikTokShopConnection)}
+              </button>
             </form>
           </details>
         </section>
@@ -868,9 +932,7 @@ export function StoreIntegrationsWorkspace() {
           <div className="panel-heading">
             <div>
               <h2>Connect Shopify</h2>
-              <p>
-                Connect Shopify securely, approve read-only access, and return to Salense.
-              </p>
+              <p>Connect Shopify securely, approve read-only access, and return to Salense.</p>
             </div>
           </div>
 
@@ -904,8 +966,12 @@ export function StoreIntegrationsWorkspace() {
           </div>
           <div className="authorization-card-actions">
             <button
-              className="primary-button"
-              disabled={!hasAccessToken || actionStoreId === "oauth-shopify"}
+              className={getConnectionButtonClassName(shopifyConnection)}
+              disabled={
+                !hasAccessToken ||
+                actionStoreId === "oauth-shopify" ||
+                !canInitiateStoreConnection(shopifyConnection)
+              }
               onClick={() => void startShopifyAuthorization()}
               type="button"
             >
@@ -914,7 +980,7 @@ export function StoreIntegrationsWorkspace() {
               ) : (
                 <ExternalLink size={16} aria-hidden="true" />
               )}
-              Connect Shopify
+              {getConnectionButtonLabel("Shopify", shopifyConnection)}
             </button>
             <span>Salense requests read-only Shopify Admin API scopes.</span>
           </div>
@@ -928,100 +994,104 @@ export function StoreIntegrationsWorkspace() {
               className="integration-form"
               onSubmit={(event) => void handleShopifyConnect(event)}
             >
-            <label>
-              Store name
-              <input
-                autoComplete="organization"
-                name="shopifyStoreName"
-                onChange={(event) =>
-                  setShopifyFormState((current) => ({
-                    ...current,
-                    storeName: event.target.value,
-                  }))
+              <label>
+                Store name
+                <input
+                  autoComplete="organization"
+                  name="shopifyStoreName"
+                  onChange={(event) =>
+                    setShopifyFormState((current) => ({
+                      ...current,
+                      storeName: event.target.value,
+                    }))
+                  }
+                  placeholder="Shopify UK"
+                  required
+                  value={shopifyFormState.storeName}
+                />
+              </label>
+              <label>
+                Store URL
+                <input
+                  autoComplete="url"
+                  inputMode="url"
+                  name="shopifyStoreUrl"
+                  onChange={(event) =>
+                    setShopifyFormState((current) => ({
+                      ...current,
+                      storeUrl: event.target.value,
+                    }))
+                  }
+                  placeholder="https://northstar.myshopify.com"
+                  required
+                  type="url"
+                  value={shopifyFormState.storeUrl}
+                />
+              </label>
+              <label>
+                Shop domain
+                <input
+                  autoComplete="off"
+                  name="shopifyShopDomain"
+                  onChange={(event) =>
+                    setShopifyFormState((current) => ({
+                      ...current,
+                      shopDomain: event.target.value,
+                    }))
+                  }
+                  placeholder="northstar.myshopify.com"
+                  required
+                  value={shopifyFormState.shopDomain}
+                />
+              </label>
+              <label>
+                Admin API access token
+                <input
+                  autoComplete="off"
+                  name="shopifyAccessToken"
+                  onChange={(event) =>
+                    setShopifyFormState((current) => ({
+                      ...current,
+                      accessToken: event.target.value,
+                    }))
+                  }
+                  required
+                  type="password"
+                  value={shopifyFormState.accessToken}
+                />
+              </label>
+              <label>
+                API version
+                <input
+                  autoComplete="off"
+                  name="shopifyApiVersion"
+                  onChange={(event) =>
+                    setShopifyFormState((current) => ({
+                      ...current,
+                      apiVersion: event.target.value,
+                    }))
+                  }
+                  placeholder="2024-10"
+                  required
+                  value={shopifyFormState.apiVersion}
+                />
+              </label>
+              <button
+                className={getConnectionButtonClassName(shopifyConnection)}
+                disabled={
+                  !hasAccessToken ||
+                  actionStoreId === "connect-shopify" ||
+                  !canInitiateStoreConnection(shopifyConnection)
                 }
-                placeholder="Shopify UK"
-                required
-                value={shopifyFormState.storeName}
-              />
-            </label>
-            <label>
-              Store URL
-              <input
-                autoComplete="url"
-                inputMode="url"
-                name="shopifyStoreUrl"
-                onChange={(event) =>
-                  setShopifyFormState((current) => ({
-                    ...current,
-                    storeUrl: event.target.value,
-                  }))
-                }
-                placeholder="https://northstar.myshopify.com"
-                required
-                type="url"
-                value={shopifyFormState.storeUrl}
-              />
-            </label>
-            <label>
-              Shop domain
-              <input
-                autoComplete="off"
-                name="shopifyShopDomain"
-                onChange={(event) =>
-                  setShopifyFormState((current) => ({
-                    ...current,
-                    shopDomain: event.target.value,
-                  }))
-                }
-                placeholder="northstar.myshopify.com"
-                required
-                value={shopifyFormState.shopDomain}
-              />
-            </label>
-            <label>
-              Admin API access token
-              <input
-                autoComplete="off"
-                name="shopifyAccessToken"
-                onChange={(event) =>
-                  setShopifyFormState((current) => ({
-                    ...current,
-                    accessToken: event.target.value,
-                  }))
-                }
-                required
-                type="password"
-                value={shopifyFormState.accessToken}
-              />
-            </label>
-            <label>
-              API version
-              <input
-                autoComplete="off"
-                name="shopifyApiVersion"
-                onChange={(event) =>
-                  setShopifyFormState((current) => ({
-                    ...current,
-                    apiVersion: event.target.value,
-                  }))
-                }
-                placeholder="2024-10"
-                required
-                value={shopifyFormState.apiVersion}
-              />
-            </label>
-            <button
-              className="primary-button"
-              disabled={!hasAccessToken || actionStoreId === "connect-shopify"}
-              type="submit"
-            >
-              {actionStoreId === "connect-shopify" ? (
-                <Loader2 className="spin" size={16} aria-hidden="true" />
-              ) : (
-                <PlugZap size={16} aria-hidden="true" />
-              )}
-              Connect Shopify
-            </button>
+                type="submit"
+              >
+                {actionStoreId === "connect-shopify" ? (
+                  <Loader2 className="spin" size={16} aria-hidden="true" />
+                ) : (
+                  <PlugZap size={16} aria-hidden="true" />
+                )}
+                {getConnectionButtonLabel("Shopify", shopifyConnection)}
+              </button>
             </form>
           </details>
         </section>
@@ -1107,8 +1177,11 @@ function StoreRow({
 }) {
   const isSyncEnabled = isSyncEnabledPlatform(store.platform);
   const isConnected = store.connectionStatus === StoreConnectionStatus.Connected;
-  const canDisconnect = store.connectionStatus !== StoreConnectionStatus.Disconnected;
+  const isSynchronising = store.connectionStatus === StoreConnectionStatus.Synchronising;
+  const canDisconnect =
+    store.connectionStatus !== StoreConnectionStatus.Disconnected && !isSynchronising;
   const isBusy = actionStoreId === store.id;
+  const isActionDisabled = isBusy || isSynchronising;
   const syncAttention = getSyncAttention(syncStatus);
 
   return (
@@ -1136,31 +1209,35 @@ function StoreRow({
 
       <div className="store-actions" aria-label={`Actions for ${store.storeName}`}>
         <button
-          disabled={!isConnected || isBusy || !isSyncEnabled}
+          disabled={!isConnected || isActionDisabled || !isSyncEnabled}
           onClick={onManualSync}
           type="button"
         >
-          {isBusy ? (
+          {isBusy || isSynchronising ? (
             <Loader2 className="spin" size={16} aria-hidden="true" />
           ) : (
             <RefreshCcw size={16} aria-hidden="true" />
           )}
-          {syncAttention ? "Retry sync" : "Sync"}
+          {isSynchronising ? "Synchronising..." : syncAttention ? "Retry sync" : "Sync"}
         </button>
         <button
-          disabled={!isConnected || isBusy || !isSyncEnabled}
+          disabled={!isConnected || isActionDisabled || !isSyncEnabled}
           onClick={onSchedule}
           type="button"
         >
           <CalendarClock size={16} aria-hidden="true" />
           Schedule
         </button>
-        <button disabled={isBusy || !isSyncEnabled} onClick={onRemoveSchedule} type="button">
+        <button
+          disabled={isActionDisabled || !isSyncEnabled}
+          onClick={onRemoveSchedule}
+          type="button"
+        >
           <Clock3 size={16} aria-hidden="true" />
           Remove schedule
         </button>
         <button
-          disabled={!canDisconnect || isBusy || !isSyncEnabled}
+          disabled={!canDisconnect || isActionDisabled || !isSyncEnabled}
           onClick={onDisconnect}
           type="button"
         >
@@ -1170,6 +1247,66 @@ function StoreRow({
       </div>
     </article>
   );
+}
+
+export function toPlatformConnectionState(
+  stores: readonly ConnectedStore[],
+): Partial<Record<StorePlatform, ConnectedStore>> {
+  return stores.reduce<Partial<Record<StorePlatform, ConnectedStore>>>((states, store) => {
+    if (
+      store.connectionStatus === StoreConnectionStatus.Disconnected ||
+      states[store.platform] !== undefined
+    ) {
+      return states;
+    }
+
+    return { ...states, [store.platform]: store };
+  }, {});
+}
+
+export function canInitiateStoreConnection(store: ConnectedStore | null): boolean {
+  if (!store) {
+    return true;
+  }
+
+  return [
+    StoreConnectionStatus.AuthenticationExpired,
+    StoreConnectionStatus.Disconnected,
+    StoreConnectionStatus.Error,
+  ].includes(store.connectionStatus);
+}
+
+export function getConnectionButtonLabel(
+  platformLabel: string,
+  store: ConnectedStore | null,
+): string {
+  switch (store?.connectionStatus) {
+    case StoreConnectionStatus.Connected:
+      return "Connected";
+    case StoreConnectionStatus.Synchronising:
+      return "Synchronising...";
+    case StoreConnectionStatus.AuthenticationExpired:
+      return "Reconnect";
+    case StoreConnectionStatus.PendingValidation:
+      return "Validating...";
+    default:
+      return `Connect ${platformLabel}`;
+  }
+}
+
+export function getConnectionButtonClassName(store: ConnectedStore | null): string {
+  const stateClass =
+    store?.connectionStatus === StoreConnectionStatus.Connected
+      ? " connected"
+      : store?.connectionStatus === StoreConnectionStatus.Synchronising
+        ? " synchronising"
+        : "";
+
+  return `primary-button connection-state-button${stateClass}`;
+}
+
+function getDuplicateConnectionNotice(platformLabel: string): string {
+  return `${platformLabel} is already connected. Disconnect the existing store before connecting another.`;
 }
 
 function SyncSummary({ syncStatus }: { readonly syncStatus: StoreSyncStatus | undefined }) {
@@ -1331,9 +1468,7 @@ function getSyncAttention(syncStatus: StoreSyncStatus | undefined): string | nul
   return typeof cursorMessage === "string" && cursorMessage.trim() ? cursorMessage : null;
 }
 
-function getLatestSyncJob(
-  jobs: readonly StoreSyncJobStatus[],
-): StoreSyncJobStatus | undefined {
+function getLatestSyncJob(jobs: readonly StoreSyncJobStatus[]): StoreSyncJobStatus | undefined {
   return [...jobs].sort((first, second) => {
     const firstTime = new Date(first.finishedAt ?? first.queuedAt).getTime();
     const secondTime = new Date(second.finishedAt ?? second.queuedAt).getTime();

@@ -95,10 +95,7 @@ interface StoreIntegrationsPrismaClient {
         readonly disconnectedAt?: null;
         readonly business?: { readonly ownerId: string };
       };
-      readonly select:
-        | ConnectedStoreSelect
-        | { readonly id: true }
-        | ConnectedStoreActionSelect;
+      readonly select: ConnectedStoreSelect | { readonly id: true } | ConnectedStoreActionSelect;
     }): Promise<ConnectedStoreRecord | ConnectedStoreActionRecord | { readonly id: string } | null>;
     create(args: {
       readonly data: ConnectedStoreCreateData;
@@ -319,7 +316,7 @@ export class StoreIntegrationsService {
     })) as ConnectedStoreRecord | null;
 
     if (existingConnection && isActiveConnectionStatus(existingConnection.connectionStatus)) {
-      throw new ConflictException("Duplicate store connections are prohibited.");
+      throw new ConflictException("This store is already connected.");
     }
 
     const credentialConfiguration = this.createCredentialConfiguration(request);
@@ -466,8 +463,12 @@ export class StoreIntegrationsService {
       }
 
       const apiRegion = toAmazonSellerApiRegion(request.region);
-      const encryptedAccessToken = this.credentialEncryption.encrypt(credentials.accessToken.trim());
-      const encryptedRefreshToken = this.credentialEncryption.encrypt(credentials.refreshToken.trim());
+      const encryptedAccessToken = this.credentialEncryption.encrypt(
+        credentials.accessToken.trim(),
+      );
+      const encryptedRefreshToken = this.credentialEncryption.encrypt(
+        credentials.refreshToken.trim(),
+      );
 
       return {
         accessTokenHash: hashCredentialPlaceholder(credentials.accessToken),
@@ -509,8 +510,12 @@ export class StoreIntegrationsService {
       }
 
       const apiRegion = toTikTokShopApiRegion(request.region);
-      const encryptedAccessToken = this.credentialEncryption.encrypt(credentials.accessToken.trim());
-      const encryptedRefreshToken = this.credentialEncryption.encrypt(credentials.refreshToken.trim());
+      const encryptedAccessToken = this.credentialEncryption.encrypt(
+        credentials.accessToken.trim(),
+      );
+      const encryptedRefreshToken = this.credentialEncryption.encrypt(
+        credentials.refreshToken.trim(),
+      );
 
       return {
         accessTokenHash: hashCredentialPlaceholder(credentials.accessToken),
@@ -557,7 +562,9 @@ export class StoreIntegrationsService {
       }
 
       const apiVersion = credentials.apiVersion?.trim() || defaultShopifyAdminApiVersion;
-      const encryptedAccessToken = this.credentialEncryption.encrypt(credentials.accessToken.trim());
+      const encryptedAccessToken = this.credentialEncryption.encrypt(
+        credentials.accessToken.trim(),
+      );
 
       return {
         accessTokenHash: hashCredentialPlaceholder(credentials.accessToken),
@@ -673,7 +680,10 @@ export class StoreIntegrationsService {
     return toDisconnectStoreResponse(disconnectedStore as ConnectedStoreActionRecord);
   }
 
-  async requestManualSync(userId: string, request: StoreActionRequestDto): Promise<ManualSyncResponse> {
+  async requestManualSync(
+    userId: string,
+    request: StoreActionRequestDto,
+  ): Promise<ManualSyncResponse> {
     const store = await this.assertStoreBelongsToUser(userId, request.storeId);
 
     if (store.connectionStatus !== StoreConnectionStatus.Connected) {
@@ -715,10 +725,7 @@ export class StoreIntegrationsService {
     return toManualSyncJobStatusResponse(jobStatus);
   }
 
-  async getStoreSyncStatus(
-    userId: string,
-    storeId: string,
-  ): Promise<StoreSyncStatusResponse> {
+  async getStoreSyncStatus(userId: string, storeId: string): Promise<StoreSyncStatusResponse> {
     const store = await this.assertStoreBelongsToUser(userId, storeId);
 
     const prisma = this.prismaService.client as unknown as StoreIntegrationsPrismaClient;
@@ -820,9 +827,9 @@ export class StoreIntegrationsService {
           ? await this.syncQueue.getTikTokShopStoreJobStatuses(storeId)
           : platform === StorePlatform.Shopify
             ? await this.syncQueue.getShopifyStoreJobStatuses(storeId)
-          : platform === StorePlatform.AmazonSeller
-            ? await this.syncQueue.getAmazonSellerStoreJobStatuses(storeId)
-            : await this.syncQueue.getWooCommerceStoreJobStatuses(storeId);
+            : platform === StorePlatform.AmazonSeller
+              ? await this.syncQueue.getAmazonSellerStoreJobStatuses(storeId)
+              : await this.syncQueue.getWooCommerceStoreJobStatuses(storeId);
 
       return jobs.map(toStoreSyncJobStatusResponse);
     } catch {
@@ -984,7 +991,8 @@ function appendSafeIntegrationDetails(message: string, error: unknown): string {
     return message;
   }
 
-  const endpoint = typeof error.metadata?.endpoint === "string" ? error.metadata.endpoint : undefined;
+  const endpoint =
+    typeof error.metadata?.endpoint === "string" ? error.metadata.endpoint : undefined;
   const status = typeof error.metadata?.status === "number" ? error.metadata.status : undefined;
   const fallbackStatus =
     typeof error.metadata?.fallbackStatus === "number" ? error.metadata.fallbackStatus : undefined;

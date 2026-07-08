@@ -316,6 +316,22 @@ button:disabled {
   width: 16px;
 }
 
+.connection-state-button.connected:disabled {
+  background: #dff6e9;
+  border-color: #b9e6cd;
+  color: #14603e;
+  cursor: default;
+  opacity: 1;
+}
+
+.connection-state-button.synchronising:disabled {
+  background: #eff6ff;
+  border-color: #c7ddff;
+  color: #255c97;
+  cursor: wait;
+  opacity: 1;
+}
+
 .ghost-button {
   align-items: center;
   background: transparent;
