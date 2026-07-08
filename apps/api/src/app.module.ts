@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { AiModule } from "./ai/ai.module.js";
 import { AuthModule } from "./auth/auth.module.js";
 import { CommerceModule } from "./commerce/commerce.module.js";
 import { DashboardModule } from "./dashboard/dashboard.module.js";
@@ -15,6 +16,7 @@ import { UsersModule } from "./users/users.module.js";
     AuthModule,
     UsersModule,
     StoreIntegrationsModule,
+    AiModule,
     DashboardModule,
     CommerceModule,
     ReportsModule,
