@@ -296,73 +296,152 @@ export function AiBusinessBriefingSection({
     );
   }
 
+  const topRisk = briefing.risks[0] ?? null;
+  const topRecommendation = briefing.recommendations[0] ?? null;
+  const businessInsights = getBusinessInsights(briefing.observations);
+  const additionalRisks = briefing.risks.slice(1, 3);
+  const additionalRecommendations = briefing.recommendations.slice(1, 3);
+
   return (
     <section className="panel ai-briefing-panel" aria-label="Salense Intelligence">
       <AiBriefingHeading confidence={briefing.confidence ?? null} />
       <div className="ai-briefing-hero">
-        <div>
+        <div className="ai-executive-copy">
           <span>AI Business Briefing</span>
           <h2>{briefing.businessOverview?.businessName ?? "Commerce intelligence"}</h2>
-          <p>{briefing.executiveSummary}</p>
+          <small>{formatBriefingDate(briefing.generatedAt)}</small>
+          <p className="ai-executive-narrative">
+            {createExecutiveNarrative(briefing)}
+          </p>
         </div>
-        <div className="ai-overview-grid">
-          <AiOverviewMetric label="Revenue today" value={formatCurrency(briefing.businessOverview?.revenueToday ?? 0)} />
-          <AiOverviewMetric label="Orders today" value={(briefing.businessOverview?.ordersToday ?? 0).toString()} />
-          <AiOverviewMetric label="Platforms" value={(briefing.businessOverview?.connectedPlatforms.length ?? 0).toString()} />
-          <AiOverviewMetric label="Health" value={briefing.businessHealth?.score === null || briefing.businessHealth?.score === undefined ? "Reviewing" : briefing.businessHealth.score.toString()} />
+        <div className="ai-hero-callouts">
+          <AiHeroCallout
+            emptyText="No immediate business action is required. Continue monitoring current performance."
+            emptyTitle="Keep monitoring performance"
+            item={topRecommendation}
+            label="Today's priority"
+          />
+          <AiHeroCallout
+            emptyText="No significant operational risks detected today."
+            emptyTitle="No significant risk"
+            item={topRisk}
+            label="Top risk"
+          />
         </div>
       </div>
 
-      <div className="ai-briefing-grid">
-        <AiInsightColumn
-          items={briefing.observations}
-          title="Key observations"
-          emptyText="No observations available yet."
+      <div className="ai-briefing-flow">
+        <AiInsightSection
+          items={businessInsights.slice(0, 3)}
+          title="Business Insights"
+          emptyText="No interpretive business insights are available yet."
         />
-        <AiInsightColumn
-          items={briefing.risks}
-          title="Risks"
-          emptyText="No material risks detected in synchronized data."
-        />
-        <AiInsightColumn
-          items={briefing.opportunities}
+        {additionalRisks.length > 0 ? (
+          <AiInsightSection
+            items={additionalRisks}
+            title="Additional risks"
+            emptyText="No significant operational risks detected today."
+          />
+        ) : null}
+        {additionalRecommendations.length > 0 ? (
+          <AiInsightSection
+            items={additionalRecommendations}
+            title="Additional recommendations"
+            emptyText="No immediate business action is required. Continue monitoring current performance."
+            confidence={briefing.confidence ?? null}
+          />
+        ) : null}
+        <AiInsightSection
+          items={briefing.opportunities.slice(0, 2)}
           title="Opportunities"
-          emptyText="No opportunities detected yet."
+          emptyText="No notable opportunities identified."
         />
       </div>
 
-      <section className="ai-recommendations" aria-label="AI recommendations">
-        <div className="panel-heading compact-heading">
-          <div>
-            <h3>Recommended next actions</h3>
-            <p>Evidence-based actions from deterministic commerce reasoning.</p>
-          </div>
-        </div>
-        <div className="ai-recommendation-list">
-          {briefing.recommendations.length > 0 ? (
-            briefing.recommendations.map((recommendation) => (
-              <AiEvidenceCard
-                confidence={briefing.confidence ?? null}
-                item={recommendation}
-                key={recommendation.id}
-                label={recommendation.priority}
-              />
-            ))
-          ) : (
-            <div className="ai-briefing-empty compact-empty">
-              <ShieldCheck size={18} aria-hidden="true" />
-              <strong>No recommended action yet</strong>
-              <span>Salense will add actions when synchronized data shows a clear risk or opportunity.</span>
-            </div>
-          )}
-        </div>
-      </section>
-
-      {briefing.explainability ? (
-        <ExplainabilityDetails explainability={briefing.explainability} />
-      ) : null}
+      <AiEvidenceStrip briefing={briefing} />
     </section>
   );
+}
+
+function createExecutiveNarrative(briefing: AiBriefingTodayResponse): string {
+  const cleaned = stripMarkdown(briefing.executiveSummary ?? "")
+    .replace(/\s+/gu, " ")
+    .trim();
+  const narrativeSentences = splitIntoSentences(cleaned).filter(isExecutiveInterpretation);
+
+  if (narrativeSentences.length > 0) {
+    return narrativeSentences.slice(0, 3).join(" ");
+  }
+
+  return createFallbackExecutiveNarrative(briefing);
+}
+
+function stripMarkdown(value: string): string {
+  return value
+    .replace(/\*\*(.*?)\*\*/gu, "$1")
+    .replace(/__(.*?)__/gu, "$1")
+    .replace(/`([^`]+)`/gu, "$1")
+    .replace(/^#{1,6}\s+/gmu, "")
+    .replace(/^\s*[-*]\s+/gmu, "")
+    .replace(/\[(.*?)\]\([^)]*\)/gu, "$1");
+}
+
+function normalizeNarrativeLine(value: string): string {
+  return stripMarkdown(value)
+    .replace(/^\s*\d+\.\s+/u, "")
+    .replace(/\s+/gu, " ")
+    .trim();
+}
+
+function splitIntoSentences(value: string): readonly string[] {
+  return value
+    .split(/(?<=[.!?])\s+/u)
+    .map((sentence) => normalizeNarrativeLine(sentence))
+    .filter((sentence) => sentence.length > 0);
+}
+
+function isExecutiveInterpretation(sentence: string): boolean {
+  const normalized = sentence.toLowerCase();
+  const repeatedKpiPhrases = [
+    "revenue reached",
+    "orders today",
+    "order today",
+    "connected platforms",
+    "business health score",
+    "confidence is",
+  ];
+
+  return !repeatedKpiPhrases.some((phrase) => normalized.includes(phrase));
+}
+
+function createFallbackExecutiveNarrative(briefing: AiBriefingTodayResponse): string {
+  const posture = briefing.businessHealth?.status
+    ? `Your business is currently ${briefing.businessHealth.status.toLowerCase().replace(/_/gu, " ")}.`
+    : "Salense Intelligence is reviewing synchronized commerce signals.";
+  const risk = briefing.risks[0]?.summary;
+  const recommendation = briefing.recommendations[0]?.summary;
+
+  return [posture, risk, recommendation]
+    .filter((sentence): sentence is string => Boolean(sentence))
+    .slice(0, 3)
+    .join(" ");
+}
+
+function getBusinessInsights(observations: readonly ObservationObject[]): readonly ObservationObject[] {
+  return observations.filter((observation) => !isRepeatedKpiObservation(observation));
+}
+
+function isRepeatedKpiObservation(observation: ObservationObject): boolean {
+  const normalizedTitle = observation.title.trim().toLowerCase();
+  const repeatedTitles = new Set([
+    "revenue today",
+    "orders today",
+    "strongest platform",
+    "connected platforms",
+    "business health score",
+  ]);
+
+  return repeatedTitles.has(normalizedTitle);
 }
 
 function AiBriefingHeading({
@@ -388,7 +467,92 @@ function AiBriefingHeading({
   );
 }
 
-function AiOverviewMetric({ label, value }: { readonly label: string; readonly value: string }) {
+function AiHeroCallout({
+  emptyText,
+  emptyTitle,
+  item,
+  label,
+}: {
+  readonly emptyText: string;
+  readonly emptyTitle: string;
+  readonly item: DiagnosticObject | RecommendationObject | null;
+  readonly label: string;
+}) {
+  return (
+    <div className="ai-hero-callout">
+      <span>{label}</span>
+      <strong>{item?.title ?? emptyTitle}</strong>
+      <p>{item?.summary ?? emptyText}</p>
+    </div>
+  );
+}
+
+function AiInsightSection<TItem extends ObservationObject | DiagnosticObject | RecommendationObject>({
+  confidence,
+  emptyText,
+  items,
+  title,
+}: {
+  readonly confidence?: AiBriefingTodayResponse["confidence"] | null;
+  readonly emptyText: string;
+  readonly items: readonly TItem[];
+  readonly title: string;
+}) {
+  return (
+    <section className={`ai-insight-section${items.length === 0 ? " empty" : ""}`}>
+      <div className="ai-insight-section-heading">
+        <h3>{title}</h3>
+        {items.length > 0 ? <span>{formatInsightCount(items.length)}</span> : null}
+      </div>
+      {items.length > 0 ? (
+        <div className="ai-insight-list" data-count={items.length}>
+          {items.map((item) => (
+            <AiEvidenceCard
+              confidence={confidence}
+              item={item}
+              key={item.id}
+              label={"priority" in item ? item.priority : item.severity}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="ai-insight-empty-state">
+          <ShieldCheck size={16} aria-hidden="true" />
+          <p>{emptyText}</p>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function AiEvidenceStrip({ briefing }: { readonly briefing: AiBriefingTodayResponse }) {
+  const explainability = briefing.explainability;
+  const latestRule = explainability?.rulesApplied[0] ?? "Deterministic commerce rules";
+  const latestLimitation =
+    explainability?.limitations[0] ?? "Limited by synchronized data availability";
+
+  return (
+    <div className="ai-evidence-strip" aria-label="AI briefing evidence summary">
+      <EvidenceStripItem
+        label="Data source"
+        value={explainability?.dataSources[0] ?? "Synchronized commerce data"}
+      />
+      <EvidenceStripItem label="Last sync" value={formatBriefingDate(briefing.generatedAt)} />
+      <EvidenceStripItem label="Rules applied" value={latestRule} />
+      <EvidenceStripItem
+        label="Confidence"
+        value={
+          briefing.confidence
+            ? `${briefing.confidence.level.toLowerCase()} (${briefing.confidence.score}%)`
+            : "Not available"
+        }
+      />
+      <EvidenceStripItem label="Limitations" value={latestLimitation} />
+    </div>
+  );
+}
+
+function EvidenceStripItem({ label, value }: { readonly label: string; readonly value: string }) {
   return (
     <div>
       <span>{label}</span>
@@ -397,29 +561,8 @@ function AiOverviewMetric({ label, value }: { readonly label: string; readonly v
   );
 }
 
-function AiInsightColumn<TItem extends ObservationObject | DiagnosticObject>({
-  emptyText,
-  items,
-  title,
-}: {
-  readonly emptyText: string;
-  readonly items: readonly TItem[];
-  readonly title: string;
-}) {
-  return (
-    <div className="ai-insight-column">
-      <h3>{title}</h3>
-      {items.length > 0 ? (
-        <div className="ai-insight-list">
-          {items.map((item) => (
-            <AiEvidenceCard item={item} key={item.id} label={item.severity} />
-          ))}
-        </div>
-      ) : (
-        <p className="ai-muted">{emptyText}</p>
-      )}
-    </div>
-  );
+function formatInsightCount(count: number): string {
+  return count === 1 ? "1 highlight" : `${count} highlights`;
 }
 
 function AiEvidenceCard({
@@ -924,6 +1067,20 @@ function formatEvidenceSource(source: IntelligenceEvidence["source"]): string {
     case "normalized_refunds":
       return "Refunds";
   }
+}
+
+function formatBriefingDate(value: string): string {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Today";
+  }
+
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
 }
 
 function formatCurrency(value: number): string {

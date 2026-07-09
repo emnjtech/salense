@@ -1176,9 +1176,14 @@ button:disabled {
   border-radius: 8px;
   color: #ffffff;
   display: grid;
-  gap: 24px;
-  grid-template-columns: minmax(0, 1.1fr) minmax(340px, 0.9fr);
-  padding: 24px;
+  gap: 22px;
+  grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+  padding: 30px;
+}
+
+.ai-executive-copy {
+  align-content: start;
+  display: grid;
 }
 
 .ai-briefing-hero span {
@@ -1194,40 +1199,62 @@ button:disabled {
   margin-top: 6px;
 }
 
+.ai-briefing-hero small {
+  color: #bdeed0;
+  display: block;
+  font-size: 12px;
+  margin-top: 5px;
+}
+
 .ai-briefing-hero p {
   color: #dcfce7;
-  line-height: 1.65;
-  margin-top: 10px;
-  max-width: 760px;
+  font-size: 14px;
+  line-height: 1.7;
 }
 
-.ai-overview-grid {
+.ai-executive-narrative {
+  font-size: 17px;
+  line-height: 1.75;
+  margin-top: 18px;
+  max-width: 680px;
+}
+
+.ai-hero-callouts {
   display: grid;
-  gap: 10px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
 
-.ai-overview-grid div {
-  background: rgb(255 255 255 / 9%);
-  border: 1px solid rgb(255 255 255 / 14%);
+.ai-hero-callout {
+  background: rgb(255 255 255 / 7%);
+  border: 1px solid rgb(255 255 255 / 12%);
   border-radius: 8px;
-  padding: 14px;
+  padding: 18px;
 }
 
-.ai-overview-grid strong {
+.ai-hero-callout span {
+  display: block;
+}
+
+.ai-hero-callout strong {
   color: #ffffff;
   display: block;
-  font-size: 24px;
-  margin-top: 4px;
+  font-size: 14px;
+  line-height: 1.35;
+  margin-top: 5px;
 }
 
-.ai-briefing-grid {
+.ai-hero-callout p {
+  font-size: 13px;
+  line-height: 1.55;
+  margin-top: 6px;
+}
+
+.ai-briefing-flow {
   display: grid;
-  gap: 14px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
 }
 
-.ai-insight-column,
+.ai-insight-section,
 .ai-recommendations,
 .ai-explainability {
   background: #ffffff;
@@ -1235,13 +1262,32 @@ button:disabled {
   border-radius: 8px;
 }
 
-.ai-insight-column {
+.ai-insight-section {
   display: grid;
   gap: 12px;
   padding: 16px;
 }
 
-.ai-insight-column h3,
+.ai-insight-section.empty {
+  background: transparent;
+  border-color: transparent;
+  padding: 4px 2px;
+}
+
+.ai-insight-section-heading {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.ai-insight-section-heading span {
+  color: #647067;
+  font-size: 12px;
+  font-weight: 720;
+}
+
+.ai-insight-section h3,
 .ai-recommendations h3 {
   font-size: 16px;
 }
@@ -1250,6 +1296,36 @@ button:disabled {
 .ai-recommendation-list {
   display: grid;
   gap: 10px;
+}
+
+.ai-insight-list[data-count="1"] {
+  max-width: 720px;
+}
+
+.ai-insight-list[data-count="2"],
+.ai-insight-list[data-count="3"] {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+}
+
+.ai-insight-empty-state {
+  align-items: center;
+  background: #f8fbf9;
+  border-left: 3px solid #b7dec7;
+  color: #526059;
+  display: inline-flex;
+  gap: 10px;
+  line-height: 1.5;
+  max-width: 720px;
+  padding: 10px 12px;
+}
+
+.ai-insight-empty-state svg {
+  color: #1f8a5f;
+  flex: 0 0 auto;
+}
+
+.ai-insight-empty-state p {
+  font-size: 13px;
 }
 
 .ai-muted {
@@ -1346,6 +1422,37 @@ button:disabled {
 .ai-recommendations,
 .ai-explainability {
   padding: 16px;
+}
+
+.ai-evidence-strip {
+  background: #ffffff;
+  border: 1px solid #dfe4df;
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  padding: 14px;
+}
+
+.ai-evidence-strip div {
+  min-width: 0;
+}
+
+.ai-evidence-strip span {
+  color: #647067;
+  display: block;
+  font-size: 11px;
+  font-weight: 820;
+  text-transform: uppercase;
+}
+
+.ai-evidence-strip strong {
+  color: #243027;
+  display: block;
+  font-size: 12px;
+  line-height: 1.35;
+  margin-top: 5px;
+  overflow-wrap: anywhere;
 }
 
 .compact-heading {
@@ -3976,8 +4083,10 @@ button:disabled {
 
   .content-grid,
   .today-content-grid,
-  .ai-briefing-grid,
+  .ai-briefing-flow,
   .ai-briefing-hero,
+  .ai-hero-callouts,
+  .ai-evidence-strip,
   .ai-explainability-grid,
   .today-hero-grid,
   .reports-chart-grid,
@@ -4078,8 +4187,9 @@ button:disabled {
   }
 
   .overview-grid,
-  .ai-overview-grid,
-  .ai-briefing-grid,
+  .ai-briefing-flow,
+  .ai-hero-callouts,
+  .ai-evidence-strip,
   .ai-explainability-grid,
   .health-proof-list,
   .invitation-form,

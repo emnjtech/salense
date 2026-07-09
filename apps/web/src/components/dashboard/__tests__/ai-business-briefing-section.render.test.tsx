@@ -37,14 +37,56 @@ describe("AiBusinessBriefingSection", () => {
 
     expect(html).toContain("Salense Intelligence");
     expect(html).toContain("AI Business Briefing");
-    expect(html).toContain("Ivonmelda Hair has 1 order today.");
-    expect(html).toContain("Revenue today");
+    expect(html).toContain("Business health is strong");
+    expect(html).toContain("Top risk");
+    expect(html).toContain("Today&#x27;s priority");
+    expect(html).toContain("Business Insights");
+    expect(html).toContain("Confidence");
+    expect(html).toContain("Data source");
+    expect(html).toContain("Last sync");
+    expect(html).toContain("Rules applied");
+    expect(html).toContain("Limitations");
+    expect(html).not.toContain("<h4>Revenue today</h4>");
+    expect(html).not.toContain("<h4>Orders today</h4>");
+    expect(html).toContain("Revenue concentration");
     expect(html).toContain("Inventory availability risk");
     expect(html).toContain("Review inventory availability");
     expect(html).toContain("View evidence");
-    expect(html).toContain("Why this briefing?");
     expect(html).toContain("Only revenue-eligible order statuses contribute to revenue.");
     expect(html).toContain("No marketplace APIs are queried by the AI layer.");
+  });
+
+  it("renders quiet empty states instead of empty insight cards", () => {
+    const briefing = {
+      ...readyBriefing(),
+      risks: [],
+      recommendations: [],
+      opportunities: [],
+    } satisfies AiBriefingTodayResponse;
+
+    const html = renderToStaticMarkup(
+      createElement(AiBusinessBriefingSection, {
+        briefing,
+      }),
+    );
+
+    expect(html).toContain("No significant business risks detected today.");
+    expect(html).toContain("No immediate business action is required.");
+    expect(html).toContain("No notable opportunities identified.");
+  });
+
+  it("does not render raw markdown markers from generated narratives", () => {
+    const html = renderToStaticMarkup(
+      createElement(AiBusinessBriefingSection, {
+        briefing: readyBriefing(),
+      }),
+    );
+
+    expect(html).not.toContain("**");
+    expect(html).not.toContain("**Business Overview:**");
+    expect(html).toContain("Business health is strong");
+    expect(html).not.toContain("Business Overview:");
+    expect(html).not.toContain("Revenue reached Â£303");
   });
 
   it("does not render raw payloads, tokens, hashes, or secrets", () => {
@@ -82,7 +124,8 @@ function readyBriefing(): AiBriefingTodayResponse {
       lowStockProducts: 2,
       outOfStockProducts: 0,
     },
-    executiveSummary: "Ivonmelda Hair has 1 order today.",
+    executiveSummary:
+      "**Business Overview:** Revenue reached £303 today from one WooCommerce order.\n\n**What changed:** Revenue increased against yesterday.\n\n**Risks:** Business health is strong, but channel coverage is limited because only one platform is connected.\n\n**Recommendations:** Review low-stock products before running promotions.\n\n**Forecast:** More order history is needed for a stronger near-term forecast.\n\n**Confidence:** Confidence is medium because the briefing is based on synchronized commerce records.",
     observations: [
       {
         id: "observation-revenue-today",
@@ -93,6 +136,16 @@ function readyBriefing(): AiBriefingTodayResponse {
         category: "REVENUE",
         direction: "UP",
         evidence: [{ metric: "revenueToday", value: 303, source: "normalized_orders" }],
+      },
+      {
+        id: "observation-platform-concentration",
+        type: "OBSERVATION",
+        title: "Revenue concentration",
+        summary: "Revenue remains concentrated in one connected channel.",
+        severity: "MEDIUM",
+        category: "PLATFORM",
+        direction: "FLAT",
+        evidence: [{ metric: "connectedPlatforms", value: 1, source: "connected_stores" }],
       },
     ],
     risks: [
