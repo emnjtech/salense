@@ -8,7 +8,8 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   app.enableCors({
-    origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
+    credentials: true,
+    origin: getAllowedCorsOrigins(),
   });
   app.useBodyParser("json", { limit: "4mb" });
 
@@ -24,3 +25,19 @@ async function bootstrap(): Promise<void> {
 }
 
 void bootstrap();
+
+function getAllowedCorsOrigins(): readonly string[] {
+  const configuredOrigins = process.env.API_CORS_ORIGINS?.split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  if (configuredOrigins && configuredOrigins.length > 0) {
+    return configuredOrigins;
+  }
+
+  return [
+    "https://getsalense.com",
+    "https://www.getsalense.com",
+    "https://app.getsalense.com",
+  ];
+}

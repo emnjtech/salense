@@ -301,7 +301,11 @@ export function createStoreIntegrationsApiClient(
 }
 
 export function getDefaultApiBaseUrl(): string {
-  return process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
+  return (
+    process.env.NEXT_PUBLIC_API_URL ??
+    process.env.NEXT_PUBLIC_API_BASE_URL ??
+    "https://api.getsalense.com"
+  );
 }
 
 export function toWooCommerceConnectionPayload(input: WooCommerceConnectionInput): {

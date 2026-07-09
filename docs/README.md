@@ -7,6 +7,7 @@ Product requirements are governed by the Salense PRD + SES.
 Operational notes:
 
 - [Continuous integration](./ci.md)
+- [Split production hosting](../HOSTING.md)
 - [MVP demo runbook](./mvp-demo-runbook.md)
 - [Windows local demo setup](./windows-local-demo-setup.md)
 - [MVP demo checklist](./mvp-checklist.md)

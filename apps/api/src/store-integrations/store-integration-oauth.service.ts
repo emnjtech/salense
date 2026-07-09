@@ -275,7 +275,7 @@ function getStateSigningSecret(): string {
 }
 
 function getStoreIntegrationsRedirectUrl(query: string): string {
-  const publicAppUrl = process.env.PUBLIC_APP_URL?.trim() || "http://localhost:3000";
+  const publicAppUrl = process.env.PUBLIC_APP_URL?.trim() || "https://app.getsalense.com";
   return `${publicAppUrl.replace(/\/+$/u, "")}/store-integrations?${query}`;
 }
 
