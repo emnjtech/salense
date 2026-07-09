@@ -89,7 +89,10 @@ export class WooCommerceRestClient {
   }
 
   listOrders(request: WooCommerceReadRequest): Promise<readonly WooCommerceRawOrder[]> {
-    return this.getPaginated("orders", request, { supportsIncremental: true });
+    return this.getPaginated("orders", request, {
+      incrementalParameter: "modified_after",
+      supportsIncremental: true,
+    });
   }
 
   listProducts(request: WooCommerceReadRequest): Promise<readonly WooCommerceRawProduct[]> {
@@ -126,6 +129,7 @@ export class WooCommerceRestClient {
     request: WooCommerceReadRequest,
     options: {
       readonly additionalParams?: Readonly<Record<string, string>>;
+      readonly incrementalParameter?: "after" | "modified_after";
       readonly supportsIncremental: boolean;
     },
   ): Promise<readonly T[]> {
@@ -141,7 +145,10 @@ export class WooCommerceRestClient {
       endpoint.searchParams.set("per_page", String(perPage));
 
       if (request.since && options.supportsIncremental) {
-        endpoint.searchParams.set("after", request.since.toISOString());
+        endpoint.searchParams.set(
+          options.incrementalParameter ?? "after",
+          request.since.toISOString(),
+        );
       }
 
       for (const [key, value] of Object.entries(options.additionalParams ?? {})) {

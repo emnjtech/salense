@@ -1331,7 +1331,7 @@ function SyncSummary({ syncStatus }: { readonly syncStatus: StoreSyncStatus | un
       <strong>{getPlatformLabel(syncStatus.platform)} sync</strong>
       <span>{syncStatus.cursors.length} resources tracked</span>
       <span>{activeJobs} queued or running jobs</span>
-      <span>{failedCursors} resources need attention</span>
+      <span>{formatAttentionResourcesLabel(failedCursors)}</span>
       {latestJob ? <span>Latest job: {formatJobStatus(latestJob.status)}</span> : null}
       {latestFailure ? <span className="sync-failure-reason">{latestFailure}</span> : null}
     </div>
@@ -1456,16 +1456,28 @@ function getSyncAttention(syncStatus: StoreSyncStatus | undefined): string | nul
     return null;
   }
 
-  const failedJob = getLatestSyncJob(syncStatus.jobs.filter((job) => job.status === "FAILED"));
+  const latestJob = getLatestSyncJob(syncStatus.jobs);
+  const failedJob =
+    latestJob?.status === "FAILED"
+      ? latestJob
+      : getLatestSyncJob(syncStatus.jobs.filter((job) => job.status === "FAILED"));
 
-  if (failedJob?.failedReason) {
+  if (latestJob?.status === "FAILED" && failedJob?.failedReason) {
     return failedJob.failedReason;
   }
 
   const failedCursor = syncStatus.cursors.find((cursor) => cursor.status === "ERROR");
   const cursorMessage = failedCursor?.errorSummary?.message;
 
+  if (latestJob?.status === "COMPLETED" && failedCursor) {
+    return "Some sync resources need attention. Orders and available commerce data were refreshed successfully.";
+  }
+
   return typeof cursorMessage === "string" && cursorMessage.trim() ? cursorMessage : null;
+}
+
+function formatAttentionResourcesLabel(count: number): string {
+  return count === 1 ? "1 resource needs attention" : `${count} resources need attention`;
 }
 
 function getLatestSyncJob(jobs: readonly StoreSyncJobStatus[]): StoreSyncJobStatus | undefined {

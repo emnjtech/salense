@@ -55,13 +55,15 @@ describe("WooCommerceRestClient", () => {
 
     expect(fetchFn).toHaveBeenCalledTimes(2);
     expectCalledUrl(fetchFn, 0, {
-      after: "2026-07-01T00:00:00.000Z",
+      after: null,
+      modifiedAfter: "2026-07-01T00:00:00.000Z",
       page: "1",
       path: "/wp-json/wc/v3/orders",
       perPage: "1",
     });
     expectCalledUrl(fetchFn, 1, {
-      after: "2026-07-01T00:00:00.000Z",
+      after: null,
+      modifiedAfter: "2026-07-01T00:00:00.000Z",
       page: "2",
       path: "/wp-json/wc/v3/orders",
       perPage: "1",
@@ -244,6 +246,7 @@ function expectCalledUrl(
     readonly consumerKey?: string;
     readonly consumerSecret?: string;
     readonly fields?: string;
+    readonly modifiedAfter?: string | null;
     readonly page?: string;
     readonly path: string;
     readonly perPage?: string;
@@ -254,6 +257,9 @@ function expectCalledUrl(
   expect(url.pathname).toBe(expectation.path);
   if (expectation.after !== undefined) {
     expect(url.searchParams.get("after")).toBe(expectation.after);
+  }
+  if (expectation.modifiedAfter !== undefined) {
+    expect(url.searchParams.get("modified_after")).toBe(expectation.modifiedAfter);
   }
   if (expectation.consumerKey !== undefined) {
     expect(url.searchParams.get("consumer_key")).toBe(expectation.consumerKey);
