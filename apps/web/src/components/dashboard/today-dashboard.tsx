@@ -298,13 +298,12 @@ export function AiBusinessBriefingSection({
 
   const topRisk = briefing.risks[0] ?? null;
   const topRecommendation = briefing.recommendations[0] ?? null;
-  const businessInsights = getBusinessInsights(briefing.observations);
   const additionalRisks = briefing.risks.slice(1, 3);
   const additionalRecommendations = briefing.recommendations.slice(1, 3);
+  const remainingImmediateItems = [...additionalRisks, ...additionalRecommendations];
 
   return (
     <section className="panel ai-briefing-panel" aria-label="Salense Intelligence">
-      <AiBriefingHeading confidence={briefing.confidence ?? null} />
       <div className="ai-briefing-hero">
         <div className="ai-executive-copy">
           <span>AI Business Briefing</span>
@@ -314,16 +313,44 @@ export function AiBusinessBriefingSection({
             {createExecutiveNarrative(briefing)}
           </p>
         </div>
+        <div className="ai-hero-metric-grid">
+          <AiHeroMetric
+            icon={<TrendingUp size={18} aria-hidden="true" />}
+            label="Revenue today"
+            value={formatCurrency(briefing.businessOverview?.revenueToday ?? 0)}
+            detail={formatRevenueChange(briefing.businessOverview)}
+          />
+          <AiHeroMetric
+            icon={<ShoppingBag size={18} aria-hidden="true" />}
+            label="Orders today"
+            value={(briefing.businessOverview?.ordersToday ?? 0).toString()}
+            detail={`${briefing.businessOverview?.ordersToday ?? 0} captured today`}
+          />
+          <AiHeroMetric
+            icon={<Store size={18} aria-hidden="true" />}
+            label="Connected platforms"
+            value={(briefing.businessOverview?.connectedPlatforms.length ?? 0).toString()}
+            detail={formatConnectedPlatforms(briefing.businessOverview)}
+          />
+          <AiHeroMetric
+            icon={<ShieldCheck size={18} aria-hidden="true" />}
+            label="Business health"
+            value={formatBusinessHealthScore(briefing.businessHealth)}
+            detail={briefing.businessHealth?.status?.toLowerCase().replace(/_/gu, " ") ?? "Reviewing"}
+          />
+        </div>
         <div className="ai-hero-callouts">
           <AiHeroCallout
             emptyText="No immediate business action is required. Continue monitoring current performance."
             emptyTitle="Keep monitoring performance"
+            icon={<CheckCircle2 size={30} aria-hidden="true" />}
             item={topRecommendation}
-            label="Today's priority"
+            label="Top priority action"
           />
           <AiHeroCallout
             emptyText="No significant operational risks detected today."
             emptyTitle="No significant risk"
+            icon={<AlertTriangle size={30} aria-hidden="true" />}
             item={topRisk}
             label="Top risk"
           />
@@ -331,26 +358,40 @@ export function AiBusinessBriefingSection({
       </div>
 
       <div className="ai-briefing-flow">
-        <AiInsightSection
-          items={businessInsights.slice(0, 3)}
-          title="Business Insights"
-          emptyText="No interpretive business insights are available yet."
+        <AiObservationSection
+          items={briefing.observations.slice(0, 3)}
+          title="Key observations"
+          emptyText="No notable observations identified today."
         />
-        {additionalRisks.length > 0 ? (
-          <AiInsightSection
-            items={additionalRisks}
-            title="Additional risks"
+
+        <div className="ai-focus-grid">
+          <AiFocusCard
             emptyText="No significant operational risks detected today."
+            emptyTitle="No significant risk"
+            item={topRisk}
+            label="Top risk"
+            tone="risk"
           />
-        ) : null}
-        {additionalRecommendations.length > 0 ? (
-          <AiInsightSection
-            items={additionalRecommendations}
-            title="Additional recommendations"
+          <AiFocusCard
             emptyText="No immediate business action is required. Continue monitoring current performance."
+            emptyTitle="Keep monitoring performance"
+            item={topRecommendation}
+            label="Today's priority action"
+            tone="action"
+          />
+        </div>
+
+        {remainingImmediateItems.length > 0 ? (
+          <AiInsightSection
+            items={remainingImmediateItems}
+            title="Other immediate items"
+            emptyText="No additional risks or recommendations detected today."
             confidence={briefing.confidence ?? null}
           />
-        ) : null}
+        ) : (
+          <AiNoOtherItems />
+        )}
+
         <AiInsightSection
           items={briefing.opportunities.slice(0, 2)}
           title="Opportunities"
@@ -427,23 +468,6 @@ function createFallbackExecutiveNarrative(briefing: AiBriefingTodayResponse): st
     .join(" ");
 }
 
-function getBusinessInsights(observations: readonly ObservationObject[]): readonly ObservationObject[] {
-  return observations.filter((observation) => !isRepeatedKpiObservation(observation));
-}
-
-function isRepeatedKpiObservation(observation: ObservationObject): boolean {
-  const normalizedTitle = observation.title.trim().toLowerCase();
-  const repeatedTitles = new Set([
-    "revenue today",
-    "orders today",
-    "strongest platform",
-    "connected platforms",
-    "business health score",
-  ]);
-
-  return repeatedTitles.has(normalizedTitle);
-}
-
 function AiBriefingHeading({
   confidence,
 }: {
@@ -470,19 +494,174 @@ function AiBriefingHeading({
 function AiHeroCallout({
   emptyText,
   emptyTitle,
+  icon,
   item,
   label,
 }: {
   readonly emptyText: string;
   readonly emptyTitle: string;
+  readonly icon: ReactNode;
   readonly item: DiagnosticObject | RecommendationObject | null;
   readonly label: string;
 }) {
   return (
     <div className="ai-hero-callout">
+      <div className="ai-callout-icon">{icon}</div>
+      <div>
+        <span>{label}</span>
+        <strong>{item?.title ?? emptyTitle}</strong>
+        <p>{item?.summary ?? emptyText}</p>
+        {item ? <AiSeverityBadge value={"priority" in item ? item.priority : item.severity} /> : null}
+      </div>
+    </div>
+  );
+}
+
+function AiHeroMetric({
+  detail,
+  icon,
+  label,
+  value,
+}: {
+  readonly detail: string;
+  readonly icon: ReactNode;
+  readonly label: string;
+  readonly value: string;
+}) {
+  return (
+    <div className="ai-hero-metric">
+      <div className="ai-metric-icon">{icon}</div>
       <span>{label}</span>
-      <strong>{item?.title ?? emptyTitle}</strong>
-      <p>{item?.summary ?? emptyText}</p>
+      <strong>{value}</strong>
+      <p>{detail}</p>
+    </div>
+  );
+}
+
+function AiObservationSection({
+  emptyText,
+  items,
+  title,
+}: {
+  readonly emptyText: string;
+  readonly items: readonly ObservationObject[];
+  readonly title: string;
+}) {
+  return (
+    <section className="ai-observation-section">
+      <div className="ai-insight-section-heading">
+        <h3>{title}</h3>
+        {items.length > 0 ? <span>{formatInsightCount(items.length)}</span> : null}
+      </div>
+      {items.length > 0 ? (
+        <div className="ai-observation-list">
+          {items.map((item) => (
+            <AiObservationRow item={item} key={item.id} />
+          ))}
+        </div>
+      ) : (
+        <div className="ai-insight-empty-state">
+          <ShieldCheck size={16} aria-hidden="true" />
+          <p>{emptyText}</p>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function AiObservationRow({ item }: { readonly item: ObservationObject }) {
+  return (
+    <article className="ai-observation-row">
+      <div className="ai-observation-icon">{getObservationIcon(item)}</div>
+      <div>
+        <h4>{item.title}</h4>
+        <p>{item.summary}</p>
+      </div>
+      <details>
+        <summary>
+          View evidence
+          <ChevronRight size={15} aria-hidden="true" />
+        </summary>
+        <div className="ai-evidence-details">
+          <EvidenceList evidence={item.evidence} />
+        </div>
+      </details>
+    </article>
+  );
+}
+
+function getObservationIcon(item: ObservationObject): ReactNode {
+  switch (item.category) {
+    case "ORDERS":
+      return <ShoppingCart size={22} aria-hidden="true" />;
+    case "PLATFORM":
+      return <Store size={22} aria-hidden="true" />;
+    case "INVENTORY":
+      return <PackageSearch size={22} aria-hidden="true" />;
+    default:
+      return <TrendingUp size={22} aria-hidden="true" />;
+  }
+}
+
+function AiFocusCard({
+  emptyText,
+  emptyTitle,
+  item,
+  label,
+  tone,
+}: {
+  readonly emptyText: string;
+  readonly emptyTitle: string;
+  readonly item: DiagnosticObject | RecommendationObject | null;
+  readonly label: string;
+  readonly tone: "action" | "risk";
+}) {
+  const icon =
+    tone === "risk" ? (
+      <AlertTriangle size={30} aria-hidden="true" />
+    ) : (
+      <CheckCircle2 size={30} aria-hidden="true" />
+    );
+
+  return (
+    <section className={`ai-focus-card ${tone}`}>
+      <div className="ai-focus-heading">
+        <h3>{label}</h3>
+        {item ? <AiSeverityBadge value={"priority" in item ? item.priority : item.severity} /> : null}
+      </div>
+      <article>
+        <div className="ai-focus-icon">{icon}</div>
+        <div>
+          <h4>{item?.title ?? emptyTitle}</h4>
+          <p>{item?.summary ?? emptyText}</p>
+          {item ? (
+            <details>
+              <summary>
+                View evidence
+                <ChevronRight size={15} aria-hidden="true" />
+              </summary>
+              <div className="ai-evidence-details">
+                <EvidenceList evidence={item.evidence} />
+              </div>
+            </details>
+          ) : null}
+        </div>
+      </article>
+    </section>
+  );
+}
+
+function AiNoOtherItems() {
+  return (
+    <div className="ai-clear-strip">
+      <div className="ai-clear-icon">
+        <CheckCircle2 size={24} aria-hidden="true" />
+      </div>
+      <div>
+        <strong>No other immediate items</strong>
+        <p>No additional risks or recommendations detected today. Keep monitoring performance.</p>
+      </div>
+      <CheckCircle2 size={34} aria-hidden="true" />
     </div>
   );
 }
@@ -563,6 +742,10 @@ function EvidenceStripItem({ label, value }: { readonly label: string; readonly 
 
 function formatInsightCount(count: number): string {
   return count === 1 ? "1 highlight" : `${count} highlights`;
+}
+
+function AiSeverityBadge({ value }: { readonly value: string }) {
+  return <span className="ai-severity-badge">{value.toLowerCase()}</span>;
 }
 
 function AiEvidenceCard({
@@ -1081,6 +1264,43 @@ function formatBriefingDate(value: string): string {
     month: "short",
     year: "numeric",
   }).format(date);
+}
+
+function formatRevenueChange(
+  overview: AiBriefingTodayResponse["businessOverview"] | undefined,
+): string {
+  const today = overview?.revenueToday ?? 0;
+  const yesterday = overview?.revenueYesterday ?? 0;
+
+  if (yesterday <= 0) {
+    return today > 0 ? "New revenue activity today" : "No revenue change available";
+  }
+
+  const change = Math.round(((today - yesterday) / yesterday) * 100);
+  const sign = change > 0 ? "+" : "";
+  return `${sign}${change}% vs yesterday`;
+}
+
+function formatConnectedPlatforms(
+  overview: AiBriefingTodayResponse["businessOverview"] | undefined,
+): string {
+  const platforms = overview?.connectedPlatforms ?? [];
+
+  if (platforms.length === 0) {
+    return "No platforms connected";
+  }
+
+  return platforms.map(formatPlatform).join(", ");
+}
+
+function formatBusinessHealthScore(
+  health: AiBriefingTodayResponse["businessHealth"] | undefined,
+): string {
+  if (health?.score === null || health?.score === undefined) {
+    return "Reviewing";
+  }
+
+  return `${health.score}/100`;
 }
 
 function formatCurrency(value: number): string {

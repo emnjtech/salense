@@ -39,14 +39,16 @@ describe("AiBusinessBriefingSection", () => {
     expect(html).toContain("AI Business Briefing");
     expect(html).toContain("Business health is strong");
     expect(html).toContain("Top risk");
-    expect(html).toContain("Today&#x27;s priority");
-    expect(html).toContain("Business Insights");
+    expect(html).toContain("Top priority action");
+    expect(html).toContain("Today&#x27;s priority action");
+    expect(html).toContain("Key observations");
     expect(html).toContain("Confidence");
     expect(html).toContain("Data source");
     expect(html).toContain("Last sync");
     expect(html).toContain("Rules applied");
     expect(html).toContain("Limitations");
-    expect(html).not.toContain("<h4>Revenue today</h4>");
+    expect(html).toContain("Revenue today");
+    expect(html).toContain("Orders today");
     expect(html).not.toContain("<h4>Orders today</h4>");
     expect(html).toContain("Revenue concentration");
     expect(html).toContain("Inventory availability risk");
@@ -73,6 +75,7 @@ describe("AiBusinessBriefingSection", () => {
     expect(html).toContain("No significant business risks detected today.");
     expect(html).toContain("No immediate business action is required.");
     expect(html).toContain("No notable opportunities identified.");
+    expect(html).toContain("No other immediate items");
   });
 
   it("does not render raw markdown markers from generated narratives", () => {
