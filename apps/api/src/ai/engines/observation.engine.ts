@@ -13,11 +13,15 @@ export class ObservationEngine {
       id: "observation-revenue-today",
       type: "OBSERVATION",
       category: "REVENUE",
-      title: "Revenue today",
+      title: metrics.revenueToday > 0 ? "Revenue pace needs context" : "Revenue has not started yet",
       summary:
         revenueChange === null
-          ? `Revenue is ${formatCurrency(metrics.revenueToday)} today.`
-          : `Revenue is ${formatCurrency(metrics.revenueToday)} today, ${Math.abs(revenueChange)}% ${revenueChange >= 0 ? "above" : "below"} yesterday.`,
+          ? metrics.revenueToday > 0
+            ? "Revenue is visible today, but more prior-period data is needed before Salense can judge whether the pace is unusual."
+            : "Revenue has not yet started today. Salense should monitor whether this is normal trading timing or an early demand signal."
+          : revenueChange >= 0
+            ? `Revenue is pacing ${Math.abs(revenueChange)}% above yesterday, which may reflect stronger demand, timing, or recent commercial activity.`
+            : `Revenue is pacing ${Math.abs(revenueChange)}% below yesterday, which may indicate lower traffic, product availability issues, or normal timing variance.`,
       severity: metrics.revenueToday > 0 ? "INFO" : "MEDIUM",
       direction: revenueChange === null ? "UNKNOWN" : revenueChange > 0 ? "UP" : revenueChange < 0 ? "DOWN" : "FLAT",
       evidence: [
@@ -30,8 +34,14 @@ export class ObservationEngine {
       id: "observation-orders-today",
       type: "OBSERVATION",
       category: "ORDERS",
-      title: "Orders today",
-      summary: `${metrics.ordersToday} orders have been captured today across synchronized stores.`,
+      title:
+        metrics.ordersToday >= metrics.ordersYesterday
+          ? "Order pace is holding"
+          : "Order pace needs attention",
+      summary:
+        metrics.ordersToday >= metrics.ordersYesterday
+          ? "Order activity is at or above yesterday's level, suggesting demand is currently stable."
+          : "Order pace is below yesterday's level at this point, which may reflect reduced traffic, fewer promotions, product availability, or normal daily timing variance.",
       severity: "INFO",
       direction:
         metrics.ordersToday > metrics.ordersYesterday
@@ -50,8 +60,14 @@ export class ObservationEngine {
         id: "observation-top-platform",
         type: "OBSERVATION",
         category: "PLATFORM",
-        title: "Strongest platform",
-        summary: `${formatPlatform(metrics.topPlatformByRevenue.platform)} is currently the strongest revenue channel.`,
+        title:
+          metrics.connectedPlatforms.length > 1
+            ? "Channel performance is differentiating"
+            : "Revenue concentration limits comparison",
+        summary:
+          metrics.connectedPlatforms.length > 1
+            ? `${formatPlatform(metrics.topPlatformByRevenue.platform)} is leading current performance, which helps identify where demand is strongest.`
+            : `Current performance depends on ${formatPlatform(metrics.topPlatformByRevenue.platform)}, limiting cross-channel comparison and increasing concentration risk.`,
         severity: "INFO",
         direction: "UNKNOWN",
         evidence: [
@@ -84,7 +100,7 @@ export class ObservationEngine {
   }
 }
 
-function formatCurrency(value: number): string {
+export function formatCurrency(value: number): string {
   return `£${Math.round(value).toLocaleString("en-GB")}`;
 }
 

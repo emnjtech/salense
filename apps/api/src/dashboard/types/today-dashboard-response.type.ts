@@ -19,10 +19,19 @@ export interface RuleBasedInsight {
   readonly type: "CONNECTION" | "INVENTORY" | "REVENUE" | "SALES";
 }
 
+export interface BusinessHealthContributorSummary {
+  readonly name: string;
+  readonly status: "GOOD" | "AT_RISK" | "NEEDS_DATA";
+  readonly summary: string;
+}
+
 export interface TodayDashboardResponse {
   readonly activeStores: number;
   readonly averageOrderValueToday: number;
+  readonly basicBusinessHealthContributors: readonly BusinessHealthContributorSummary[];
   readonly basicBusinessHealthScore: number | null;
+  readonly basicBusinessHealthStatus: "GOOD" | "AT_RISK" | "INSUFFICIENT_DATA";
+  readonly basicBusinessHealthSummary: string;
   readonly basicRuleBasedInsights: readonly RuleBasedInsight[];
   readonly bestPlatformToday: StorePlatform | null;
   readonly businessName: string;

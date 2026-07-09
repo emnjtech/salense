@@ -17,6 +17,14 @@ import type { NarrativeGeneratorService } from "../narrative-generator.service.j
 const business = { id: "business_1", name: "Ivonmelda Hair" } as const;
 
 describe("AiBriefingService", () => {
+  beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(new Date("2026-07-08T12:00:00.000Z"));
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   it("returns an insufficient-data response for an empty business", async () => {
     const { service } = createService();
 
@@ -71,6 +79,13 @@ describe("AiBriefingService", () => {
     expect(response.observations.map((observation) => observation.id)).toContain(
       "observation-revenue-today",
     );
+    expect(response.observations.map((observation) => observation.title)).not.toEqual(
+      expect.arrayContaining(["Revenue today", "Orders today", "Strongest platform"]),
+    );
+    expect(response.observations.map((observation) => observation.summary).join(" ")).toContain(
+      "may reflect",
+    );
+    expect(response.businessHealth?.score).toBe(88);
     expect(response.executiveSummary).toContain("Ivonmelda Hair has 1 orders");
     expect(response.narrative).toMatchObject({
       fallbackUsed: true,
@@ -159,12 +174,13 @@ describe("AiBriefingService", () => {
     const responseJson = JSON.stringify(await service.getTodayBriefing("user_1"));
 
     expect(responseJson).not.toContain("sourceMetadata");
-    expect(responseJson).not.toContain("payload");
+    expect(responseJson).not.toContain("rawPayload");
     expect(responseJson).not.toContain("tokenHash");
     expect(responseJson).not.toContain("accessToken");
     expect(responseJson).not.toContain("refreshToken");
     expect(responseJson).not.toContain("passwordHash");
-    expect(responseJson).not.toContain("secret");
+    expect(responseJson).not.toContain("clientSecret");
+    expect(responseJson).not.toContain("encryptedSecret");
   });
 });
 

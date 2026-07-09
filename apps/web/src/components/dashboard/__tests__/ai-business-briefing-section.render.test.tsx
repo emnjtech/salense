@@ -41,21 +41,22 @@ describe("AiBusinessBriefingSection", () => {
     expect(html).toContain("Top risk");
     expect(html).toContain("Top priority action");
     expect(html).toContain("Today&#x27;s priority action");
-    expect(html).toContain("Key observations");
+    expect(html).toContain("Business Insights");
     expect(html).toContain("Confidence");
     expect(html).toContain("Data source");
     expect(html).toContain("Last sync");
     expect(html).toContain("Rules applied");
     expect(html).toContain("Limitations");
-    expect(html).toContain("Revenue today");
-    expect(html).toContain("Orders today");
+    expect(html).not.toContain("Revenue today</span>");
+    expect(html).not.toContain("Orders today</span>");
+    expect(html).not.toContain("Strongest platform");
     expect(html).not.toContain("<h4>Orders today</h4>");
-    expect(html).toContain("Revenue concentration");
+    expect(html).toContain("Revenue concentration limits comparison");
     expect(html).toContain("Inventory availability risk");
     expect(html).toContain("Review inventory availability");
     expect(html).toContain("View evidence");
     expect(html).toContain("Only revenue-eligible order statuses contribute to revenue.");
-    expect(html).toContain("No marketplace APIs are queried by the AI layer.");
+    expect(html).toContain("The briefing reflects synchronized data available inside Salense only.");
   });
 
   it("renders quiet empty states instead of empty insight cards", () => {
@@ -72,9 +73,9 @@ describe("AiBusinessBriefingSection", () => {
       }),
     );
 
-    expect(html).toContain("No significant business risks detected today.");
+    expect(html).toContain("No significant operational risks detected today.");
     expect(html).toContain("No immediate business action is required.");
-    expect(html).toContain("No notable opportunities identified.");
+    expect(html).toContain("No notable commercial opportunities were identified today.");
     expect(html).toContain("No other immediate items");
   });
 
@@ -133,7 +134,7 @@ function readyBriefing(): AiBriefingTodayResponse {
       {
         id: "observation-revenue-today",
         type: "OBSERVATION",
-        title: "Revenue today",
+        title: "Revenue pace needs context",
         summary: "Revenue is £303 today.",
         severity: "INFO",
         category: "REVENUE",
@@ -143,8 +144,9 @@ function readyBriefing(): AiBriefingTodayResponse {
       {
         id: "observation-platform-concentration",
         type: "OBSERVATION",
-        title: "Revenue concentration",
-        summary: "Revenue remains concentrated in one connected channel.",
+        title: "Revenue concentration limits comparison",
+        summary:
+          "Current performance depends entirely on WooCommerce, limiting comparison and increasing channel concentration risk.",
         severity: "MEDIUM",
         category: "PLATFORM",
         direction: "FLAT",

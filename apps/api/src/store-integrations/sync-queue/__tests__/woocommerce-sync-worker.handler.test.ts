@@ -103,7 +103,7 @@ describe("WooCommerceSyncWorkerHandler", () => {
     expect(mocks[methodName]).toHaveBeenCalledWith("store_1");
   });
 
-  it("returns failed sync results without exposing credentials", async () => {
+  it("fails full-sync error results without exposing credentials", async () => {
     const { handler, syncAll } = createHandlerMocks();
     syncAll.mockResolvedValue({
       connectedStoreId: "store_1",
@@ -116,13 +116,25 @@ describe("WooCommerceSyncWorkerHandler", () => {
       encryptedCredential: "should-not-leak",
     });
 
-    const response = await handler.handle(createJob(WooCommerceSyncJobName.ManualFullSync));
+    await expect(handler.handle(createJob(WooCommerceSyncJobName.ManualFullSync))).rejects.toThrow(
+      "WooCommerce timeout",
+    );
+    await expect(handler.handle(createJob(WooCommerceSyncJobName.ManualFullSync))).rejects.not.toThrow(
+      "should-not-leak",
+    );
+  });
 
-    expect(response).toMatchObject({
+  it("skips stale jobs for disconnected WooCommerce stores without retrying", async () => {
+    const { handler, syncAll } = createHandlerMocks();
+    syncAll.mockRejectedValue(
+      new Error("WooCommerce store must be connected before synchronisation."),
+    );
+
+    await expect(handler.handle(createJob(WooCommerceSyncJobName.ManualFullSync))).resolves.toEqual({
       connectedStoreId: "store_1",
-      errors: ["WooCommerce timeout"],
-      status: "ERROR",
+      reason: "WooCommerce store is no longer connected.",
+      readOnly: true,
+      status: "SKIPPED",
     });
-    expect(JSON.stringify(response)).not.toContain("should-not-leak");
   });
 });

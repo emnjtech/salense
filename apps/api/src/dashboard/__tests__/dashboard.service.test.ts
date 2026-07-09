@@ -21,7 +21,11 @@ describe("DashboardService", () => {
     await expect(service.getTodayDashboard("user_1")).resolves.toEqual({
       activeStores: 0,
       averageOrderValueToday: 0,
+      basicBusinessHealthContributors: [],
       basicBusinessHealthScore: null,
+      basicBusinessHealthStatus: "INSUFFICIENT_DATA",
+      basicBusinessHealthSummary:
+        "Business Health Score will become available after your first successful synchronization.",
       basicRuleBasedInsights: [
         {
           message: "Connect at least one store to begin unified commerce analysis.",
@@ -200,7 +204,14 @@ describe("DashboardService", () => {
     const dashboard = await service.getTodayDashboard("user_1");
 
     expect(dashboard.revenueChangePercent).toBe(-20);
-    expect(dashboard.basicBusinessHealthScore).toBe(55);
+    expect(dashboard.basicBusinessHealthScore).toBe(76);
+    expect(dashboard.basicBusinessHealthStatus).toBe("GOOD");
+    expect(dashboard.basicBusinessHealthContributors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: "Channel coverage", status: "AT_RISK" }),
+        expect.objectContaining({ name: "Inventory", status: "AT_RISK" }),
+      ]),
+    );
   });
 
   it("generates rule-based insights", async () => {

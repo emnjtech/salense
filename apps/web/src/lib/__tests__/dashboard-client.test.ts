@@ -33,7 +33,16 @@ function todayDashboardResponse() {
   return {
     activeStores: 1,
     averageOrderValueToday: 125,
+    basicBusinessHealthContributors: [
+      {
+        name: "Channel coverage",
+        status: "AT_RISK",
+        summary: "Current intelligence depends on one connected platform.",
+      },
+    ],
     basicBusinessHealthScore: 82,
+    basicBusinessHealthStatus: "GOOD",
+    basicBusinessHealthSummary: "Business health is good based on synchronized commerce data.",
     basicRuleBasedInsights: [
       {
         message: "WooCommerce is leading revenue today.",

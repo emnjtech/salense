@@ -33,7 +33,10 @@ import { PromptOrchestratorService } from "./prompt-orchestrator.service.js";
     ExecutiveSummaryEngine,
     ContextBuilderService,
     PromptOrchestratorService,
-    OpenAIProvider,
+    {
+      provide: OpenAIProvider,
+      useFactory: () => new OpenAIProvider(),
+    },
     ProviderFactoryService,
     AIService,
     NarrativeGeneratorService,

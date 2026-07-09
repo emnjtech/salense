@@ -1,4 +1,4 @@
-import { Inject, Injectable, UnauthorizedException } from "@nestjs/common";
+import { Inject, Injectable, NotFoundException, UnauthorizedException } from "@nestjs/common";
 import { PrismaService } from "../database/prisma.service.js";
 import { StoreConnectionStatus } from "../store-integrations/types/store-connection-status.enum.js";
 import type { StorePlatform } from "../store-integrations/types/store-platform.enum.js";
@@ -8,6 +8,12 @@ import type {
   CommerceProductListItemResponse,
   CommerceProductListResponse,
 } from "./types/commerce-product-list-response.type.js";
+import type {
+  CommerceProductDetail,
+  CommerceProductDetailResponse,
+  CommerceProductInsight,
+  CommerceProductRecentSale,
+} from "./types/commerce-product-detail-response.type.js";
 
 interface CommerceProductsPrismaClient {
   readonly business: {
@@ -23,13 +29,23 @@ interface CommerceProductsPrismaClient {
       readonly take: number;
       readonly select: CommerceProductSelect;
     }): Promise<readonly CommerceProductRecord[]>;
+    findFirst(args: {
+      readonly where: CommerceProductDetailWhereInput;
+      readonly select: CommerceProductDetailSelect;
+    }): Promise<CommerceProductDetailRecord | null>;
   };
   readonly commerceOrderItem: {
     findMany(args: {
       readonly where: CommerceOrderItemWhereInput;
-      readonly select: CommerceOrderItemSelect;
+      readonly select: CommerceOrderItemSelect | CommerceOrderItemDetailSelect;
     }): Promise<readonly CommerceOrderItemRecord[]>;
   };
+}
+
+interface CommerceProductDetailWhereInput {
+  readonly id: string;
+  readonly businessId: string;
+  readonly connectedStore: ActiveConnectedStoreWhereInput;
 }
 
 interface CommerceProductWhereInput {
@@ -77,6 +93,17 @@ interface CommerceProductSelect {
   };
 }
 
+interface CommerceProductDetailSelect extends CommerceProductSelect {
+  readonly productStatus: true;
+  readonly productType: true;
+  readonly regularPriceAmount: true;
+  readonly salePriceAmount: true;
+  readonly platformCreatedAt: true;
+  readonly platformUpdatedAt: true;
+  readonly importedAt: true;
+  readonly lastSyncedAt: true;
+}
+
 interface CommerceOrderItemSelect {
   readonly connectedStoreId: true;
   readonly connectedStore?: {
@@ -93,6 +120,17 @@ interface CommerceOrderItemSelect {
   readonly quantity: true;
   readonly unitPriceAmount?: true;
   readonly totalAmount: true;
+}
+
+interface CommerceOrderItemDetailSelect extends CommerceOrderItemSelect {
+  readonly order: {
+    readonly select: {
+      readonly orderStatus: true;
+      readonly orderedAt: true;
+      readonly platformOrderId: true;
+      readonly platformOrderNumber: true;
+    };
+  };
 }
 
 interface CommerceProductRecord {
@@ -113,6 +151,17 @@ interface CommerceProductRecord {
   };
 }
 
+interface CommerceProductDetailRecord extends CommerceProductRecord {
+  readonly productStatus: string | null;
+  readonly productType: string | null;
+  readonly regularPriceAmount: unknown;
+  readonly salePriceAmount: unknown;
+  readonly platformCreatedAt: Date | string | null;
+  readonly platformUpdatedAt: Date | string | null;
+  readonly importedAt: Date | string | null;
+  readonly lastSyncedAt: Date | string | null;
+}
+
 interface CommerceOrderItemRecord {
   readonly connectedStoreId: string;
   readonly connectedStore?: {
@@ -129,6 +178,15 @@ interface CommerceOrderItemRecord {
   readonly quantity: number | null;
   readonly unitPriceAmount?: unknown;
   readonly totalAmount: unknown;
+}
+
+interface CommerceOrderItemDetailRecord extends Omit<CommerceOrderItemRecord, "order"> {
+  readonly order: {
+    readonly orderStatus: string | null;
+    readonly orderedAt: Date | string | null;
+    readonly platformOrderId: string | null;
+    readonly platformOrderNumber: string | null;
+  };
 }
 
 interface ProductSalesSummary {
@@ -148,6 +206,18 @@ const productSelect = {
   currentStockQuantity: true,
   sourceMetadata: true,
   connectedStore: { select: { id: true, storeName: true, storeUrl: true } },
+} as const;
+
+const productDetailSelect = {
+  ...productSelect,
+  productStatus: true,
+  productType: true,
+  regularPriceAmount: true,
+  salePriceAmount: true,
+  platformCreatedAt: true,
+  platformUpdatedAt: true,
+  importedAt: true,
+  lastSyncedAt: true,
 } as const;
 
 @Injectable()
@@ -224,6 +294,63 @@ export class CommerceProductsService {
 
     return {
       products: products.map((product) => toProductListItem(product, salesByProduct)),
+    };
+  }
+
+  async getProductDetail(userId: string, productId: string): Promise<CommerceProductDetailResponse> {
+    const prisma = this.prismaService.client as unknown as CommerceProductsPrismaClient;
+    const business = await prisma.business.findUnique({
+      where: { ownerId: userId },
+      select: { id: true },
+    });
+
+    if (!business) {
+      throw new UnauthorizedException(
+        "Company profile is required before viewing commerce products.",
+      );
+    }
+
+    const product = await prisma.commerceProduct.findFirst({
+      where: {
+        businessId: business.id,
+        connectedStore: activeConnectedStoreWhere(),
+        id: productId,
+      },
+      select: productDetailSelect,
+    });
+
+    if (!product) {
+      throw new NotFoundException("Product could not be found for this business.");
+    }
+
+    const orderItems = await prisma.commerceOrderItem.findMany({
+      where: {
+        businessId: business.id,
+        connectedStore: activeConnectedStoreWhere(),
+        platform: product.platform,
+        platformProductId: { in: [product.platformProductId] },
+      },
+      select: {
+        connectedStoreId: true,
+        connectedStore: { select: { id: true, storeName: true, storeUrl: true } },
+        platform: true,
+        platformOrderItemId: true,
+        platformProductId: true,
+        order: {
+          select: {
+            orderedAt: true,
+            orderStatus: true,
+            platformOrderId: true,
+            platformOrderNumber: true,
+          },
+        },
+        quantity: true,
+        totalAmount: true,
+      },
+    });
+
+    return {
+      product: toProductDetail(product, filterOrderItemsForProduct(product, orderItems)),
     };
   }
 }
@@ -393,6 +520,212 @@ function summarizeSales(
   return totals;
 }
 
+function filterOrderItemsForProduct(
+  product: CommerceProductRecord,
+  orderItems: readonly CommerceOrderItemRecord[],
+): readonly CommerceOrderItemDetailRecord[] {
+  const productSalesKey = toProductSalesKey(product);
+
+  return orderItems.filter(
+    (item): item is CommerceOrderItemDetailRecord => {
+      if (!item.order || item.platformProductId !== product.platformProductId) {
+        return false;
+      }
+
+      return (
+        toSalesKey({
+          sourceStoreIdentity: toSourceStoreIdentity(item),
+          platform: item.platform,
+          platformProductId: product.platformProductId,
+        }) === productSalesKey
+      );
+    },
+  );
+}
+
+function toProductDetail(
+  product: CommerceProductDetailRecord,
+  orderItems: readonly CommerceOrderItemDetailRecord[],
+): CommerceProductDetail {
+  const sales = summarizeProductDetailSales(orderItems);
+
+  return {
+    category: extractCategory(product.sourceMetadata),
+    currency: product.currency,
+    currentStock: product.currentStockQuantity,
+    importedAt: toIsoDate(product.importedAt),
+    insights: buildProductInsights(product, sales),
+    lastSyncedAt: toIsoDate(product.lastSyncedAt),
+    platform: product.platform,
+    platformCreatedAt: toIsoDate(product.platformCreatedAt),
+    platformProductId: product.platformProductId,
+    platformUpdatedAt: toIsoDate(product.platformUpdatedAt),
+    price: toNumberOrNull(product.priceAmount),
+    productId: product.id,
+    productName: product.name,
+    productStatus: product.productStatus,
+    productType: product.productType,
+    recentSales: toRecentSales(orderItems),
+    regularPrice: toNumberOrNull(product.regularPriceAmount),
+    salePrice: toNumberOrNull(product.salePriceAmount),
+    sales,
+    sku: product.sku,
+    stockStatus: product.stockStatus,
+    store: {
+      connectedStoreId: product.connectedStore.id,
+      storeName: product.connectedStore.storeName,
+      storeUrl: product.connectedStore.storeUrl,
+    },
+  };
+}
+
+function summarizeProductDetailSales(
+  orderItems: readonly CommerceOrderItemDetailRecord[],
+): CommerceProductDetail["sales"] {
+  const seenSourceLineItems = new Set<string>();
+  const seenOrders = new Set<string>();
+  const now = Date.now();
+  const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
+  let totalRevenue = 0;
+  let totalUnitsSold = 0;
+  let last30DaysRevenue = 0;
+  let last30DaysUnitsSold = 0;
+  let lastPurchaseDate: string | null = null;
+
+  orderItems.forEach((item) => {
+    if (!isRevenueEligibleOrderStatus(item.order.orderStatus)) {
+      return;
+    }
+
+    const sourceLineItemKey = toSourceLineItemKey(item);
+
+    if (sourceLineItemKey && seenSourceLineItems.has(sourceLineItemKey)) {
+      return;
+    }
+
+    if (sourceLineItemKey) {
+      seenSourceLineItems.add(sourceLineItemKey);
+    }
+
+    const orderedAt = toDate(item.order.orderedAt);
+    const revenue = toNumberOrNull(item.totalAmount) ?? 0;
+    const quantity = Math.max(item.quantity ?? 0, 0);
+
+    totalRevenue = roundMoney(totalRevenue + revenue);
+    totalUnitsSold += quantity;
+
+    if (orderedAt && orderedAt.getTime() >= thirtyDaysAgo) {
+      last30DaysRevenue = roundMoney(last30DaysRevenue + revenue);
+      last30DaysUnitsSold += quantity;
+    }
+
+    if (item.order.platformOrderId) {
+      seenOrders.add(item.order.platformOrderId);
+    }
+
+    if (orderedAt && (!lastPurchaseDate || orderedAt.getTime() > Date.parse(lastPurchaseDate))) {
+      lastPurchaseDate = orderedAt.toISOString();
+    }
+  });
+
+  return {
+    averageOrderValue: seenOrders.size > 0 ? roundMoney(totalRevenue / seenOrders.size) : 0,
+    last30DaysRevenue,
+    last30DaysUnitsSold,
+    lastPurchaseDate,
+    salesRatePerDay: roundMoney(last30DaysUnitsSold / 30),
+    totalOrders: seenOrders.size,
+    totalRevenue,
+    totalUnitsSold,
+  };
+}
+
+function toRecentSales(
+  orderItems: readonly CommerceOrderItemDetailRecord[],
+): readonly CommerceProductRecentSale[] {
+  const seenSourceLineItems = new Set<string>();
+
+  return orderItems
+    .filter((item) => {
+      if (!isRevenueEligibleOrderStatus(item.order.orderStatus)) {
+        return false;
+      }
+
+      const sourceLineItemKey = toSourceLineItemKey(item);
+
+      if (sourceLineItemKey && seenSourceLineItems.has(sourceLineItemKey)) {
+        return false;
+      }
+
+      if (sourceLineItemKey) {
+        seenSourceLineItems.add(sourceLineItemKey);
+      }
+
+      return true;
+    })
+    .sort((first, second) => {
+      const firstTime = toDate(first.order.orderedAt)?.getTime() ?? 0;
+      const secondTime = toDate(second.order.orderedAt)?.getTime() ?? 0;
+
+      return secondTime - firstTime;
+    })
+    .slice(0, 8)
+    .map((item) => ({
+      date: toIsoDate(item.order.orderedAt),
+      orderNumber: item.order.platformOrderNumber ?? item.order.platformOrderId,
+      quantity: Math.max(item.quantity ?? 0, 0),
+      revenue: toNumberOrNull(item.totalAmount) ?? 0,
+      status: item.order.orderStatus,
+    }));
+}
+
+function buildProductInsights(
+  product: CommerceProductDetailRecord,
+  sales: CommerceProductDetail["sales"],
+): readonly CommerceProductInsight[] {
+  const insights: CommerceProductInsight[] = [];
+  const displayName = product.name ?? "This product";
+
+  if (sales.salesRatePerDay > 0) {
+    insights.push({
+      severity: "SUCCESS",
+      title: "Sales rate is available",
+      message: `${displayName} is selling at ${sales.salesRatePerDay} units per day based on the last 30 days of revenue-eligible orders.`,
+    });
+  } else {
+    insights.push({
+      severity: "INFO",
+      title: "No recent sales rate yet",
+      message: "No revenue-eligible sales were found for this product in the last 30 days.",
+    });
+  }
+
+  if (product.currentStockQuantity === null) {
+    insights.push({
+      severity: "INFO",
+      title: "Stock quantity is not captured",
+      message:
+        "The connected store has not provided a numeric stock quantity for this product, so inventory risk is limited to the reported stock status.",
+    });
+  } else if (product.currentStockQuantity <= 5) {
+    insights.push({
+      severity: "WARNING",
+      title: "Stock requires attention",
+      message: `${displayName} has ${product.currentStockQuantity} units on hand. Review replenishment before demand increases.`,
+    });
+  }
+
+  if (sales.totalOrders > 0 && sales.averageOrderValue > 0) {
+    insights.push({
+      severity: "INFO",
+      title: "Average order value is traceable",
+      message: `Revenue-eligible orders containing this product average ${sales.averageOrderValue.toFixed(2)} in order-line value.`,
+    });
+  }
+
+  return insights.slice(0, 4);
+}
+
 function toProductSalesKey(product: CommerceProductRecord): string {
   return toSalesKey({
     sourceStoreIdentity: toSourceStoreIdentity(product),
@@ -485,6 +818,20 @@ function toNumberOrNull(value: unknown): number | null {
   const numericValue = Number(value);
 
   return Number.isFinite(numericValue) ? roundMoney(numericValue) : null;
+}
+
+function toIsoDate(value: Date | string | null): string | null {
+  return toDate(value)?.toISOString() ?? null;
+}
+
+function toDate(value: Date | string | null): Date | null {
+  if (!value) {
+    return null;
+  }
+
+  const date = value instanceof Date ? value : new Date(value);
+
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function roundMoney(value: number): number {

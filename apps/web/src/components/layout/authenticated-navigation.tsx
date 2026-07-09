@@ -8,6 +8,7 @@ import {
   Link2,
   ListOrdered,
   LogOut,
+  Megaphone,
   PackageSearch,
   ShieldCheck,
   Settings,
@@ -103,6 +104,13 @@ export function AuthenticatedNavigation() {
           icon={<ChartNoAxesColumnIncreasing size={18} />}
         >
           Reports
+        </NavigationLink>
+        <NavigationLink
+          currentPath={pathname}
+          href="/ads-promotions"
+          icon={<Megaphone size={18} />}
+        >
+          Ads & Promotions
         </NavigationLink>
         <NavigationLink currentPath={pathname} href="/settings" icon={<Settings size={18} />}>
           Settings

@@ -279,12 +279,120 @@ describe("CommerceProductsService", () => {
     expect(serialized).not.toContain("credential");
     expect(serialized).not.toContain("hash");
   });
+
+  it("returns product detail with sales rate, insights, and safe normalized fields", async () => {
+    const recentOrderDate = new Date();
+    const { service } = createService({
+      orderItems: [
+        {
+          connectedStore: {
+            id: "store_old",
+            storeName: "Ivonmelda LTD",
+            storeUrl: "https://ivonmelda.com/",
+          },
+          connectedStoreId: "store_old",
+          order: {
+            orderedAt: recentOrderDate,
+            orderStatus: "processing",
+            platformOrderId: "order_7846",
+            platformOrderNumber: "7846",
+          },
+          platform: StorePlatform.WooCommerce,
+          platformOrderItemId: "line_1",
+          platformProductId: "woo_10",
+          quantity: 2,
+          totalAmount: 70,
+        },
+        {
+          connectedStore: {
+            id: "store_new",
+            storeName: "Ivonmelda Hair",
+            storeUrl: "https://ivonmelda.com",
+          },
+          connectedStoreId: "store_new",
+          order: {
+            orderedAt: recentOrderDate,
+            orderStatus: "processing",
+            platformOrderId: "order_7846",
+            platformOrderNumber: "7846",
+          },
+          platform: StorePlatform.WooCommerce,
+          platformOrderItemId: "line_1",
+          platformProductId: "woo_10",
+          quantity: 2,
+          totalAmount: 70,
+        },
+        {
+          connectedStoreId: "store_new",
+          order: {
+            orderedAt: new Date("2026-07-08T10:00:00.000Z"),
+            orderStatus: "failed",
+            platformOrderId: "order_failed",
+            platformOrderNumber: "failed",
+          },
+          platform: StorePlatform.WooCommerce,
+          platformOrderItemId: "line_failed",
+          platformProductId: "woo_10",
+          quantity: 3,
+          totalAmount: 105,
+        },
+      ],
+      productDetail: {
+        connectedStore: {
+          id: "store_new",
+          storeName: "Ivonmelda Hair",
+          storeUrl: "https://ivonmelda.com",
+        },
+        currency: "GBP",
+        currentStockQuantity: 4,
+        id: "product_db_1",
+        importedAt: new Date("2026-07-08T08:00:00.000Z"),
+        lastSyncedAt: new Date("2026-07-08T10:00:00.000Z"),
+        name: "Trail Shoe",
+        platform: StorePlatform.WooCommerce,
+        platformCreatedAt: null,
+        platformProductId: "woo_10",
+        platformUpdatedAt: null,
+        priceAmount: "35",
+        productStatus: "publish",
+        productType: "simple",
+        regularPriceAmount: "35",
+        salePriceAmount: null,
+        sku: "SHOE-TRAIL",
+        sourceMetadata: { raw: { categories: [{ name: "Shoes" }], token: "hidden" } },
+        stockStatus: "instock",
+      },
+    });
+
+    const response = await service.getProductDetail("user_1", "product_db_1");
+
+    expect(response.product).toMatchObject({
+      category: "Shoes",
+      currentStock: 4,
+      platformProductId: "woo_10",
+      productId: "product_db_1",
+      productName: "Trail Shoe",
+      sales: {
+        averageOrderValue: 70,
+        totalOrders: 1,
+        totalRevenue: 70,
+        totalUnitsSold: 2,
+      },
+      store: { storeName: "Ivonmelda Hair" },
+    });
+    expect(response.product.sales.salesRatePerDay).toBeGreaterThan(0);
+    expect(response.product.insights.some((insight) => insight.title === "Stock requires attention")).toBe(
+      true,
+    );
+    expect(JSON.stringify(response).toLowerCase()).not.toContain("token");
+  });
 });
 
 function createService(
   input: {
     readonly businessRecord?: { readonly id: string } | null;
     readonly orderItems?: readonly CommerceOrderItemTestRecord[];
+    readonly productDetail?: CommerceProductDetailTestRecord | null;
     readonly products?: readonly CommerceProductTestRecord[];
   } = {},
 ) {
@@ -297,7 +405,10 @@ function createService(
     commerceOrderItem: {
       findMany: jest.fn().mockResolvedValue((input.orderItems ?? []).map(withRevenueEligibleOrder)),
     },
-    commerceProduct: { findMany: jest.fn().mockResolvedValue(input.products ?? []) },
+    commerceProduct: {
+      findFirst: jest.fn().mockResolvedValue(input.productDetail ?? null),
+      findMany: jest.fn().mockResolvedValue(input.products ?? []),
+    },
   };
   const prismaService = { client: prisma } as unknown as PrismaService;
 
@@ -308,6 +419,7 @@ function withRevenueEligibleOrder(item: CommerceOrderItemTestRecord): CommerceOr
   return {
     ...item,
     order: {
+      ...item.order,
       orderStatus: item.order?.orderStatus ?? "processing",
       platformOrderId: item.order?.platformOrderId ?? null,
     },
@@ -332,6 +444,17 @@ interface CommerceProductTestRecord {
   readonly stockStatus: string | null;
 }
 
+interface CommerceProductDetailTestRecord extends CommerceProductTestRecord {
+  readonly importedAt: Date | string | null;
+  readonly lastSyncedAt: Date | string | null;
+  readonly platformCreatedAt: Date | string | null;
+  readonly platformUpdatedAt: Date | string | null;
+  readonly productStatus: string | null;
+  readonly productType: string | null;
+  readonly regularPriceAmount: unknown;
+  readonly salePriceAmount: unknown;
+}
+
 interface CommerceOrderItemTestRecord {
   readonly connectedStore?: {
     readonly id: string;
@@ -340,8 +463,10 @@ interface CommerceOrderItemTestRecord {
   };
   readonly connectedStoreId: string;
   readonly order?: {
+    readonly orderedAt?: Date | string | null;
     readonly orderStatus?: string | null;
     readonly platformOrderId: string | null;
+    readonly platformOrderNumber?: string | null;
   };
   readonly platform: StorePlatform;
   readonly platformOrderItemId?: string | null;

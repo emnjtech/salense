@@ -8,6 +8,7 @@ import {
   RefreshCcw,
   Search,
 } from "lucide-react";
+import Link from "next/link";
 import { type ChangeEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
   ProductsClientError,
@@ -205,8 +206,13 @@ function ProductsTable({ products }: { readonly products: readonly CommerceProdu
           {products.map((product) => (
             <tr key={product.productId}>
               <td>
-                <strong>{product.productName ?? "Unnamed product"}</strong>
-                <span>{product.sku ?? product.platformProductId}</span>
+                <Link
+                  className="product-table-link"
+                  href={`/products/${encodeURIComponent(product.productId)}`}
+                >
+                  <strong>{product.productName ?? "Unnamed product"}</strong>
+                  <span>{product.sku ?? product.platformProductId}</span>
+                </Link>
               </td>
               <td>
                 <span className="platform-cell">

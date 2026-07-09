@@ -1,4 +1,5 @@
 import { Inject, Injectable, UnauthorizedException } from "@nestjs/common";
+import { calculateSharedBusinessHealth } from "../commerce/business-health.js";
 import { PrismaService } from "../database/prisma.service.js";
 import { isRevenueEligibleOrderStatus } from "../commerce/order-revenue.js";
 import { StoreConnectionStatus } from "../store-integrations/types/store-connection-status.enum.js";
@@ -207,6 +208,7 @@ export class DashboardService {
     const revenueByPlatform = toRevenueByPlatform(todayOrders);
     const ordersByPlatform = toOrdersByPlatform(todayOrders);
     const lowStockCount = products.filter(isLowStockProduct).length;
+    const outOfStockCount = products.filter(isOutOfStockProduct).length;
     const connectedPlatforms = [...new Set(activeStores.map((store) => store.platform))].sort();
     const productsSoldToday = todayOrderItems.reduce(
       (total, item) =>
@@ -224,14 +226,14 @@ export class DashboardService {
       products.length > 0;
     const topProductToday = getTopProductToday(todayOrderItems);
     const bestPlatformToday = revenueByPlatform[0]?.platform ?? null;
-    const basicBusinessHealthScore = hasCommerceData
-      ? calculateBusinessHealthScore({
-          activeStores: activeStores.length,
-          lowStockCount,
-          revenueChangePercent: calculateRevenueChangePercent(todayRevenue, yesterdayRevenue),
-          todayRevenue,
-        })
-      : null;
+    const businessHealth = calculateSharedBusinessHealth({
+      connectedPlatforms: connectedPlatforms.length,
+      lowStockProducts: lowStockCount,
+      outOfStockProducts: outOfStockCount,
+      refundsToday: todayRefunds.length,
+      revenueLast7Days: todayRevenue + yesterdayRevenue,
+      revenueToday: todayRevenue,
+    });
 
     return {
       activeStores: activeStores.length,
@@ -240,7 +242,10 @@ export class DashboardService {
           ? todayRevenue / countRevenueEligibleOrders(todayOrders)
           : 0,
       ),
-      basicBusinessHealthScore,
+      basicBusinessHealthContributors: businessHealth.contributors,
+      basicBusinessHealthScore: businessHealth.score,
+      basicBusinessHealthStatus: businessHealth.status,
+      basicBusinessHealthSummary: businessHealth.summary,
       basicRuleBasedInsights: createRuleBasedInsights({
         activeStores: activeStores.length,
         bestPlatformToday,
@@ -384,23 +389,6 @@ function calculateRevenueChangePercent(
   return roundMetric(((todayRevenue - yesterdayRevenue) / yesterdayRevenue) * 100);
 }
 
-function calculateBusinessHealthScore(input: {
-  readonly activeStores: number;
-  readonly lowStockCount: number;
-  readonly revenueChangePercent: number | null;
-  readonly todayRevenue: number;
-}): number {
-  let score = 50;
-
-  if (input.activeStores > 0) score += 15;
-  if (input.todayRevenue > 0) score += 15;
-  if ((input.revenueChangePercent ?? 0) > 0) score += 10;
-  if ((input.revenueChangePercent ?? 0) < -10) score -= 15;
-  score -= Math.min(input.lowStockCount * 5, 25);
-
-  return Math.max(0, Math.min(100, score));
-}
-
 function createRuleBasedInsights(input: {
   readonly activeStores: number;
   readonly bestPlatformToday: StorePlatform | null;
@@ -476,6 +464,16 @@ function isLowStockProduct(product: CommerceProductDashboardRecord): boolean {
     stockStatus === "out_of_stock" ||
     stockStatus === "lowstock" ||
     stockStatus === "low_stock"
+  );
+}
+
+function isOutOfStockProduct(product: CommerceProductDashboardRecord): boolean {
+  const stockStatus = product.stockStatus?.trim().toLowerCase();
+
+  return (
+    product.currentStockQuantity === 0 ||
+    stockStatus === "outofstock" ||
+    stockStatus === "out_of_stock"
   );
 }
 

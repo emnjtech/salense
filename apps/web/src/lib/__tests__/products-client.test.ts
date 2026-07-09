@@ -28,6 +28,20 @@ describe("products API client", () => {
 
     await expect(client.listProducts("expired-token")).rejects.toThrow("Unauthorized");
   });
+
+  it("loads product detail with bearer authentication", async () => {
+    const fetchImpl = jest
+      .fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>()
+      .mockResolvedValue(jsonResponse({ product: { productId: "product_1" } }));
+    const client = createProductsApiClient({ baseUrl: "https://api.salense.test", fetchImpl });
+
+    await client.getProduct("access-token", "product_1");
+
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe(
+      "https://api.salense.test/commerce/products/product_1",
+    );
+    expect(getAuthorization(fetchImpl.mock.calls[0]?.[1])).toBe("Bearer access-token");
+  });
 });
 
 function jsonResponse(body: unknown, ok = true, status = 200): Response {

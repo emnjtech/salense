@@ -197,7 +197,7 @@ function TodayDashboardContent({
 
       <div className="today-content-grid today-lower-grid">
         <TodayBriefing dashboard={dashboard} />
-        <HealthScoreCard dashboard={dashboard} />
+        <HealthScoreCard dashboard={dashboard} health={aiBriefing?.businessHealth ?? null} />
       </div>
 
       <section className="panel today-focus-panel">
@@ -313,32 +313,6 @@ export function AiBusinessBriefingSection({
             {createExecutiveNarrative(briefing)}
           </p>
         </div>
-        <div className="ai-hero-metric-grid">
-          <AiHeroMetric
-            icon={<TrendingUp size={18} aria-hidden="true" />}
-            label="Revenue today"
-            value={formatCurrency(briefing.businessOverview?.revenueToday ?? 0)}
-            detail={formatRevenueChange(briefing.businessOverview)}
-          />
-          <AiHeroMetric
-            icon={<ShoppingBag size={18} aria-hidden="true" />}
-            label="Orders today"
-            value={(briefing.businessOverview?.ordersToday ?? 0).toString()}
-            detail={`${briefing.businessOverview?.ordersToday ?? 0} captured today`}
-          />
-          <AiHeroMetric
-            icon={<Store size={18} aria-hidden="true" />}
-            label="Connected platforms"
-            value={(briefing.businessOverview?.connectedPlatforms.length ?? 0).toString()}
-            detail={formatConnectedPlatforms(briefing.businessOverview)}
-          />
-          <AiHeroMetric
-            icon={<ShieldCheck size={18} aria-hidden="true" />}
-            label="Business health"
-            value={formatBusinessHealthScore(briefing.businessHealth)}
-            detail={briefing.businessHealth?.status?.toLowerCase().replace(/_/gu, " ") ?? "Reviewing"}
-          />
-        </div>
         <div className="ai-hero-callouts">
           <AiHeroCallout
             emptyText="No immediate business action is required. Continue monitoring current performance."
@@ -360,7 +334,7 @@ export function AiBusinessBriefingSection({
       <div className="ai-briefing-flow">
         <AiObservationSection
           items={briefing.observations.slice(0, 3)}
-          title="Key observations"
+          title="Business Insights"
           emptyText="No notable observations identified today."
         />
 
@@ -395,7 +369,7 @@ export function AiBusinessBriefingSection({
         <AiInsightSection
           items={briefing.opportunities.slice(0, 2)}
           title="Opportunities"
-          emptyText="No notable opportunities identified."
+          emptyText="No notable commercial opportunities were identified today."
         />
       </div>
 
@@ -513,27 +487,6 @@ function AiHeroCallout({
         <p>{item?.summary ?? emptyText}</p>
         {item ? <AiSeverityBadge value={"priority" in item ? item.priority : item.severity} /> : null}
       </div>
-    </div>
-  );
-}
-
-function AiHeroMetric({
-  detail,
-  icon,
-  label,
-  value,
-}: {
-  readonly detail: string;
-  readonly icon: ReactNode;
-  readonly label: string;
-  readonly value: string;
-}) {
-  return (
-    <div className="ai-hero-metric">
-      <div className="ai-metric-icon">{icon}</div>
-      <span>{label}</span>
-      <strong>{value}</strong>
-      <p>{detail}</p>
     </div>
   );
 }
@@ -909,9 +862,17 @@ function PlatformPanel({
   );
 }
 
-function HealthScoreCard({ dashboard }: { readonly dashboard: TodayDashboardResponse }) {
-  const score = dashboard.basicBusinessHealthScore;
-  const contributors = getHealthContributors(dashboard);
+function HealthScoreCard({
+  dashboard,
+  health,
+}: {
+  readonly dashboard: TodayDashboardResponse;
+  readonly health: AiBriefingTodayResponse["businessHealth"] | null;
+}) {
+  const score = health?.score ?? dashboard.basicBusinessHealthScore;
+  const status = health?.status ?? dashboard.basicBusinessHealthStatus;
+  const summary = health?.summary ?? dashboard.basicBusinessHealthSummary;
+  const contributors = health?.contributors ?? dashboard.basicBusinessHealthContributors;
 
   if (score === null) {
     return (
@@ -932,27 +893,27 @@ function HealthScoreCard({ dashboard }: { readonly dashboard: TodayDashboardResp
   return (
     <section className="panel health-score-panel" aria-label="Business Health Score">
       <div className="panel-heading">
-        <div>
-          <h2>Business Health Score</h2>
-          <p>A real-time view of overall commerce health.</p>
-        </div>
+          <div>
+            <h2>Business Health Score</h2>
+            <p>{summary}</p>
+          </div>
       </div>
       <div className="health-score-body">
         <div className="health-gauge" style={{ "--score": `${score}%` } as CSSProperties}>
           <strong>{score}</strong>
-          <span>{getHealthLabel(score)}</span>
+          <span>{formatHealthStatus(status)}</span>
         </div>
         <div className="health-contributors">
           {contributors.map((contributor) => (
-            <div key={contributor.label}>
-              <span>{contributor.label}</span>
-              <strong className={contributor.tone}>
-                {contributor.tone === "risk" ? (
-                  <AlertTriangle size={14} aria-hidden="true" />
-                ) : (
+            <div key={contributor.name}>
+              <span>{contributor.name}</span>
+              <strong className={contributor.status === "GOOD" ? "good" : "risk"}>
+                {contributor.status === "GOOD" ? (
                   <CheckCircle2 size={14} aria-hidden="true" />
+                ) : (
+                  <AlertTriangle size={14} aria-hidden="true" />
                 )}
-                {contributor.value}
+                {formatHealthStatus(contributor.status)}
               </strong>
             </div>
           ))}
@@ -1174,35 +1135,6 @@ function createBriefingItems(dashboard: TodayDashboardResponse): readonly {
   ];
 }
 
-function getHealthContributors(dashboard: TodayDashboardResponse): readonly {
-  readonly label: string;
-  readonly tone: "good" | "risk";
-  readonly value: string;
-}[] {
-  return [
-    {
-      label: "Sales",
-      tone: dashboard.ordersToday > 0 ? "good" : "risk",
-      value: dashboard.ordersToday > 0 ? "Good" : "At risk",
-    },
-    {
-      label: "Channel coverage",
-      tone: dashboard.connectedPlatforms.length >= 4 ? "good" : "risk",
-      value: dashboard.connectedPlatforms.length >= 4 ? "Good" : "At risk",
-    },
-    {
-      label: "Inventory",
-      tone: dashboard.lowStockCount > 0 ? "risk" : "good",
-      value: dashboard.lowStockCount > 0 ? "At risk" : "Good",
-    },
-    {
-      label: "Refund activity",
-      tone: dashboard.refundCountToday <= 2 ? "good" : "risk",
-      value: dashboard.refundCountToday <= 2 ? "Good" : "At risk",
-    },
-  ];
-}
-
 function getFriendlyError(error: unknown): string {
   const authMessage = getFriendlyAuthErrorMessage(error);
 
@@ -1266,43 +1198,6 @@ function formatBriefingDate(value: string): string {
   }).format(date);
 }
 
-function formatRevenueChange(
-  overview: AiBriefingTodayResponse["businessOverview"] | undefined,
-): string {
-  const today = overview?.revenueToday ?? 0;
-  const yesterday = overview?.revenueYesterday ?? 0;
-
-  if (yesterday <= 0) {
-    return today > 0 ? "New revenue activity today" : "No revenue change available";
-  }
-
-  const change = Math.round(((today - yesterday) / yesterday) * 100);
-  const sign = change > 0 ? "+" : "";
-  return `${sign}${change}% vs yesterday`;
-}
-
-function formatConnectedPlatforms(
-  overview: AiBriefingTodayResponse["businessOverview"] | undefined,
-): string {
-  const platforms = overview?.connectedPlatforms ?? [];
-
-  if (platforms.length === 0) {
-    return "No platforms connected";
-  }
-
-  return platforms.map(formatPlatform).join(", ");
-}
-
-function formatBusinessHealthScore(
-  health: AiBriefingTodayResponse["businessHealth"] | undefined,
-): string {
-  if (health?.score === null || health?.score === undefined) {
-    return "Reviewing";
-  }
-
-  return `${health.score}/100`;
-}
-
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-GB", {
     currency: "GBP",
@@ -1363,14 +1258,14 @@ function getTrendClass(trend: number | null | undefined, inverse: boolean): stri
   return isPositive !== inverse ? "positive" : "negative";
 }
 
-function getHealthLabel(score: number): string {
-  if (score >= 80) {
-    return "Good";
+function formatHealthStatus(status: "GOOD" | "AT_RISK" | "INSUFFICIENT_DATA" | "NEEDS_DATA"): string {
+  switch (status) {
+    case "AT_RISK":
+      return "At risk";
+    case "GOOD":
+      return "Good";
+    case "INSUFFICIENT_DATA":
+    case "NEEDS_DATA":
+      return "Needs data";
   }
-
-  if (score >= 60) {
-    return "Stable";
-  }
-
-  return "Needs attention";
 }
