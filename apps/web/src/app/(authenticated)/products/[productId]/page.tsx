@@ -9,5 +9,13 @@ interface ProductDetailPageProps {
 export default async function ProductDetailPage({ params }: ProductDetailPageProps) {
   const { productId } = await params;
 
-  return <ProductDetailWorkspace productId={productId} />;
+  return <ProductDetailWorkspace productId={decodeRouteParam(productId)} />;
+}
+
+function decodeRouteParam(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }

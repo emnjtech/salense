@@ -652,6 +652,10 @@ export class StoreIntegrationsService {
       throw new ConflictException("Store is already disconnected.");
     }
 
+    if (store.connectionStatus !== StoreConnectionStatus.Connected) {
+      throw new ConflictException("Store must be connected before it can be disconnected.");
+    }
+
     await this.syncSchedulingService.removeAutomaticSync(store);
 
     const prisma = this.prismaService.client as unknown as StoreIntegrationsPrismaClient;

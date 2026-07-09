@@ -1,7 +1,7 @@
 import { Inject, Injectable, NotFoundException, UnauthorizedException } from "@nestjs/common";
 import { PrismaService } from "../database/prisma.service.js";
 import { StoreConnectionStatus } from "../store-integrations/types/store-connection-status.enum.js";
-import type { StorePlatform } from "../store-integrations/types/store-platform.enum.js";
+import { StorePlatform } from "../store-integrations/types/store-platform.enum.js";
 import type { ListCommerceProductsQueryDto } from "./dto/list-commerce-products-query.dto.js";
 import { isRevenueEligibleOrderStatus } from "./order-revenue.js";
 import type {
@@ -123,14 +123,15 @@ interface CommerceOrderItemSelect {
 }
 
 interface CommerceOrderItemDetailSelect extends CommerceOrderItemSelect {
-  readonly order: {
-    readonly select: {
-      readonly orderStatus: true;
-      readonly orderedAt: true;
-      readonly platformOrderId: true;
-      readonly platformOrderNumber: true;
-    };
-  };
+      readonly order: {
+        readonly select: {
+          readonly currency: true;
+          readonly orderStatus: true;
+          readonly orderedAt: true;
+          readonly platformOrderId: true;
+          readonly platformOrderNumber: true;
+        };
+      };
 }
 
 interface CommerceProductRecord {
@@ -183,6 +184,7 @@ interface CommerceOrderItemRecord {
 interface CommerceOrderItemDetailRecord extends Omit<CommerceOrderItemRecord, "order"> {
   readonly order: {
     readonly orderStatus: string | null;
+    readonly currency?: string | null;
     readonly orderedAt: Date | string | null;
     readonly platformOrderId: string | null;
     readonly platformOrderNumber: string | null;
@@ -192,6 +194,12 @@ interface CommerceOrderItemDetailRecord extends Omit<CommerceOrderItemRecord, "o
 interface ProductSalesSummary {
   readonly revenue: number;
   readonly unitsSold: number;
+}
+
+interface FallbackProductIdentity {
+  readonly platform: StorePlatform;
+  readonly productIdentity: string;
+  readonly sourceStoreIdentity: string;
 }
 
 const productSelect = {
@@ -298,6 +306,7 @@ export class CommerceProductsService {
   }
 
   async getProductDetail(userId: string, productId: string): Promise<CommerceProductDetailResponse> {
+    const normalizedProductId = decodeProductId(productId);
     const prisma = this.prismaService.client as unknown as CommerceProductsPrismaClient;
     const business = await prisma.business.findUnique({
       where: { ownerId: userId },
@@ -314,12 +323,22 @@ export class CommerceProductsService {
       where: {
         businessId: business.id,
         connectedStore: activeConnectedStoreWhere(),
-        id: productId,
+        id: normalizedProductId,
       },
       select: productDetailSelect,
     });
 
     if (!product) {
+      const fallbackProduct = await this.getFallbackProductDetail(
+        prisma,
+        business.id,
+        normalizedProductId,
+      );
+
+      if (fallbackProduct) {
+        return { product: fallbackProduct };
+      }
+
       throw new NotFoundException("Product could not be found for this business.");
     }
 
@@ -338,12 +357,14 @@ export class CommerceProductsService {
         platformProductId: true,
         order: {
           select: {
+            currency: true,
             orderedAt: true,
             orderStatus: true,
             platformOrderId: true,
             platformOrderNumber: true,
           },
         },
+        unitPriceAmount: true,
         quantity: true,
         totalAmount: true,
       },
@@ -352,6 +373,59 @@ export class CommerceProductsService {
     return {
       product: toProductDetail(product, filterOrderItemsForProduct(product, orderItems)),
     };
+  }
+
+  private async getFallbackProductDetail(
+    prisma: CommerceProductsPrismaClient,
+    businessId: string,
+    productId: string,
+  ): Promise<CommerceProductDetail | null> {
+    const identity = parseFallbackProductId(productId);
+
+    if (!identity) {
+      return null;
+    }
+
+    const orderItems = await prisma.commerceOrderItem.findMany({
+      where: {
+        businessId,
+        connectedStore: activeConnectedStoreWhere(),
+        platform: identity.platform,
+      },
+      select: {
+        connectedStoreId: true,
+        connectedStore: { select: { id: true, storeName: true, storeUrl: true } },
+        platform: true,
+        platformOrderItemId: true,
+        platformProductId: true,
+        order: {
+          select: {
+            currency: true,
+            orderedAt: true,
+            orderStatus: true,
+            platformOrderId: true,
+            platformOrderNumber: true,
+          },
+        },
+        sku: true,
+        name: true,
+        quantity: true,
+        unitPriceAmount: true,
+        totalAmount: true,
+      },
+    });
+    const matchingItems = orderItems.filter(
+      (item): item is CommerceOrderItemDetailRecord =>
+        item.order !== undefined &&
+        getFallbackProductIdentity(item) === identity.productIdentity &&
+        toSourceStoreIdentity(item) === identity.sourceStoreIdentity,
+    );
+
+    if (matchingItems.length === 0) {
+      return null;
+    }
+
+    return toFallbackProductDetail(productId, identity, matchingItems);
   }
 }
 
@@ -400,7 +474,10 @@ function toProductListItem(
   product: CommerceProductRecord,
   salesByProduct: ReadonlyMap<string, ProductSalesSummary>,
 ): CommerceProductListItemResponse {
-  const sales = salesByProduct.get(toProductSalesKey(product)) ?? { revenue: 0, unitsSold: 0 };
+  const sales =
+    salesByProduct.get(toProductSalesKey(product)) ??
+    salesByProduct.get(toProductStoreIdSalesKey(product)) ??
+    { revenue: 0, unitsSold: 0 };
 
   return {
     category: extractCategory(product.sourceMetadata),
@@ -537,7 +614,7 @@ function filterOrderItemsForProduct(
           sourceStoreIdentity: toSourceStoreIdentity(item),
           platform: item.platform,
           platformProductId: product.platformProductId,
-        }) === productSalesKey
+        }) === productSalesKey || item.connectedStoreId === product.connectedStore.id
       );
     },
   );
@@ -575,6 +652,46 @@ function toProductDetail(
       connectedStoreId: product.connectedStore.id,
       storeName: product.connectedStore.storeName,
       storeUrl: product.connectedStore.storeUrl,
+    },
+  };
+}
+
+function toFallbackProductDetail(
+  productId: string,
+  identity: FallbackProductIdentity,
+  orderItems: readonly CommerceOrderItemDetailRecord[],
+): CommerceProductDetail {
+  const firstItem = orderItems[0];
+  const sales = summarizeProductDetailSales(orderItems);
+  const productName = firstItem?.name ?? identity.productIdentity;
+  const platformProductId = firstItem?.platformProductId ?? identity.productIdentity;
+
+  return {
+    category: null,
+    currency: firstItem?.order.currency ?? null,
+    currentStock: null,
+    importedAt: null,
+    insights: buildFallbackProductInsights(productName, sales),
+    lastSyncedAt: null,
+    platform: identity.platform,
+    platformCreatedAt: null,
+    platformProductId,
+    platformUpdatedAt: null,
+    price: toNumberOrNull(firstItem?.unitPriceAmount),
+    productId,
+    productName,
+    productStatus: null,
+    productType: null,
+    recentSales: toRecentSales(orderItems),
+    regularPrice: null,
+    salePrice: null,
+    sales,
+    sku: firstItem?.sku ?? null,
+    stockStatus: null,
+    store: {
+      connectedStoreId: firstItem?.connectedStore?.id ?? firstItem?.connectedStoreId ?? "unknown-store",
+      storeName: firstItem?.connectedStore?.storeName ?? "Connected store",
+      storeUrl: firstItem?.connectedStore?.storeUrl ?? null,
     },
   };
 }
@@ -726,9 +843,88 @@ function buildProductInsights(
   return insights.slice(0, 4);
 }
 
+function buildFallbackProductInsights(
+  productName: string,
+  sales: CommerceProductDetail["sales"],
+): readonly CommerceProductInsight[] {
+  const insights: CommerceProductInsight[] = [];
+
+  if (sales.salesRatePerDay > 0) {
+    insights.push({
+      severity: "SUCCESS",
+      title: "Sales rate is available",
+      message: `${productName} is selling at ${sales.salesRatePerDay} units per day based on the last 30 days of revenue-eligible orders.`,
+    });
+  } else {
+    insights.push({
+      severity: "INFO",
+      title: "No recent sales rate yet",
+      message: "No revenue-eligible sales were found for this product in the last 30 days.",
+    });
+  }
+
+  insights.push({
+    severity: "INFO",
+    title: "Product record inferred from sales",
+    message:
+      "This detail view is built from normalized order line items because the store did not provide a separate product record for this item.",
+  });
+
+  return insights;
+}
+
+function parseFallbackProductId(productId: string): FallbackProductIdentity | null {
+  const decodedProductId = decodeProductId(productId);
+  const prefix = "order-item:";
+
+  if (!decodedProductId.startsWith(prefix)) {
+    return null;
+  }
+
+  const value = decodedProductId.slice(prefix.length);
+
+  for (const platform of Object.values(StorePlatform)) {
+    const marker = `:${platform}:`;
+    const markerIndex = value.lastIndexOf(marker);
+
+    if (markerIndex === -1) {
+      continue;
+    }
+
+    const sourceStoreIdentity = value.slice(0, markerIndex);
+    const productIdentity = value.slice(markerIndex + marker.length);
+
+    if (sourceStoreIdentity && productIdentity) {
+      return { platform, productIdentity, sourceStoreIdentity };
+    }
+  }
+
+  return null;
+}
+
+function decodeProductId(productId: string): string {
+  try {
+    return decodeURIComponent(productId);
+  } catch {
+    return productId;
+  }
+}
+
+function getFallbackProductIdentity(item: CommerceOrderItemRecord): string | null {
+  return item.platformProductId ?? item.sku ?? item.name ?? null;
+}
+
 function toProductSalesKey(product: CommerceProductRecord): string {
   return toSalesKey({
     sourceStoreIdentity: toSourceStoreIdentity(product),
+    platform: product.platform,
+    platformProductId: product.platformProductId,
+  });
+}
+
+function toProductStoreIdSalesKey(product: CommerceProductRecord): string {
+  return toSalesKey({
+    sourceStoreIdentity: product.connectedStore.id,
     platform: product.platform,
     platformProductId: product.platformProductId,
   });

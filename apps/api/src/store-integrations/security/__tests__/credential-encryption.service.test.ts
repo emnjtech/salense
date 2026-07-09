@@ -15,8 +15,20 @@ describe("AesCredentialEncryptionService", () => {
   });
 
   it("fails safely when encryption config is missing", () => {
-    const service = new AesCredentialEncryptionService(undefined, "missing-key");
+    const previousKey = process.env.SALENSE_CREDENTIAL_ENCRYPTION_KEY;
 
-    expect(() => service.encrypt("woocommerce-secret")).toThrow(InternalServerErrorException);
+    delete process.env.SALENSE_CREDENTIAL_ENCRYPTION_KEY;
+
+    try {
+      const service = new AesCredentialEncryptionService();
+
+      expect(() => service.encrypt("woocommerce-secret")).toThrow(InternalServerErrorException);
+    } finally {
+      if (previousKey === undefined) {
+        delete process.env.SALENSE_CREDENTIAL_ENCRYPTION_KEY;
+      } else {
+        process.env.SALENSE_CREDENTIAL_ENCRYPTION_KEY = previousKey;
+      }
+    }
   });
 });

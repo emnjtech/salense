@@ -386,6 +386,105 @@ describe("CommerceProductsService", () => {
     );
     expect(JSON.stringify(response).toLowerCase()).not.toContain("token");
   });
+
+  it("returns product detail for products inferred from order line items", async () => {
+    const recentOrderDate = new Date();
+    const fallbackProductId = "order-item:https://ivonmelda.com:WOOCOMMERCE:woo_10";
+    const { service } = createService({
+      orderItems: [
+        {
+          connectedStore: {
+            id: "store_1",
+            storeName: "Ivonmelda Hair",
+            storeUrl: "https://ivonmelda.com",
+          },
+          connectedStoreId: "store_1",
+          name: "Crochet Bundle",
+          order: {
+            currency: "GBP",
+            orderedAt: recentOrderDate,
+            orderStatus: "processing",
+            platformOrderId: "order_7846",
+            platformOrderNumber: "7846",
+          },
+          platform: StorePlatform.WooCommerce,
+          platformOrderItemId: "line_1",
+          platformProductId: "woo_10",
+          quantity: 2,
+          sku: "BUNDLE-1",
+          totalAmount: 70,
+          unitPriceAmount: 35,
+        },
+      ],
+      productDetail: null,
+    });
+
+    const response = await service.getProductDetail("user_1", encodeURIComponent(fallbackProductId));
+
+    expect(response.product).toMatchObject({
+      currency: "GBP",
+      platform: StorePlatform.WooCommerce,
+      platformProductId: "woo_10",
+      price: 35,
+      productId: fallbackProductId,
+      productName: "Crochet Bundle",
+      sales: {
+        totalOrders: 1,
+        totalRevenue: 70,
+        totalUnitsSold: 2,
+      },
+      sku: "BUNDLE-1",
+      store: {
+        storeName: "Ivonmelda Hair",
+        storeUrl: "https://ivonmelda.com",
+      },
+    });
+    expect(response.product.insights.map((insight) => insight.title)).toContain(
+      "Product record inferred from sales",
+    );
+  });
+
+  it("returns fallback product detail when the product identity comes from SKU", async () => {
+    const fallbackProductId = "order-item:https://ivonmelda.com:WOOCOMMERCE:BUNDLE-1";
+    const { service } = createService({
+      orderItems: [
+        {
+          connectedStore: {
+            id: "store_1",
+            storeName: "Ivonmelda Hair",
+            storeUrl: "https://ivonmelda.com",
+          },
+          connectedStoreId: "store_1",
+          name: "Crochet Bundle",
+          order: {
+            currency: "GBP",
+            orderedAt: new Date(),
+            orderStatus: "processing",
+            platformOrderId: "order_7846",
+            platformOrderNumber: "7846",
+          },
+          platform: StorePlatform.WooCommerce,
+          platformOrderItemId: "line_1",
+          platformProductId: null,
+          quantity: 1,
+          sku: "BUNDLE-1",
+          totalAmount: 35,
+          unitPriceAmount: 35,
+        },
+      ],
+      productDetail: null,
+    });
+
+    const response = await service.getProductDetail("user_1", fallbackProductId);
+
+    expect(response.product).toMatchObject({
+      platformProductId: "BUNDLE-1",
+      productId: fallbackProductId,
+      productName: "Crochet Bundle",
+      sales: { totalRevenue: 35, totalUnitsSold: 1 },
+      sku: "BUNDLE-1",
+    });
+  });
 });
 
 function createService(
@@ -463,6 +562,7 @@ interface CommerceOrderItemTestRecord {
   };
   readonly connectedStoreId: string;
   readonly order?: {
+    readonly currency?: string | null;
     readonly orderedAt?: Date | string | null;
     readonly orderStatus?: string | null;
     readonly platformOrderId: string | null;
@@ -472,5 +572,8 @@ interface CommerceOrderItemTestRecord {
   readonly platformOrderItemId?: string | null;
   readonly platformProductId: string | null;
   readonly quantity: number | null;
+  readonly sku?: string | null;
+  readonly name?: string | null;
+  readonly unitPriceAmount?: unknown;
   readonly totalAmount: unknown;
 }

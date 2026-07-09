@@ -1,4 +1,4 @@
-import { formatOrderStatus, isRevenueEligibleOrderStatus } from "../order-status-badge";
+import { formatOrderStatus, isRevenueEligibleOrderStatus } from "../order-status";
 
 describe("order status presentation", () => {
   it("formats marketplace statuses for display", () => {

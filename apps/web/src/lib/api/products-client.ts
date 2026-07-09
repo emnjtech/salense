@@ -119,8 +119,9 @@ export function createProductsApiClient(options: ProductsApiClientOptions = {}):
 
   return {
     async getProduct(accessToken, productId) {
+      const normalizedProductId = decodeProductId(productId);
       const response = await fetchWithSessionRefresh(
-        `${baseUrl}/commerce/products/${encodeURIComponent(productId)}`,
+        `${baseUrl}/commerce/products/${encodeURIComponent(normalizedProductId)}`,
         { headers: {} },
         { accessToken, baseUrl, fetchImpl },
       );
@@ -188,4 +189,12 @@ async function getErrorMessage(response: Response): Promise<string> {
 
 function trimTrailingSlash(value: string): string {
   return value.replace(/\/+$/u, "");
+}
+
+function decodeProductId(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }

@@ -50,7 +50,7 @@ describe("worker bootstrap", () => {
       id: "job_1",
     });
     expect(consoleError).toHaveBeenCalledWith(
-      "Sync job failed: job_1 platform=WOOCOMMERCE store=store_1 resource=all category=CREDENTIAL_CONFIGURATION",
+      'Sync job failed: job_1 platform=WOOCOMMERCE store=store_1 resource=all category=CREDENTIAL_CONFIGURATION reason="WooCommerce credentials are not configured."',
     );
     expect(JSON.stringify(consoleError.mock.calls)).not.toContain("super-secret");
 
