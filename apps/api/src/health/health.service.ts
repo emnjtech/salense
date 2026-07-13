@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import Redis from "ioredis";
+import { Redis } from "ioredis";
 import { PrismaService } from "../database/prisma.service.js";
 
 export interface HealthCheckResponse {

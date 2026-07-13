@@ -26,7 +26,7 @@ async function bootstrap(): Promise<void> {
 
 void bootstrap();
 
-function getAllowedCorsOrigins(): readonly string[] {
+function getAllowedCorsOrigins(): string[] {
   const configuredOrigins = process.env.API_CORS_ORIGINS?.split(",")
     .map((origin) => origin.trim())
     .filter(Boolean);
