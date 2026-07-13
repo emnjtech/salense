@@ -1,4 +1,4 @@
-﻿-- CreateEnum
+-- CreateEnum
 CREATE TYPE "StorePlatform" AS ENUM ('WOOCOMMERCE', 'AMAZON_SELLER', 'TIKTOK_SHOP', 'SHOPIFY');
 
 -- CreateEnum
