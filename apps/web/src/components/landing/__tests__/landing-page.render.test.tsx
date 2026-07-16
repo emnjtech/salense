@@ -4,6 +4,7 @@ import { AboutPage } from "../about-page";
 import { HowItWorksPage } from "../how-it-works-page";
 import { IntegrationsPage } from "../integrations-page";
 import { LandingPage } from "../landing-page";
+import { PrivacyPolicyPage } from "../privacy-policy-page";
 
 describe("LandingPage", () => {
   it("renders the public landing flow with screenshot and working navigation", () => {
@@ -16,10 +17,28 @@ describe("LandingPage", () => {
     expect(html).toContain("href=\"/about\"");
     expect(html).toContain("href=\"/how-it-works\"");
     expect(html).toContain("href=\"/login\"");
+    expect(html).toContain("href=\"/privacy\"");
     expect(html).toContain("See how it works");
     expect(html).toContain("Get started");
     expect(html).not.toContain(">Product<");
     expect(html).not.toContain(">Resources<");
+  });
+});
+
+describe("PrivacyPolicyPage", () => {
+  it("renders Salense privacy policy content and public navigation", () => {
+    const html = renderToStaticMarkup(createElement(PrivacyPolicyPage));
+
+    expect(html).toContain("Privacy Policy");
+    expect(html).toContain("How Salense handles business and commerce data");
+    expect(html).toContain("Effective date: 16 July 2026");
+    expect(html).toContain("We do not sell customer or commerce data");
+    expect(html).toContain("read-only commerce intelligence");
+    expect(html).toContain("hello@getsalense.com");
+    expect(html).toContain("href=\"/integrations\"");
+    expect(html).toContain("href=\"/pricing\"");
+    expect(html).toContain("href=\"/about\"");
+    expect(html).toContain("href=\"/login\"");
   });
 });
 

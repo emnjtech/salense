@@ -3592,6 +3592,44 @@ button:disabled {
   max-width: 720px;
 }
 
+.privacy-page {
+  max-width: 1040px;
+}
+
+.privacy-hero span {
+  color: #617066;
+  font-size: 14px;
+  font-weight: 720;
+}
+
+.privacy-policy-panel {
+  display: grid;
+  gap: 28px;
+  padding: 34px;
+}
+
+.privacy-policy-section {
+  display: grid;
+  gap: 12px;
+}
+
+.privacy-policy-section:not(:last-child) {
+  border-bottom: 1px solid #e0e7e1;
+  padding-bottom: 26px;
+}
+
+.privacy-policy-section h2 {
+  font-size: 22px;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.privacy-policy-section p {
+  color: #526057;
+  line-height: 1.7;
+  margin: 0;
+}
+
 .public-story-actions {
   align-items: center;
   display: flex;
@@ -4213,6 +4251,31 @@ button:disabled {
 .landing-trust-list svg {
   background: rgb(167 243 208 / 16%);
   color: #a7f3d0;
+}
+
+.landing-footer {
+  align-items: center;
+  border-top: 1px solid #d9e2dc;
+  color: #617066;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 13px;
+  gap: 14px;
+  justify-content: space-between;
+  margin: 0 auto;
+  max-width: 1160px;
+  padding: 24px 0 40px;
+}
+
+.landing-footer nav {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+}
+
+.landing-footer a {
+  color: #1f6f55;
+  font-weight: 750;
 }
 
 .landing-hero-media {

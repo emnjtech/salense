@@ -211,6 +211,13 @@ export function LandingPage() {
           <li><Check size={16} aria-hidden="true" />Cancel anytime</li>
         </ul>
       </section>
+
+      <footer className="landing-footer">
+        <span>© 2026 Salense. Commerce Intelligence.</span>
+        <nav aria-label="Footer navigation">
+          <Link href="/privacy">Privacy Policy</Link>
+        </nav>
+      </footer>
     </main>
   );
 }
