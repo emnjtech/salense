@@ -1909,6 +1909,284 @@ button:disabled {
   line-height: 1.5;
 }
 
+.marketing-intelligence-workspace {
+  max-width: 1320px;
+}
+
+.marketing-intelligence-header {
+  max-width: 980px;
+}
+
+.marketing-title-row,
+.section-heading-row,
+.marketing-card-heading {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+}
+
+.marketing-title-row {
+  flex-wrap: wrap;
+}
+
+.section-heading-row {
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.section-heading-row h2,
+.marketing-health-card h2,
+.marketing-briefing-card h2,
+.marketing-intelligence-panel h2,
+.marketing-commerce-card h2 {
+  font-size: 22px;
+}
+
+.marketing-header-support,
+.marketing-health-card p,
+.marketing-briefing-card p,
+.marketing-platform-card p,
+.marketing-metric-card p,
+.marketing-intelligence-panel p,
+.marketing-recommendation-card p,
+.marketing-commerce-card p {
+  color: #526059;
+  line-height: 1.6;
+}
+
+.marketing-header-support {
+  margin-top: 12px;
+}
+
+.marketing-badge {
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 820;
+  letter-spacing: 0;
+  line-height: 1;
+  padding: 7px 10px;
+  text-transform: uppercase;
+  width: max-content;
+}
+
+.marketing-badge.coming-soon {
+  background: #123f31;
+  border: 1px solid #1f7657;
+  color: #c9f7d7;
+}
+
+.marketing-badge.preview {
+  background: #fff7db;
+  border: 1px solid #f0d36d;
+  color: #73530a;
+}
+
+.marketing-hero-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.4fr);
+}
+
+.marketing-health-card,
+.marketing-briefing-card,
+.marketing-platform-card,
+.marketing-metric-card,
+.marketing-recommendation-card {
+  display: grid;
+  gap: 14px;
+}
+
+.marketing-health-card {
+  background:
+    radial-gradient(circle at top right, rgba(167, 243, 208, 0.28), transparent 34%),
+    #ffffff;
+}
+
+.marketing-briefing-card {
+  background:
+    radial-gradient(circle at top left, rgba(14, 61, 46, 0.12), transparent 32%),
+    #ffffff;
+}
+
+.marketing-card-icon,
+.marketing-platform-icon {
+  align-items: center;
+  background: #e8f8ee;
+  border-radius: 999px;
+  color: #14764e;
+  display: inline-flex;
+  height: 42px;
+  justify-content: center;
+  width: 42px;
+}
+
+.marketing-card-icon.subtle {
+  height: 34px;
+  width: 34px;
+}
+
+.marketing-preview-labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.marketing-preview-labels span,
+.marketing-status,
+.marketing-empty-line {
+  align-items: center;
+  background: #f4f7f4;
+  border: 1px solid #dfe7df;
+  border-radius: 999px;
+  color: #435148;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 760;
+  gap: 6px;
+  padding: 7px 10px;
+  width: max-content;
+}
+
+.marketing-preview-note {
+  border-top: 1px solid #e5ebe5;
+  margin-top: 2px;
+  padding-top: 14px;
+}
+
+.marketing-section {
+  display: grid;
+  gap: 12px;
+}
+
+.marketing-platform-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr));
+}
+
+.marketing-platform-card {
+  align-content: start;
+}
+
+.marketing-platform-card h3,
+.marketing-metric-card h3,
+.marketing-recommendation-card h3 {
+  font-size: 16px;
+}
+
+.marketing-platform-card .marketing-status {
+  margin-top: -6px;
+}
+
+.marketing-disabled-button {
+  align-self: end;
+  cursor: not-allowed;
+  opacity: 0.68;
+  width: 100%;
+}
+
+.marketing-performance-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+}
+
+.marketing-empty-line {
+  background: #f8faf8;
+  border-style: dashed;
+  color: #66746b;
+  margin-top: auto;
+}
+
+.marketing-intelligence-panel,
+.marketing-commerce-card {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+}
+
+.marketing-intelligence-panel {
+  background:
+    radial-gradient(circle at top right, rgba(167, 243, 208, 0.18), transparent 28%),
+    #ffffff;
+}
+
+.marketing-panel-copy {
+  align-content: center;
+  display: grid;
+  gap: 10px;
+}
+
+.marketing-example-list {
+  display: grid;
+  gap: 10px;
+}
+
+.marketing-example-list div {
+  align-items: center;
+  background: #f8faf8;
+  border: 1px solid #e0e7e0;
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: 12px;
+}
+
+.marketing-recommendation-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 310px), 1fr));
+}
+
+.marketing-commerce-card {
+  background: #0e3d2e;
+  color: #ffffff;
+  overflow: hidden;
+  position: relative;
+}
+
+.marketing-commerce-card::after {
+  border: 1px solid rgba(201, 247, 215, 0.18);
+  border-radius: 999px;
+  bottom: -120px;
+  content: "";
+  height: 280px;
+  position: absolute;
+  right: -80px;
+  width: 280px;
+}
+
+.marketing-commerce-card .eyebrow,
+.marketing-commerce-card p {
+  color: #d8f7e3;
+}
+
+.marketing-flow {
+  display: grid;
+  gap: 8px;
+  position: relative;
+  z-index: 1;
+}
+
+.marketing-flow-step {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(201, 247, 215, 0.18);
+  border-radius: 8px;
+  color: #ffffff;
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  padding: 12px;
+  text-align: center;
+}
+
+.marketing-flow-step svg {
+  color: #a7f3d0;
+}
+
 .platform-title {
   align-items: center;
   display: flex;
@@ -4570,6 +4848,9 @@ button:disabled {
   .ai-focus-grid,
   .ai-evidence-strip,
   .ai-explainability-grid,
+  .marketing-hero-grid,
+  .marketing-intelligence-panel,
+  .marketing-commerce-card,
   .today-hero-grid,
   .reports-chart-grid,
   .reports-filter-panel,
@@ -4673,6 +4954,9 @@ button:disabled {
   .overview-grid,
   .ads-promotions-hero,
   .ads-promotions-proof,
+  .marketing-hero-grid,
+  .marketing-intelligence-panel,
+  .marketing-commerce-card,
   .ai-briefing-flow,
   .ai-hero-callouts,
   .ai-hero-metric-grid,

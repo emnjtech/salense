@@ -7,7 +7,7 @@ Product requirements are governed by the Salense PRD + SES.
 Operational notes:
 
 - [Continuous integration](./ci.md)
-- [Split production hosting](../HOSTING.md)
+- [Railway production hosting](../HOSTING.md)
 - [MVP demo runbook](./mvp-demo-runbook.md)
 - [Windows local demo setup](./windows-local-demo-setup.md)
 - [MVP demo checklist](./mvp-checklist.md)
@@ -16,6 +16,7 @@ Operational notes:
 - [Store authorization setup](./store-authorization-setup.md)
 - [WooCommerce real-store testing](./woocommerce-real-store-testing.md)
 - [AI narrative generation](./ai-narrative-generation.md)
+- [Marketing Intelligence addendum](./addenda/marketing-intelligence-addendum.md)
 - [Ads & Promotions Intelligence](./ads-promotions-intelligence.md)
 - [Multi-platform MVP integration checkpoint](./woocommerce-integration-checkpoint.md)
 - [Frontend authentication demo policy](./frontend-auth-demo.md)

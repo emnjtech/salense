@@ -11,6 +11,7 @@ import {
   Megaphone,
   PackageSearch,
   ShieldCheck,
+  Share2,
   Settings,
   Users,
 } from "lucide-react";
@@ -104,6 +105,13 @@ export function AuthenticatedNavigation() {
           icon={<ChartNoAxesColumnIncreasing size={18} />}
         >
           Reports
+        </NavigationLink>
+        <NavigationLink
+          currentPath={pathname}
+          href="/marketing-intelligence"
+          icon={<Share2 size={18} />}
+        >
+          Marketing Intelligence
         </NavigationLink>
         <NavigationLink
           currentPath={pathname}
