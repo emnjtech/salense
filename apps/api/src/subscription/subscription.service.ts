@@ -5,10 +5,18 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from "@nestjs/common";
+import { AuditLogService } from "../audit/audit-log.service.js";
+import {
+  AuditAction,
+  AuditLogModule,
+  AuditLogResult,
+} from "../audit/types/audit-log.type.js";
 import { EmailService } from "../email/email.service.js";
 import { PrismaService } from "../database/prisma.service.js";
 import type { AcceptInvitationRequestDto } from "./dto/accept-invitation-request.dto.js";
+import type { ListAdminInvitationsQueryDto } from "./dto/list-admin-invitations-query.dto.js";
 import type { SubscriptionInvitationRequestDto } from "./dto/subscription-invitation-request.dto.js";
 import {
   BcryptPasswordHasherService,
@@ -21,8 +29,10 @@ import type {
 import type {
   SubscriptionAdminInvitationListResponse,
   SubscriptionAdminInvitationResponse,
+  SubscriptionInvitationDeleteResponse,
   SubscriptionInvitationApprovalResponse,
   SubscriptionInvitationRejectionResponse,
+  SubscriptionInvitationRestoreResponse,
 } from "./types/subscription-admin-invitation-response.type.js";
 import type { SubscriptionInvitationResponse } from "./types/subscription-invitation-response.type.js";
 
@@ -32,10 +42,21 @@ const INVITATION_STATUS = {
   active: "ACTIVE",
   approved: "APPROVED",
   archived: "ARCHIVED",
+  deleted: "DELETED",
   invitationSent: "INVITATION_SENT",
   pending: "PENDING",
   rejected: "REJECTED",
 } as const;
+
+const ACTIVE_INVITATION_STATUSES = new Set([
+  INVITATION_STATUS.pending,
+  INVITATION_STATUS.approved,
+  INVITATION_STATUS.rejected,
+  INVITATION_STATUS.invitationSent,
+  INVITATION_STATUS.accepted,
+  INVITATION_STATUS.accountCreated,
+  INVITATION_STATUS.active,
+]);
 
 const INVITATION_TOKEN_EXPIRY_DAYS = 7;
 
@@ -55,6 +76,10 @@ interface InvitationRecord {
   readonly approvedAt: Date | null;
   readonly rejectedAt: Date | null;
   readonly archivedAt: Date | null;
+  readonly archivedByUserId: string | null;
+  readonly deletedAt: Date | null;
+  readonly deletedByUserId: string | null;
+  readonly statusBeforeArchive: string | null;
   readonly invitationTokenExpiresAt: Date | null;
   readonly invitationTokenUsedAt: Date | null;
 }
@@ -79,6 +104,7 @@ interface SubscriptionPrismaClient {
       };
     }): Promise<{ readonly id: string; readonly preferredPlan: string }>;
     findMany(args: {
+      readonly where?: Readonly<Record<string, unknown>>;
       readonly orderBy: { readonly createdAt: "desc" };
       readonly select: InvitationRecordSelect;
     }): Promise<InvitationRecord[]>;
@@ -96,6 +122,10 @@ interface SubscriptionPrismaClient {
         readonly approvedAt: Date | null;
         readonly rejectedAt: Date | null;
         readonly archivedAt: Date | null;
+        readonly archivedByUserId: string | null;
+        readonly deletedAt: Date | null;
+        readonly deletedByUserId: string | null;
+        readonly statusBeforeArchive: string | null;
       }>;
       readonly select: InvitationRecordSelect;
     }): Promise<InvitationRecord>;
@@ -150,6 +180,10 @@ interface InvitationRecordSelect {
   readonly approvedAt: true;
   readonly rejectedAt: true;
   readonly archivedAt: true;
+  readonly archivedByUserId: true;
+  readonly deletedAt: true;
+  readonly deletedByUserId: true;
+  readonly statusBeforeArchive: true;
   readonly invitationTokenExpiresAt: true;
   readonly invitationTokenUsedAt: true;
 }
@@ -169,6 +203,9 @@ export class SubscriptionService {
     @Inject(BcryptPasswordHasherService)
     private readonly passwordHasher: BcryptPasswordHasherService,
     @Inject(EmailService) private readonly emailService: EmailService,
+    @Optional()
+    @Inject(AuditLogService)
+    private readonly auditLogService?: AuditLogService,
   ) {
     this.prisma = prismaService.client as unknown as SubscriptionPrismaClient;
   }
@@ -209,9 +246,12 @@ export class SubscriptionService {
     };
   }
 
-  async listInvitations(): Promise<SubscriptionAdminInvitationListResponse> {
+  async listInvitations(
+    query: ListAdminInvitationsQueryDto = {},
+  ): Promise<SubscriptionAdminInvitationListResponse> {
     const invitations = await this.prisma.subscriptionInvitation.findMany({
       orderBy: { createdAt: "desc" },
+      where: buildInvitationListWhere(query),
       select: invitationRecordSelect,
     });
 
@@ -250,7 +290,9 @@ export class SubscriptionService {
         invitationTokenHash: hashInvitationToken(token),
         invitationTokenUsedAt: null,
         archivedAt: null,
+        archivedByUserId: null,
         rejectedAt: null,
+        statusBeforeArchive: null,
         status: INVITATION_STATUS.approved,
       },
       select: invitationRecordSelect,
@@ -293,7 +335,9 @@ export class SubscriptionService {
         invitationTokenHash: null,
         invitationTokenExpiresAt: null,
         archivedAt: null,
+        archivedByUserId: null,
         rejectedAt: new Date(),
+        statusBeforeArchive: null,
         status: INVITATION_STATUS.rejected,
       },
       select: invitationRecordSelect,
@@ -302,23 +346,123 @@ export class SubscriptionService {
     return { invitation: toAdminInvitationResponse(rejectedInvitation) };
   }
 
-  async archiveInvitation(invitationId: string) {
+  async archiveInvitation(invitationId: string, adminId: string) {
     const invitation = await this.getInvitationById(invitationId);
-
-    if (invitation.status === INVITATION_STATUS.pending) {
-      throw new BadRequestException("Pending invitations must be approved or rejected before archiving.");
-    }
+    const now = new Date();
 
     const archivedInvitation = await this.prisma.subscriptionInvitation.update({
       where: { id: invitation.id },
       data: {
-        archivedAt: new Date(),
+        archivedAt: now,
+        archivedByUserId: adminId,
+        statusBeforeArchive:
+          invitation.status === INVITATION_STATUS.archived
+            ? invitation.statusBeforeArchive ?? INVITATION_STATUS.pending
+            : invitation.status,
         status: INVITATION_STATUS.archived,
       },
       select: invitationRecordSelect,
     });
 
-    return { invitation: toAdminInvitationResponse(archivedInvitation) };
+    await this.recordInvitationAudit({
+      action: AuditAction.InvitationArchived,
+      adminId,
+      invitation,
+      newStatus: INVITATION_STATUS.archived,
+      previousStatus: invitation.status,
+    });
+
+    return {
+      invitation: toAdminInvitationResponse(archivedInvitation),
+      message: "Invitation request archived." as const,
+    };
+  }
+
+  async restoreInvitation(
+    invitationId: string,
+    adminId: string,
+  ): Promise<SubscriptionInvitationRestoreResponse> {
+    const invitation = await this.getInvitationById(invitationId);
+
+    if (invitation.status !== INVITATION_STATUS.archived || !invitation.archivedAt) {
+      throw new BadRequestException("Only archived invitation requests can be restored.");
+    }
+
+    const restoredInvitation = await this.prisma.subscriptionInvitation.update({
+      where: { id: invitation.id },
+      data: {
+        archivedAt: null,
+        archivedByUserId: null,
+        status: INVITATION_STATUS.pending,
+        statusBeforeArchive: null,
+      },
+      select: invitationRecordSelect,
+    });
+
+    await this.recordInvitationAudit({
+      action: AuditAction.InvitationRestored,
+      adminId,
+      invitation,
+      newStatus: INVITATION_STATUS.pending,
+      previousStatus: invitation.status,
+    });
+
+    return {
+      invitation: toAdminInvitationResponse(restoredInvitation),
+      message: "Invitation request restored.",
+    };
+  }
+
+  async permanentlyDeleteInvitation(
+    invitationId: string,
+    confirmation: string,
+    adminId: string,
+  ): Promise<SubscriptionInvitationDeleteResponse> {
+    if (confirmation !== "DELETE") {
+      throw new BadRequestException("Type DELETE to permanently delete this invitation request.");
+    }
+
+    const invitation = await this.getInvitationById(invitationId);
+
+    if (isLinkedToActiveAccount(invitation)) {
+      throw new BadRequestException(
+        "This invitation request is linked to an active account and cannot be permanently deleted.",
+      );
+    }
+
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email: invitation.workEmail },
+      select: { id: true },
+    });
+
+    if (existingUser) {
+      throw new BadRequestException(
+        "This invitation request is linked to an active account and cannot be permanently deleted.",
+      );
+    }
+
+    await this.recordInvitationAudit({
+      action: AuditAction.InvitationPermanentlyDeleted,
+      adminId,
+      invitation,
+      newStatus: INVITATION_STATUS.deleted,
+      previousStatus: invitation.status,
+    });
+
+    await this.prisma.subscriptionInvitation.update({
+      where: { id: invitation.id },
+      data: {
+        deletedAt: new Date(),
+        deletedByUserId: adminId,
+        status: INVITATION_STATUS.deleted,
+      },
+      select: invitationRecordSelect,
+    });
+
+    return {
+      deleted: true,
+      message: "Invitation request permanently deleted.",
+    };
   }
 
   async getInvitationContext(token: string): Promise<InvitationContextResponse> {
@@ -408,11 +552,35 @@ export class SubscriptionService {
       select: invitationRecordSelect,
     });
 
-    if (!invitation) {
+    if (!invitation || invitation.deletedAt) {
       throw new NotFoundException("Invitation request was not found.");
     }
 
     return invitation;
+  }
+
+  private async recordInvitationAudit(input: {
+    readonly action: AuditAction;
+    readonly adminId: string;
+    readonly invitation: InvitationRecord;
+    readonly previousStatus: string;
+    readonly newStatus: string;
+  }): Promise<void> {
+    await this.auditLogService?.record({
+      action: input.action,
+      affectedModule: AuditLogModule.PlatformAdministration,
+      businessId: "platform-administration",
+      metadata: {
+        applicantEmail: input.invitation.workEmail,
+        applicantName: input.invitation.fullName,
+        businessName: input.invitation.businessName,
+        invitationId: input.invitation.id,
+        newStatus: input.newStatus,
+        previousStatus: input.previousStatus,
+      },
+      result: AuditLogResult.Success,
+      userId: input.adminId,
+    });
   }
 
   private async getValidInvitationByToken(token: string): Promise<InvitationRecord> {
@@ -458,9 +626,95 @@ const invitationRecordSelect = {
   approvedAt: true,
   rejectedAt: true,
   archivedAt: true,
+  archivedByUserId: true,
+  deletedAt: true,
+  deletedByUserId: true,
+  statusBeforeArchive: true,
   invitationTokenExpiresAt: true,
   invitationTokenUsedAt: true,
 } satisfies InvitationRecordSelect;
+
+function buildInvitationListWhere(
+  query: ListAdminInvitationsQueryDto,
+): Readonly<Record<string, unknown>> {
+  const conditions: Record<string, unknown>[] = [];
+  const archivedView = query.view === "archived";
+
+  conditions.push({ deletedAt: null });
+
+  if (archivedView) {
+    conditions.push({ status: INVITATION_STATUS.archived });
+  } else {
+    conditions.push({ status: { in: [...ACTIVE_INVITATION_STATUSES] } });
+  }
+
+  if (query.status?.trim()) {
+    conditions.push({ status: query.status.trim().toUpperCase() });
+  }
+
+  if (query.preferredPlan?.trim()) {
+    conditions.push({ preferredPlan: query.preferredPlan.trim().toUpperCase() });
+  }
+
+  if (query.search?.trim()) {
+    const search = query.search.trim();
+
+    conditions.push({
+      OR: [
+        { fullName: { contains: search, mode: "insensitive" } },
+        { businessName: { contains: search, mode: "insensitive" } },
+        { workEmail: { contains: search, mode: "insensitive" } },
+      ],
+    });
+  }
+
+  if (query.platform?.trim()) {
+    conditions.push({ platforms: { array_contains: query.platform.trim() } });
+  }
+
+  const createdRange = buildDateRange(query.submittedFrom, query.submittedTo);
+  const archivedRange = buildDateRange(query.archivedFrom, query.archivedTo);
+
+  if (createdRange) {
+    conditions.push({ createdAt: createdRange });
+  }
+
+  if (archivedRange) {
+    conditions.push({ archivedAt: archivedRange });
+  }
+
+  return conditions.length === 1 ? conditions[0] ?? {} : { AND: conditions };
+}
+
+function buildDateRange(
+  from: string | undefined,
+  to: string | undefined,
+): Readonly<Record<string, Date>> | null {
+  const range: Record<string, Date> = {};
+  const fromDate = parseDate(from);
+  const toDate = parseDate(to);
+
+  if (fromDate) {
+    range.gte = fromDate;
+  }
+
+  if (toDate) {
+    toDate.setHours(23, 59, 59, 999);
+    range.lte = toDate;
+  }
+
+  return Object.keys(range).length > 0 ? range : null;
+}
+
+function parseDate(value: string | undefined): Date | null {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+
+  return Number.isNaN(date.getTime()) ? null : date;
+}
 
 function normaliseRequiredText(value: string): string {
   return value.trim();
@@ -485,12 +739,16 @@ function toAdminInvitationResponse(record: InvitationRecord): SubscriptionAdminI
   return {
     approvedAt: toIsoString(record.approvedAt),
     archivedAt: toIsoString(record.archivedAt),
+    archivedByUserId: record.archivedByUserId,
     businessName: record.businessName,
     createdAt: record.createdAt.toISOString(),
+    deletedAt: toIsoString(record.deletedAt),
+    deletedByUserId: record.deletedByUserId,
     fullName: record.fullName,
     id: record.id,
     invitationTokenExpiresAt: toIsoString(record.invitationTokenExpiresAt),
     invitationTokenUsedAt: toIsoString(record.invitationTokenUsedAt),
+    linkedActiveAccount: isLinkedToActiveAccount(record),
     message: record.message,
     phoneNumber: record.phoneNumber,
     platforms: Array.isArray(record.platforms)
@@ -499,6 +757,7 @@ function toAdminInvitationResponse(record: InvitationRecord): SubscriptionAdminI
     preferredPlan: record.preferredPlan,
     rejectedAt: toIsoString(record.rejectedAt),
     status: record.status,
+    statusBeforeArchive: record.statusBeforeArchive,
     updatedAt: record.updatedAt.toISOString(),
     websiteUrl: record.websiteUrl,
     workEmail: record.workEmail,
@@ -515,6 +774,10 @@ function isAcceptedOrActive(status: string): boolean {
     status === INVITATION_STATUS.accountCreated ||
     status === INVITATION_STATUS.active
   );
+}
+
+function isLinkedToActiveAccount(record: InvitationRecord): boolean {
+  return isAcceptedOrActive(record.status) || Boolean(record.invitationTokenUsedAt);
 }
 
 function createInvitationToken(): string {

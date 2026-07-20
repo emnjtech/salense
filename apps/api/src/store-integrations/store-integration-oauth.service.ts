@@ -2,8 +2,10 @@ import { randomBytes, createHmac, timingSafeEqual } from "node:crypto";
 import { URL, URLSearchParams } from "node:url";
 import { BadRequestException, Inject, Injectable, ServiceUnavailableException } from "@nestjs/common";
 import {
+  AmazonSellerApiRegion,
   defaultShopifyAdminApiVersion,
   normalizeShopifyDomain,
+  toAmazonSellerApiRegion,
 } from "@salense/integrations";
 import type {
   MarketplaceOAuthStartQueryDto,
@@ -16,6 +18,7 @@ import { StorePlatform } from "./types/store-platform.enum.js";
 
 interface OAuthStateRecord {
   readonly expiresAt: Date;
+  readonly marketplaceId: string | null;
   readonly platform: StorePlatform;
   readonly region: string | null;
   readonly shopDomain: string | null;
@@ -26,6 +29,13 @@ interface OAuthStateRecord {
 interface ShopifyTokenResponse {
   readonly access_token?: unknown;
   readonly scope?: unknown;
+}
+
+interface AmazonSellerTokenResponse {
+  readonly access_token?: unknown;
+  readonly expires_in?: unknown;
+  readonly refresh_token?: unknown;
+  readonly token_type?: unknown;
 }
 
 const stateTtlMs = 10 * 60 * 1000;
@@ -54,6 +64,7 @@ export class StoreIntegrationOAuthService {
     }
 
     const { expiresAt, state } = this.createState({
+      marketplaceId: null,
       platform: StorePlatform.Shopify,
       region: null,
       shopDomain,
@@ -83,6 +94,7 @@ export class StoreIntegrationOAuthService {
     const redirectUri = getRequiredEnv("AMAZON_SP_API_REDIRECT_URI");
     const region = query.region?.trim().toUpperCase() || "GB";
     const { expiresAt, state } = this.createState({
+      marketplaceId: query.marketplaceId?.trim() || getAmazonSellerDefaultMarketplaceId(region),
       platform: StorePlatform.AmazonSeller,
       region,
       shopDomain: null,
@@ -92,9 +104,15 @@ export class StoreIntegrationOAuthService {
     const authorizationUrl = new URL(getAmazonSellerAuthorizationBaseUrl(region));
     authorizationUrl.search = new URLSearchParams({
       application_id: appId,
-      redirect_uri: redirectUri,
       state,
     }).toString();
+    const authorizationVersion = process.env.AMAZON_SP_API_AUTHORIZATION_VERSION?.trim();
+    if (authorizationVersion) {
+      authorizationUrl.searchParams.set("version", authorizationVersion);
+    }
+    if (process.env.AMAZON_SP_API_INCLUDE_REDIRECT_URI === "true") {
+      authorizationUrl.searchParams.set("redirect_uri", redirectUri);
+    }
 
     return {
       authorizationUrl: authorizationUrl.toString(),
@@ -111,6 +129,7 @@ export class StoreIntegrationOAuthService {
     const redirectUri = getRequiredEnv("TIKTOK_SHOP_REDIRECT_URI");
     const region = query.region?.trim().toUpperCase() || "GB";
     const { expiresAt, state } = this.createState({
+      marketplaceId: null,
       platform: StorePlatform.TikTokShop,
       region,
       shopDomain: null,
@@ -164,9 +183,48 @@ export class StoreIntegrationOAuthService {
     return getStoreIntegrationsRedirectUrl("connected=shopify");
   }
 
-  handleAmazonSellerCallback(query: StoreOAuthCallbackQueryDto): string {
-    this.consumeState(query.state, StorePlatform.AmazonSeller);
-    return getStoreIntegrationsRedirectUrl("authorization=amazon-seller-setup-required");
+  async handleAmazonSellerCallback(query: StoreOAuthCallbackQueryDto): Promise<string> {
+    if (query.error) {
+      throw new BadRequestException("Amazon Seller authorization was not completed.");
+    }
+
+    if (query.amazon_callback_uri?.trim() && query.amazon_state?.trim()) {
+      this.validateState(query.state, StorePlatform.AmazonSeller);
+      const amazonCallbackUrl = new URL(query.amazon_callback_uri.trim());
+      amazonCallbackUrl.searchParams.set("state", query.amazon_state.trim());
+      return amazonCallbackUrl.toString();
+    }
+
+    const state = this.consumeState(query.state, StorePlatform.AmazonSeller);
+    const authorizationCode = query.spapi_oauth_code?.trim() || query.code?.trim();
+    const sellerId = query.selling_partner_id?.trim();
+
+    if (!authorizationCode) {
+      throw new BadRequestException("Amazon Seller authorization code is missing.");
+    }
+
+    if (!sellerId) {
+      throw new BadRequestException("Amazon Seller account identifier is missing.");
+    }
+
+    const tokenResponse = await this.exchangeAmazonSellerCodeForTokens(authorizationCode);
+    const marketplaceId =
+      state.marketplaceId ?? getAmazonSellerDefaultMarketplaceId(state.region ?? "GB");
+    const region = state.region ?? "GB";
+
+    await this.storeIntegrationsService.prepareStoreConnection(state.userId, {
+      amazonSellerCredentials: {
+        accessToken: tokenResponse.accessToken,
+        marketplaceId,
+        refreshToken: tokenResponse.refreshToken,
+        sellerId,
+      },
+      platform: StorePlatform.AmazonSeller,
+      region,
+      storeName: state.storeName,
+    });
+
+    return getStoreIntegrationsRedirectUrl("connected=amazon-seller");
   }
 
   handleTikTokShopCallback(query: StoreOAuthCallbackQueryDto): string {
@@ -187,6 +245,23 @@ export class StoreIntegrationOAuthService {
   }
 
   private consumeState(state: string, platform: StorePlatform): OAuthStateRecord {
+    const { id, record } = this.readState(state, platform);
+    oauthStates.delete(id);
+
+    return record;
+  }
+
+  private validateState(state: string, platform: StorePlatform): OAuthStateRecord {
+    return this.readState(state, platform).record;
+  }
+
+  private readState(
+    state: string,
+    platform: StorePlatform,
+  ): {
+    readonly id: string;
+    readonly record: OAuthStateRecord;
+  } {
     const [id, signature] = state.split(".");
 
     if (!id || !signature || !isValidStateSignature(id, signature)) {
@@ -194,7 +269,6 @@ export class StoreIntegrationOAuthService {
     }
 
     const record = oauthStates.get(id);
-    oauthStates.delete(id);
 
     if (!record || record.platform !== platform) {
       throw new BadRequestException("Store authorization session is invalid.");
@@ -204,7 +278,7 @@ export class StoreIntegrationOAuthService {
       throw new BadRequestException("Store authorization session has expired.");
     }
 
-    return record;
+    return { id, record };
   }
 
   private async exchangeShopifyCodeForAccessToken(
@@ -234,6 +308,43 @@ export class StoreIntegrationOAuthService {
     }
 
     return body.access_token;
+  }
+
+  private async exchangeAmazonSellerCodeForTokens(code: string): Promise<{
+    readonly accessToken: string;
+    readonly refreshToken: string;
+  }> {
+    const response = await fetch("https://api.amazon.com/auth/o2/token", {
+      body: new URLSearchParams({
+        client_id: getRequiredEnv("AMAZON_LWA_CLIENT_ID"),
+        client_secret: getRequiredEnv("AMAZON_LWA_CLIENT_SECRET"),
+        code,
+        grant_type: "authorization_code",
+      }),
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+      },
+      method: "POST",
+    });
+
+    if (!response.ok) {
+      throw new BadRequestException("Amazon Seller authorization could not be completed.");
+    }
+
+    const body = (await response.json()) as AmazonSellerTokenResponse;
+
+    if (typeof body.access_token !== "string" || !body.access_token.trim()) {
+      throw new BadRequestException("Amazon Seller did not return an access token.");
+    }
+
+    if (typeof body.refresh_token !== "string" || !body.refresh_token.trim()) {
+      throw new BadRequestException("Amazon Seller did not return a refresh token.");
+    }
+
+    return {
+      accessToken: body.access_token,
+      refreshToken: body.refresh_token,
+    };
   }
 }
 
@@ -280,7 +391,51 @@ function getStoreIntegrationsRedirectUrl(query: string): string {
 }
 
 function getAmazonSellerAuthorizationBaseUrl(region: string): string {
-  const lowerRegion = region.toLowerCase();
-  const host = lowerRegion === "us" ? "sellercentral.amazon.com" : "sellercentral.amazon.co.uk";
+  const apiRegion = toAmazonSellerApiRegion(region);
+  const host =
+    apiRegion === AmazonSellerApiRegion.NorthAmerica
+      ? "sellercentral.amazon.com"
+      : apiRegion === AmazonSellerApiRegion.FarEast
+        ? "sellercentral.amazon.co.jp"
+        : "sellercentral-europe.amazon.com";
   return `https://${host}/apps/authorize/consent`;
+}
+
+function getAmazonSellerDefaultMarketplaceId(region: string): string {
+  switch (region.trim().toUpperCase()) {
+    case "CA":
+      return "A2EUQ1WTGCTBG2";
+    case "MX":
+      return "A1AM78C64UM0Y8";
+    case "US":
+      return "ATVPDKIKX0DER";
+    case "AE":
+      return "A2VIGQ35RCS4UG";
+    case "DE":
+      return "A1PA6795UKMFR9";
+    case "EG":
+      return "ARBP9OOSHTCHU";
+    case "ES":
+      return "A1RKKUPIHCS9HS";
+    case "FR":
+      return "A13V1IB3VIYZZH";
+    case "IN":
+      return "A21TJRUUN4KGV";
+    case "IT":
+      return "APJ6JRA9NG5V4";
+    case "NL":
+      return "A1805IZSGTT6HS";
+    case "PL":
+      return "A1C3SOZRARQ6R3";
+    case "SA":
+      return "A17E79C6D8DWNP";
+    case "SE":
+      return "A2NODRKZP88ZB9";
+    case "TR":
+      return "A33AVAJ2PDY3EV";
+    case "GB":
+    case "UK":
+    default:
+      return "A1F83G8C2ARO7P";
+  }
 }

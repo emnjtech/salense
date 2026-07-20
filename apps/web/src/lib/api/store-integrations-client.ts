@@ -152,6 +152,7 @@ export interface StoreIntegrationsApiClient {
   connectTikTokShop(input: TikTokShopConnectionInput): Promise<ConnectedStore>;
   connectWooCommerce(input: WooCommerceConnectionInput): Promise<ConnectedStore>;
   startAmazonSellerOAuth(input?: {
+    readonly marketplaceId?: string;
     readonly region?: string;
     readonly storeName?: string;
   }): Promise<StoreOAuthStartResponse>;
@@ -423,6 +424,7 @@ function trimTrailingSlash(value: string): string {
 }
 
 function toQueryString(input: {
+  readonly marketplaceId?: string;
   readonly region?: string;
   readonly shop?: string;
   readonly storeName?: string;

@@ -2966,6 +2966,52 @@ button:disabled {
   gap: 16px;
 }
 
+.admin-header-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.admin-request-tabs {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.admin-request-tabs a {
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  font-weight: 760;
+  padding: 9px 14px;
+  text-decoration: none;
+}
+
+.admin-request-tabs a.active {
+  background: #10251b;
+  border-color: #10251b;
+  color: #f6fff8;
+}
+
+.admin-invitation-filters {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(220px, 1.4fr) repeat(3, minmax(150px, 1fr)) repeat(2, minmax(145px, 0.8fr));
+}
+
+.admin-invitation-filters input,
+.admin-invitation-filters select {
+  background: #fff;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  color: var(--text-strong);
+  font: inherit;
+  min-height: 42px;
+  padding: 0 12px;
+}
+
 .admin-invitation-detail-panel {
   display: grid;
   gap: 24px;
@@ -3105,6 +3151,81 @@ button:disabled {
   padding: 0 12px;
 }
 
+.danger-button {
+  align-items: center;
+  background: #fff6f5;
+  border: 1px solid #ffc7c0;
+  border-radius: 8px;
+  color: #a82a1f;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 0.86rem;
+  font-weight: 760;
+  gap: 8px;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 12px;
+}
+
+.danger-button:hover:not(:disabled) {
+  background: #ffeceb;
+}
+
+.danger-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.confirmation-backdrop {
+  align-items: center;
+  background: rgb(8 20 14 / 42%);
+  display: grid;
+  inset: 0;
+  padding: 24px;
+  position: fixed;
+  z-index: 50;
+}
+
+.confirmation-dialog {
+  background: #fff;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  box-shadow: 0 24px 70px rgb(7 18 12 / 22%);
+  display: grid;
+  gap: 16px;
+  justify-self: center;
+  max-width: 540px;
+  padding: 24px;
+  width: min(100%, 540px);
+}
+
+.confirmation-dialog h2 {
+  font-size: 1.25rem;
+  margin: 0;
+}
+
+.confirmation-dialog p {
+  color: var(--text);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.confirmation-dialog label {
+  color: var(--text-strong);
+  display: grid;
+  font-size: 0.9rem;
+  font-weight: 760;
+  gap: 8px;
+}
+
+.confirmation-dialog input {
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  font: inherit;
+  min-height: 42px;
+  padding: 0 12px;
+}
+
 .admin-auth-page {
   align-items: center;
   background: radial-gradient(circle at 20% 20%, rgb(167 243 208 / 16%), transparent 34%),
@@ -3175,6 +3296,19 @@ button:disabled {
 .status-pill.archived {
   background: #eef1ee;
   color: #59645d !important;
+}
+
+.status-pill.invitation_sent,
+.status-pill.invitation_accepted,
+.status-pill.account_created,
+.status-pill.active {
+  background: #eaf8ef;
+  color: #22543a !important;
+}
+
+.status-pill.deleted {
+  background: #fff0f0;
+  color: #842828 !important;
 }
 
 .accept-invitation-form {

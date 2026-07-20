@@ -150,6 +150,18 @@ export function AdminInvitationDetailWorkspace({
             />
             <DetailItem label="Submission date" value={formatDate(invitation.createdAt)} />
             <DetailItem label="Current status" value={formatStatus(invitation.status)} />
+            {invitation.archivedAt ? (
+              <DetailItem label="Archived date" value={formatDate(invitation.archivedAt)} />
+            ) : null}
+            {invitation.archivedByUserId ? (
+              <DetailItem label="Archived by" value={invitation.archivedByUserId} />
+            ) : null}
+            {invitation.statusBeforeArchive ? (
+              <DetailItem
+                label="Previous status"
+                value={formatStatus(invitation.statusBeforeArchive)}
+              />
+            ) : null}
           </div>
 
           <div className="admin-invitation-message">
@@ -214,9 +226,7 @@ function canReject(invitation: AdminInvitation): boolean {
 }
 
 function canArchive(invitation: AdminInvitation): boolean {
-  return ["ACTIVE", "APPROVED", "INVITATION_SENT", "REJECTED"].includes(
-    invitation.status,
-  );
+  return !["ARCHIVED", "DELETED"].includes(invitation.status);
 }
 
 function formatDate(value: string): string {

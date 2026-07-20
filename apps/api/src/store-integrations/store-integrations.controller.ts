@@ -106,11 +106,11 @@ export class StoreIntegrationsController {
   }
 
   @Get("amazon-seller/oauth/callback")
-  handleAmazonSellerOAuthCallback(
+  async handleAmazonSellerOAuthCallback(
     @Query() query: StoreOAuthCallbackQueryDto,
     @Res() response: { redirect(url: string): void },
-  ): void {
-    response.redirect(this.storeIntegrationOAuthService.handleAmazonSellerCallback(query));
+  ): Promise<void> {
+    response.redirect(await this.storeIntegrationOAuthService.handleAmazonSellerCallback(query));
   }
 
   @Get("tiktok-shop/oauth/start")

@@ -38,8 +38,25 @@ export interface AdminInvitation {
   readonly approvedAt: string | null;
   readonly rejectedAt: string | null;
   readonly archivedAt: string | null;
+  readonly archivedByUserId: string | null;
+  readonly deletedAt: string | null;
+  readonly deletedByUserId: string | null;
   readonly invitationTokenExpiresAt: string | null;
   readonly invitationTokenUsedAt: string | null;
+  readonly linkedActiveAccount: boolean;
+  readonly statusBeforeArchive: string | null;
+}
+
+export interface AdminInvitationFilters {
+  readonly view?: "active" | "archived";
+  readonly status?: string;
+  readonly search?: string;
+  readonly preferredPlan?: string;
+  readonly platform?: string;
+  readonly submittedFrom?: string;
+  readonly submittedTo?: string;
+  readonly archivedFrom?: string;
+  readonly archivedTo?: string;
 }
 
 export interface InvitationContext {
@@ -56,7 +73,10 @@ export interface SubscriptionApiClient {
     invitationId: string,
     accessToken?: string,
   ): Promise<{ readonly invitation: AdminInvitation }>;
-  listInvitations(accessToken?: string): Promise<{ readonly invitations: readonly AdminInvitation[] }>;
+  listInvitations(
+    filtersOrAccessToken?: AdminInvitationFilters | string,
+    accessToken?: string,
+  ): Promise<{ readonly invitations: readonly AdminInvitation[] }>;
   approveInvitation(
     invitationId: string,
     accessToken?: string,
@@ -64,7 +84,16 @@ export interface SubscriptionApiClient {
   archiveInvitation(
     invitationId: string,
     accessToken?: string,
-  ): Promise<{ readonly invitation: AdminInvitation }>;
+  ): Promise<{ readonly invitation: AdminInvitation; readonly message: string }>;
+  restoreInvitation(
+    invitationId: string,
+    accessToken?: string,
+  ): Promise<{ readonly invitation: AdminInvitation; readonly message: string }>;
+  permanentlyDeleteInvitation(
+    invitationId: string,
+    confirmation: string,
+    accessToken?: string,
+  ): Promise<{ readonly deleted: true; readonly message: string }>;
   rejectInvitation(
     invitationId: string,
     accessToken?: string,
@@ -151,7 +180,10 @@ export function createSubscriptionApiClient(
         throw new SubscriptionClientError(await getErrorMessage(response), response.status);
       }
 
-      return (await response.json()) as { readonly invitation: AdminInvitation };
+      return (await response.json()) as {
+        readonly invitation: AdminInvitation;
+        readonly message: string;
+      };
     },
     async getAdminInvitation(invitationId, accessToken) {
       const response = await fetchWithAdminSessionRefresh(
@@ -177,9 +209,13 @@ export function createSubscriptionApiClient(
 
       return (await response.json()) as InvitationContext;
     },
-    async listInvitations(accessToken) {
+    async listInvitations(filtersOrAccessToken, maybeAccessToken) {
+      const filters =
+        typeof filtersOrAccessToken === "string" ? undefined : filtersOrAccessToken;
+      const accessToken =
+        typeof filtersOrAccessToken === "string" ? filtersOrAccessToken : maybeAccessToken;
       const response = await fetchWithAdminSessionRefresh(
-        `${baseUrl}/subscription/invitations/admin`,
+        `${baseUrl}/subscription/invitations/admin${toQueryString(filters)}`,
         undefined,
         { accessToken, baseUrl, fetchImpl },
       );
@@ -191,6 +227,23 @@ export function createSubscriptionApiClient(
       return (await response.json()) as {
         readonly invitations: readonly AdminInvitation[];
       };
+    },
+    async permanentlyDeleteInvitation(invitationId, confirmation, accessToken) {
+      const response = await fetchWithAdminSessionRefresh(
+        `${baseUrl}/subscription/invitations/${encodeURIComponent(invitationId)}/delete`,
+        {
+          body: JSON.stringify({ confirmation }),
+          headers: { "content-type": "application/json" },
+          method: "POST",
+        },
+        { accessToken, baseUrl, fetchImpl },
+      );
+
+      if (!response.ok) {
+        throw new SubscriptionClientError(await getErrorMessage(response), response.status);
+      }
+
+      return (await response.json()) as { readonly deleted: true; readonly message: string };
     },
     async requestInvitation(input) {
       const response = await fetchImpl(`${baseUrl}/subscription/invitations`, {
@@ -220,6 +273,22 @@ export function createSubscriptionApiClient(
 
       return (await response.json()) as { readonly invitation: AdminInvitation };
     },
+    async restoreInvitation(invitationId, accessToken) {
+      const response = await fetchWithAdminSessionRefresh(
+        `${baseUrl}/subscription/invitations/${encodeURIComponent(invitationId)}/restore`,
+        { method: "POST" },
+        { accessToken, baseUrl, fetchImpl },
+      );
+
+      if (!response.ok) {
+        throw new SubscriptionClientError(await getErrorMessage(response), response.status);
+      }
+
+      return (await response.json()) as {
+        readonly invitation: AdminInvitation;
+        readonly message: string;
+      };
+    },
   };
 }
 
@@ -243,4 +312,22 @@ async function getErrorMessage(response: Response): Promise<string> {
 
 function trimTrailingSlash(value: string): string {
   return value.replace(/\/+$/u, "");
+}
+
+function toQueryString(filters: AdminInvitationFilters | undefined): string {
+  if (!filters) {
+    return "";
+  }
+
+  const params = new URLSearchParams();
+
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value) {
+      params.set(key, value);
+    }
+  });
+
+  const query = params.toString();
+
+  return query ? `?${query}` : "";
 }

@@ -57,14 +57,19 @@ const demoStoreIds = {
   woo: "demo_store_woocommerce",
 } as const;
 
+const includeWooCommerceInScreenshotSeed = false;
+
 const now = new Date();
+const todayEarly = atHour(now, 8, 45);
 const today = atHour(now, 10, 30);
+const todayMidday = atHour(now, 12, 20);
 const todayAfternoon = atHour(now, 15, 15);
+const todayEvening = atHour(now, 18, 35);
 const yesterday = addDays(atHour(now, 14, 5), -1);
 const twoDaysAgo = addDays(atHour(now, 11, 45), -2);
 const syncTime = new Date();
 
-const stores = [
+const allStores = [
   {
     id: demoStoreIds.woo,
     platform: StorePlatform.WOOCOMMERCE,
@@ -94,6 +99,11 @@ const stores = [
     region: "GB",
   },
 ] as const;
+
+const stores = allStores.filter(
+  (store) => includeWooCommerceInScreenshotSeed || store.platform !== StorePlatform.WOOCOMMERCE,
+);
+const activeSeedStoreIds = new Set(stores.map((store) => store.id));
 
 const products = [
   product({
@@ -184,6 +194,94 @@ const products = [
     sku: "VASE-MINI-TT",
     stockStatus: "outofstock",
   }),
+  product({
+    category: "Textiles",
+    connectedStoreId: demoStoreIds.shopify,
+    currentStockQuantity: 16,
+    name: "Cotton Cloud Bath Towel Set",
+    platform: StorePlatform.SHOPIFY,
+    platformProductId: "SHOP-COTTON-TOWEL",
+    priceAmount: "48.00",
+    sku: "COTTON-TOWEL-SHOP",
+    stockStatus: "instock",
+  }),
+  product({
+    category: "Lighting",
+    connectedStoreId: demoStoreIds.woo,
+    currentStockQuantity: 6,
+    name: "Amber Bedside Lamp",
+    platform: StorePlatform.WOOCOMMERCE,
+    platformProductId: "WOO-AMBER-LAMP",
+    priceAmount: "72.00",
+    sku: "AMBER-LAMP-WOO",
+    stockStatus: "instock",
+  }),
+  product({
+    category: "Bundles",
+    connectedStoreId: demoStoreIds.amazon,
+    currentStockQuantity: 4,
+    name: "Weekend Home Refresh Bundle",
+    platform: StorePlatform.AMAZON_SELLER,
+    platformProductId: "AMZ-HOME-REFRESH",
+    priceAmount: "156.00",
+    sku: "HOME-REFRESH-AMZ",
+    stockStatus: "lowstock",
+  }),
+  product({
+    category: "Storage",
+    connectedStoreId: demoStoreIds.tiktok,
+    currentStockQuantity: 13,
+    name: "Stackable Pantry Jar Trio",
+    platform: StorePlatform.TIKTOK_SHOP,
+    platformProductId: "TT-PANTRY-JARS",
+    priceAmount: "36.00",
+    sku: "PANTRY-JARS-TT",
+    stockStatus: "instock",
+  }),
+  product({
+    category: "Accessories",
+    connectedStoreId: demoStoreIds.shopify,
+    currentStockQuantity: 5,
+    name: "Brass Cabinet Handle Pack",
+    platform: StorePlatform.SHOPIFY,
+    platformProductId: "SHOP-BRASS-HANDLE",
+    priceAmount: "29.00",
+    sku: "BRASS-HANDLE-SHOP",
+    stockStatus: "instock",
+  }),
+  product({
+    category: "Textiles",
+    connectedStoreId: demoStoreIds.woo,
+    currentStockQuantity: 3,
+    name: "Waffle Throw Blanket",
+    platform: StorePlatform.WOOCOMMERCE,
+    platformProductId: "WOO-WAFFLE-BLANKET",
+    priceAmount: "58.00",
+    sku: "WAFFLE-BLANKET-WOO",
+    stockStatus: "lowstock",
+  }),
+  product({
+    category: "Accessories",
+    connectedStoreId: demoStoreIds.amazon,
+    currentStockQuantity: 22,
+    name: "Scented Candle Gift Box",
+    platform: StorePlatform.AMAZON_SELLER,
+    platformProductId: "AMZ-CANDLE-GIFT",
+    priceAmount: "34.00",
+    sku: "CANDLE-GIFT-AMZ",
+    stockStatus: "instock",
+  }),
+  product({
+    category: "Bundles",
+    connectedStoreId: demoStoreIds.tiktok,
+    currentStockQuantity: 7,
+    name: "Small Space Styling Kit",
+    platform: StorePlatform.TIKTOK_SHOP,
+    platformProductId: "TT-STYLING-KIT",
+    priceAmount: "68.00",
+    sku: "STYLING-KIT-TT",
+    stockStatus: "instock",
+  }),
 ] as const;
 
 const customers = [
@@ -267,9 +365,170 @@ const customers = [
     "GB",
     "Glasgow",
   ),
+  customer(
+    "woo_cust_103",
+    demoStoreIds.woo,
+    StorePlatform.WOOCOMMERCE,
+    "grace.walker@example.test",
+    "Grace",
+    "Walker",
+    "GB",
+    "Liverpool",
+  ),
+  customer(
+    "amz_cust_203",
+    demoStoreIds.amazon,
+    StorePlatform.AMAZON_SELLER,
+    "evie.thomas@example.test",
+    "Evie",
+    "Thomas",
+    "GB",
+    "Nottingham",
+  ),
+  customer(
+    "shop_cust_403",
+    demoStoreIds.shopify,
+    StorePlatform.SHOPIFY,
+    "freddie.clark@example.test",
+    "Freddie",
+    "Clark",
+    "GB",
+    "Brighton",
+  ),
+  customer(
+    "tt_cust_303",
+    demoStoreIds.tiktok,
+    StorePlatform.TIKTOK_SHOP,
+    "mila.ward@example.test",
+    "Mila",
+    "Ward",
+    "GB",
+    "Newcastle",
+  ),
+] as const;
+
+const adSpotlightOrders = [
+  order({
+    connectedStoreId: demoStoreIds.amazon,
+    customerEmail: "evie.thomas@example.test",
+    customerName: "Evie Thomas",
+    items: [
+      item("1", "AMZ-HOME-REFRESH", "HOME-REFRESH-AMZ", "Weekend Home Refresh Bundle", 3, "156.00"),
+      item("2", "AMZ-CANDLE-GIFT", "CANDLE-GIFT-AMZ", "Scented Candle Gift Box", 4, "34.00"),
+    ],
+    orderedAt: todayEarly,
+    platform: StorePlatform.AMAZON_SELLER,
+    platformOrderId: "AMZ-10010",
+    platformOrderNumber: "AMZ-10010",
+    status: "paid",
+  }),
+  order({
+    connectedStoreId: demoStoreIds.shopify,
+    customerEmail: "freddie.clark@example.test",
+    customerName: "Freddie Clark",
+    items: [
+      item("1", "SHOP-COTTON-TOWEL", "COTTON-TOWEL-SHOP", "Cotton Cloud Bath Towel Set", 5, "48.00"),
+      item("2", "SHOP-BRASS-HANDLE", "BRASS-HANDLE-SHOP", "Brass Cabinet Handle Pack", 3, "29.00"),
+    ],
+    orderedAt: atHour(now, 9, 25),
+    platform: StorePlatform.SHOPIFY,
+    platformOrderId: "SHOP-1010",
+    platformOrderNumber: "#1010",
+    status: "paid",
+  }),
+  order({
+    connectedStoreId: demoStoreIds.tiktok,
+    customerEmail: "mila.ward@example.test",
+    customerName: "Mila Ward",
+    items: [
+      item("1", "TT-STYLING-KIT", "STYLING-KIT-TT", "Small Space Styling Kit", 4, "68.00"),
+      item("2", "TT-PANTRY-JARS", "PANTRY-JARS-TT", "Stackable Pantry Jar Trio", 6, "36.00"),
+    ],
+    orderedAt: atHour(now, 10, 55),
+    platform: StorePlatform.TIKTOK_SHOP,
+    platformOrderId: "TT-22010",
+    platformOrderNumber: "TT-22010",
+    status: "processing",
+  }),
+  order({
+    connectedStoreId: demoStoreIds.woo,
+    customerEmail: "grace.walker@example.test",
+    customerName: "Grace Walker",
+    items: [
+      item("1", "WOO-AMBER-LAMP", "AMBER-LAMP-WOO", "Amber Bedside Lamp", 3, "72.00"),
+      item("2", "WOO-WAFFLE-BLANKET", "WAFFLE-BLANKET-WOO", "Waffle Throw Blanket", 2, "58.00"),
+    ],
+    orderedAt: atHour(now, 11, 40),
+    platform: StorePlatform.WOOCOMMERCE,
+    platformOrderId: "10060",
+    platformOrderNumber: "#10060",
+    status: "completed",
+  }),
+  order({
+    connectedStoreId: demoStoreIds.amazon,
+    customerEmail: "sophia.patel@example.test",
+    customerName: "Sophia Patel",
+    items: [item("1", "AMZ-CANDLE-GIFT", "CANDLE-GIFT-AMZ", "Scented Candle Gift Box", 8, "34.00")],
+    orderedAt: atHour(now, 13, 5),
+    platform: StorePlatform.AMAZON_SELLER,
+    platformOrderId: "AMZ-10011",
+    platformOrderNumber: "AMZ-10011",
+    status: "shipped",
+  }),
+  order({
+    connectedStoreId: demoStoreIds.shopify,
+    customerEmail: "isla.wilson@example.test",
+    customerName: "Isla Wilson",
+    items: [item("1", "SHOP-COTTON-TOWEL", "COTTON-TOWEL-SHOP", "Cotton Cloud Bath Towel Set", 3, "48.00")],
+    orderedAt: atHour(now, 14, 10),
+    platform: StorePlatform.SHOPIFY,
+    platformOrderId: "SHOP-1011",
+    platformOrderNumber: "#1011",
+    status: "paid",
+  }),
+  order({
+    connectedStoreId: demoStoreIds.tiktok,
+    customerEmail: "ava.morgan@example.test",
+    customerName: "Ava Morgan",
+    items: [item("1", "TT-STYLING-KIT", "STYLING-KIT-TT", "Small Space Styling Kit", 2, "68.00")],
+    orderedAt: atHour(now, 16, 5),
+    platform: StorePlatform.TIKTOK_SHOP,
+    platformOrderId: "TT-22011",
+    platformOrderNumber: "TT-22011",
+    status: "processing",
+  }),
+  order({
+    connectedStoreId: demoStoreIds.woo,
+    customerEmail: "amelia.brooks@example.test",
+    customerName: "Amelia Brooks",
+    items: [
+      item("1", "WOO-OAK-PANTRY", "OAK-PANTRY-WOO", "Oak Pantry Organiser", 2, "64.00"),
+      item("2", "WOO-AMBER-LAMP", "AMBER-LAMP-WOO", "Amber Bedside Lamp", 1, "72.00"),
+    ],
+    orderedAt: atHour(now, 17, 50),
+    platform: StorePlatform.WOOCOMMERCE,
+    platformOrderId: "10061",
+    platformOrderNumber: "#10061",
+    status: "completed",
+  }),
 ] as const;
 
 const orders = [
+  ...adSpotlightOrders,
+  order({
+    connectedStoreId: demoStoreIds.shopify,
+    customerEmail: "isla.wilson@example.test",
+    customerName: "Isla Wilson",
+    items: [
+      item("1", "SHOP-BAMBOO-DIVIDER", "BAMBOO-DIV-SHOP", "Bamboo Drawer Divider", 4, "32.00"),
+      item("2", "SHOP-MARBLE-TRAY", "MARBLE-TRAY-SHOP", "Marble Soap Tray", 2, "18.00"),
+    ],
+    orderedAt: todayEarly,
+    platform: StorePlatform.SHOPIFY,
+    platformOrderId: "SHOP-1005",
+    platformOrderNumber: "#1005",
+    status: "paid",
+  }),
   order({
     connectedStoreId: demoStoreIds.amazon,
     customerEmail: "sophia.patel@example.test",
@@ -285,6 +544,20 @@ const orders = [
     status: "shipped",
   }),
   order({
+    connectedStoreId: demoStoreIds.woo,
+    customerEmail: "oliver.reed@example.test",
+    customerName: "Oliver Reed",
+    items: [
+      item("1", "WOO-OAK-PANTRY", "OAK-PANTRY-WOO", "Oak Pantry Organiser", 3, "64.00"),
+      item("2", "WOO-LINEN-RUNNER", "LINEN-RUN-WOO", "Linen Table Runner", 2, "28.00"),
+    ],
+    orderedAt: todayMidday,
+    platform: StorePlatform.WOOCOMMERCE,
+    platformOrderId: "10047",
+    platformOrderNumber: "#10047",
+    status: "completed",
+  }),
+  order({
     connectedStoreId: demoStoreIds.tiktok,
     customerEmail: "ava.morgan@example.test",
     customerName: "Ava Morgan",
@@ -294,6 +567,19 @@ const orders = [
     platformOrderId: "TT-22001",
     platformOrderNumber: "TT-22001",
     status: "processing",
+  }),
+  order({
+    connectedStoreId: demoStoreIds.amazon,
+    customerEmail: "noah.evans@example.test",
+    customerName: "Noah Evans",
+    items: [
+      item("1", "AMZ-WALL-LIGHT-PAIR", "WALL-LIGHT-AMZ", "Nordic Wall Light Pair", 2, "119.00"),
+    ],
+    orderedAt: todayAfternoon,
+    platform: StorePlatform.AMAZON_SELLER,
+    platformOrderId: "AMZ-10002",
+    platformOrderNumber: "AMZ-10002",
+    status: "paid",
   }),
   order({
     connectedStoreId: demoStoreIds.shopify,
@@ -310,6 +596,20 @@ const orders = [
     status: "paid",
   }),
   order({
+    connectedStoreId: demoStoreIds.tiktok,
+    customerEmail: "leo.turner@example.test",
+    customerName: "Leo Turner",
+    items: [
+      item("1", "TT-GLOW-KIT", "GLOW-KIT-TT", "Glow Kitchen Starter Kit", 6, "42.00"),
+      item("2", "TT-VASE-MINI", "VASE-MINI-TT", "Mini Ceramic Vase Set", 2, "24.00"),
+    ],
+    orderedAt: todayEvening,
+    platform: StorePlatform.TIKTOK_SHOP,
+    platformOrderId: "TT-22002",
+    platformOrderNumber: "TT-22002",
+    status: "processing",
+  }),
+  order({
     connectedStoreId: demoStoreIds.woo,
     customerEmail: "amelia.brooks@example.test",
     customerName: "Amelia Brooks",
@@ -322,6 +622,19 @@ const orders = [
     platformOrderId: "10045",
     platformOrderNumber: "#10045",
     status: "completed",
+  }),
+  order({
+    connectedStoreId: demoStoreIds.shopify,
+    customerEmail: "arthur.hughes@example.test",
+    customerName: "Arthur Hughes",
+    items: [
+      item("1", "SHOP-BAMBOO-DIVIDER", "BAMBOO-DIV-SHOP", "Bamboo Drawer Divider", 2, "32.00"),
+    ],
+    orderedAt: todayEvening,
+    platform: StorePlatform.SHOPIFY,
+    platformOrderId: "SHOP-1006",
+    platformOrderNumber: "#1006",
+    status: "paid",
   }),
   order({
     connectedStoreId: demoStoreIds.amazon,
@@ -358,7 +671,7 @@ const orders = [
     platform: StorePlatform.SHOPIFY,
     platformOrderId: "SHOP-1000",
     platformOrderNumber: "#1000",
-    status: "fulfilled",
+    status: "paid",
   }),
   order({
     connectedStoreId: demoStoreIds.tiktok,
@@ -385,7 +698,7 @@ const orders = [
     platform: StorePlatform.SHOPIFY,
     platformOrderId: "SHOP-0999",
     platformOrderNumber: "#0999",
-    status: "fulfilled",
+    status: "paid",
   }),
   order({
     connectedStoreId: demoStoreIds.amazon,
@@ -445,7 +758,7 @@ const orders = [
     platform: StorePlatform.SHOPIFY,
     platformOrderId: "SHOP-0993",
     platformOrderNumber: "#0993",
-    status: "fulfilled",
+    status: "paid",
   }),
   order({
     connectedStoreId: demoStoreIds.woo,
@@ -492,7 +805,7 @@ const orders = [
     platform: StorePlatform.SHOPIFY,
     platformOrderId: "SHOP-0988",
     platformOrderNumber: "#0988",
-    status: "fulfilled",
+    status: "paid",
   }),
   order({
     connectedStoreId: demoStoreIds.woo,
@@ -541,7 +854,7 @@ const orders = [
     platform: StorePlatform.SHOPIFY,
     platformOrderId: "SHOP-0981",
     platformOrderNumber: "#0981",
-    status: "fulfilled",
+    status: "paid",
   }),
   order({
     connectedStoreId: demoStoreIds.woo,
@@ -636,18 +949,30 @@ async function main(): Promise<void> {
     });
 
     await Promise.all(stores.map((store) => createStore(prisma, store)));
-    await Promise.all(customers.map((customerRecord) => createCustomer(prisma, customerRecord)));
+    await Promise.all(
+      customers
+        .filter((customerRecord) => activeSeedStoreIds.has(customerRecord.connectedStoreId))
+        .map((customerRecord) => createCustomer(prisma, customerRecord)),
+    );
     await Promise.all(
       categories.flatMap((categoryRecord) =>
         stores.map((store) => createCategory(prisma, store, categoryRecord)),
       ),
     );
-    await Promise.all(products.map((productRecord) => createProduct(prisma, productRecord)));
     await Promise.all(
-      products.map((productRecord) => createInventorySnapshot(prisma, productRecord)),
+      products
+        .filter((productRecord) => activeSeedStoreIds.has(productRecord.connectedStoreId))
+        .map((productRecord) => createProduct(prisma, productRecord)),
+    );
+    await Promise.all(
+      products
+        .filter((productRecord) => activeSeedStoreIds.has(productRecord.connectedStoreId))
+        .map((productRecord) => createInventorySnapshot(prisma, productRecord)),
     );
 
-    for (const orderRecord of orders) {
+    for (const orderRecord of orders.filter((orderSeed) =>
+      activeSeedStoreIds.has(orderSeed.connectedStoreId),
+    )) {
       await createOrderWithItems(prisma, orderRecord);
     }
 
@@ -837,34 +1162,6 @@ async function createOrderWithItems(prisma: PrismaClient, orderRecord: OrderSeed
 }
 
 async function createRefund(prisma: PrismaClient): Promise<void> {
-  const order = await prisma.commerceOrder.findUnique({
-    where: {
-      connectedStoreId_platformOrderId: {
-        connectedStoreId: demoStoreIds.woo,
-        platformOrderId: "10045",
-      },
-    },
-    select: { id: true },
-  });
-
-  await prisma.commerceRefund.create({
-    data: {
-      amount: "28.00",
-      businessId: demoBusiness.id,
-      commerceOrderId: order?.id,
-      connectedStoreId: demoStoreIds.woo,
-      currency: "GBP",
-      lastSyncedAt: syncTime,
-      platform: StorePlatform.WOOCOMMERCE,
-      platformOrderId: "10045",
-      platformRefundId: "WOO-REF-10045-1",
-      reason: "Demo partial refund for one linen runner",
-      refundedAt: todayAfternoon,
-      refundStatus: "completed",
-      sourceMetadata: sourceMetadata(StorePlatform.WOOCOMMERCE, { demoRefund: true }),
-    },
-  });
-
   const shopifyOrder = await prisma.commerceOrder.findUnique({
     where: {
       connectedStoreId_platformOrderId: {

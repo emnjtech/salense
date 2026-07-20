@@ -14,8 +14,13 @@ export interface SubscriptionAdminInvitationResponse {
   readonly approvedAt: string | null;
   readonly rejectedAt: string | null;
   readonly archivedAt: string | null;
+  readonly archivedByUserId: string | null;
+  readonly deletedAt: string | null;
+  readonly deletedByUserId: string | null;
   readonly invitationTokenExpiresAt: string | null;
   readonly invitationTokenUsedAt: string | null;
+  readonly linkedActiveAccount: boolean;
+  readonly statusBeforeArchive: string | null;
 }
 
 export interface SubscriptionAdminInvitationListResponse {
@@ -33,4 +38,15 @@ export interface SubscriptionInvitationRejectionResponse {
 
 export interface SubscriptionInvitationArchiveResponse {
   readonly invitation: SubscriptionAdminInvitationResponse;
+  readonly message: "Invitation request archived.";
+}
+
+export interface SubscriptionInvitationRestoreResponse {
+  readonly invitation: SubscriptionAdminInvitationResponse;
+  readonly message: "Invitation request restored.";
+}
+
+export interface SubscriptionInvitationDeleteResponse {
+  readonly deleted: true;
+  readonly message: "Invitation request permanently deleted.";
 }

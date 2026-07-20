@@ -11,6 +11,8 @@ describe("StoreIntegrationOAuthService", () => {
     jest.useFakeTimers().setSystemTime(new Date("2026-07-08T10:00:00.000Z"));
     process.env = {
       ...originalEnv,
+      AMAZON_LWA_CLIENT_ID: "amazon-lwa-client-id",
+      AMAZON_LWA_CLIENT_SECRET: "amazon-lwa-client-secret",
       AMAZON_SP_API_APP_ID: "amazon-app-id",
       AMAZON_SP_API_REDIRECT_URI: "https://api.salense.test/store-integrations/amazon-seller/oauth/callback",
       JWT_ACCESS_TOKEN_SECRET: "state-secret",
@@ -104,10 +106,71 @@ describe("StoreIntegrationOAuthService", () => {
       storeName: "TikTok UK",
     });
 
-    expect(new URL(amazon.authorizationUrl).searchParams.get("application_id")).toBe(
-      "amazon-app-id",
-    );
+    const amazonUrl = new URL(amazon.authorizationUrl);
+    expect(amazonUrl.host).toBe("sellercentral-europe.amazon.com");
+    expect(amazonUrl.searchParams.get("application_id")).toBe("amazon-app-id");
+    expect(amazonUrl.searchParams.get("redirect_uri")).toBeNull();
     expect(new URL(tiktok.authorizationUrl).searchParams.get("app_key")).toBe("tiktok-app-key");
+  });
+
+  it("returns Amazon Seller Central handoff URL without consuming the Salense state", async () => {
+    const service = createService().service;
+    const start = service.startAmazonSellerOAuth("user_1", {
+      region: "GB",
+      storeName: "Amazon UK",
+    });
+    const state = new URL(start.authorizationUrl).searchParams.get("state") ?? "";
+
+    await expect(
+      service.handleAmazonSellerCallback({
+        amazon_callback_uri: "https://sellercentral.amazon.co.uk/apps/authorize/confirm",
+        amazon_state: "amazon-state",
+        state,
+      }),
+    ).resolves.toBe("https://sellercentral.amazon.co.uk/apps/authorize/confirm?state=amazon-state");
+  });
+
+  it("exchanges Amazon Seller callback code and persists OAuth tokens through the existing connection path", async () => {
+    const { prepareStoreConnection, service } = createService();
+    const start = service.startAmazonSellerOAuth("user_1", {
+      region: "GB",
+      storeName: "Amazon UK",
+    });
+    const state = new URL(start.authorizationUrl).searchParams.get("state") ?? "";
+    global.fetch = jest.fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>().mockResolvedValue({
+      json: async () => ({
+        access_token: "amazon-access-token",
+        refresh_token: "amazon-refresh-token",
+      }),
+      ok: true,
+    } as Response);
+
+    await expect(
+      service.handleAmazonSellerCallback({
+        selling_partner_id: "A1SELLER",
+        spapi_oauth_code: "spapi-code",
+        state,
+      }),
+    ).resolves.toBe("https://app.salense.test/store-integrations?connected=amazon-seller");
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "https://api.amazon.com/auth/o2/token",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(prepareStoreConnection).toHaveBeenCalledWith(
+      "user_1",
+      expect.objectContaining({
+        amazonSellerCredentials: {
+          accessToken: "amazon-access-token",
+          marketplaceId: "A1F83G8C2ARO7P",
+          refreshToken: "amazon-refresh-token",
+          sellerId: "A1SELLER",
+        },
+        platform: StorePlatform.AmazonSeller,
+        region: "GB",
+        storeName: "Amazon UK",
+      }),
+    );
   });
 });
 

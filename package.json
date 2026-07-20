@@ -13,7 +13,7 @@
     "admin:create": "pnpm --dir packages/database prisma:generate && node ./node_modules/.pnpm/tsx@4.19.2/node_modules/tsx/dist/cli.mjs --tsconfig ./apps/api/tsconfig.json ./apps/api/src/platform-admin/create-platform-admin.cli.ts",
     "dev": "turbo run dev --parallel",
     "demo:check-env": "node scripts/check-demo-env.mjs",
-    "demo:seed": "pnpm --filter @salense/worker exec tsx ../../scripts/seed.ts",
+    "demo:seed": "node ./node_modules/.pnpm/tsx@4.19.2/node_modules/tsx/dist/cli.mjs --tsconfig ./apps/api/tsconfig.json ./scripts/seed.ts",
     "db:migrate:deploy": "pnpm --filter @salense/database prisma:migrate:deploy",
     "railway:build:web": "pnpm --filter @salense/database prisma:generate && pnpm --filter @salense/web build",
     "railway:start:web": "pnpm --filter @salense/web start",

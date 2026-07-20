@@ -15,6 +15,11 @@ export class MarketplaceOAuthStartQueryDto {
   @IsOptional()
   @IsString()
   @IsNotEmpty()
+  declare readonly marketplaceId?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
   declare readonly region?: string;
 
   @IsOptional()
@@ -31,10 +36,30 @@ export class StoreOAuthCallbackQueryDto {
   @IsOptional()
   @IsString()
   @IsNotEmpty()
+  declare readonly amazon_callback_uri?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  declare readonly amazon_state?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
   declare readonly code?: string;
 
   @IsOptional()
   @IsString()
   @IsNotEmpty()
   declare readonly error?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  declare readonly selling_partner_id?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  declare readonly spapi_oauth_code?: string;
 }

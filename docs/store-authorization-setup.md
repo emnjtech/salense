@@ -35,16 +35,39 @@ Salense encrypts the key material and validates the connection through the exist
 
 ## Amazon Seller
 
-Amazon Seller authorization requires an approved SP-API application and Login With Amazon configuration. Set these when available:
+Amazon Seller authorization requires an approved SP-API application and Login With Amazon configuration.
+
+Production callback URL:
+
+```text
+https://api.getsalense.com/store-integrations/amazon-seller/oauth/callback
+```
+
+Local callback URL:
+
+```text
+http://localhost:3001/store-integrations/amazon-seller/oauth/callback
+```
+
+Set these variables for the API service:
 
 ```bash
 AMAZON_LWA_CLIENT_ID=""
 AMAZON_LWA_CLIENT_SECRET=""
-AMAZON_SP_API_REDIRECT_URI="http://localhost:3001/store-integrations/amazon-seller/oauth/callback"
 AMAZON_SP_API_APP_ID=""
+AMAZON_SP_API_REDIRECT_URI="https://api.getsalense.com/store-integrations/amazon-seller/oauth/callback"
 ```
 
-Salense includes OAuth start and callback state handling. Token exchange is intentionally left behind the approved SP-API application setup. Advanced manual setup remains available for controlled testing with existing valid tokens.
+Salense supports the Amazon Seller OAuth authorization path:
+
+1. A merchant starts Amazon Seller connection from Store Integrations.
+2. Salense creates a signed short-lived state value and redirects to Seller Central.
+3. Amazon returns an SP-API authorization code and selling partner ID.
+4. Salense exchanges the code with Login With Amazon.
+5. Salense stores the resulting access and refresh tokens through encrypted credential storage.
+6. The existing connection validation, sync status, scheduling, and worker sync paths are reused.
+
+Important SP-API note: OAuth provides seller authorization tokens. Live SP-API reads can also require approved SP-API roles and AWS request signing credentials configured for the approved Amazon app. Keep manual setup available for controlled testing until Amazon approval and signing credentials are complete.
 
 ## TikTok Shop
 

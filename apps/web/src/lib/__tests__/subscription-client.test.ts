@@ -99,6 +99,36 @@ describe("subscription API client", () => {
     );
   });
 
+  it("fetches archived invitation requests with filters", async () => {
+    const fetchImpl = jest
+      .fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>()
+      .mockResolvedValue(
+        jsonResponse({
+          invitations: [],
+        }),
+      );
+    const client = createSubscriptionApiClient({ baseUrl: "https://api.salense.test", fetchImpl });
+
+    await expect(
+      client.listInvitations(
+        {
+          view: "archived",
+          search: "Harbour",
+          platform: SubscriptionPlatform.Shopify,
+          archivedFrom: "2026-07-01",
+        },
+        "access.jwt.token",
+      ),
+    ).resolves.toMatchObject({ invitations: [] });
+
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe(
+      "https://api.salense.test/subscription/invitations/admin?view=archived&search=Harbour&platform=SHOPIFY&archivedFrom=2026-07-01",
+    );
+    expect(new Headers(fetchImpl.mock.calls[0]?.[1]?.headers).get("authorization")).toBe(
+      "Bearer access.jwt.token",
+    );
+  });
+
   it("fetches a single admin invitation for review", async () => {
     const fetchImpl = jest
       .fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>()
@@ -208,6 +238,76 @@ describe("subscription API client", () => {
     expect(fetchImpl.mock.calls[0]?.[0]).toBe(
       "https://api.salense.test/subscription/invitations/invitation_1/archive",
     );
+    expect(new Headers(fetchImpl.mock.calls[0]?.[1]?.headers).get("authorization")).toBe(
+      "Bearer access.jwt.token",
+    );
+  });
+
+  it("restores archived invitation requests through the protected endpoint", async () => {
+    const fetchImpl = jest
+      .fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>()
+      .mockResolvedValue(
+        jsonResponse({
+          invitation: {
+            approvedAt: null,
+            archivedAt: null,
+            businessName: "Northstar Home Goods",
+            createdAt: "2026-07-06T10:00:00.000Z",
+            fullName: "Mia Lewis",
+            id: "invitation_1",
+            invitationTokenExpiresAt: null,
+            invitationTokenUsedAt: null,
+            message: null,
+            phoneNumber: null,
+            platforms: [SubscriptionPlatform.Shopify],
+            preferredPlan: SubscriptionPlan.Professional,
+            rejectedAt: null,
+            status: "PENDING",
+            updatedAt: "2026-07-06T12:00:00.000Z",
+            websiteUrl: null,
+            workEmail: "mia@northstar.example",
+          },
+          message: "Invitation request restored.",
+        }),
+      );
+    const client = createSubscriptionApiClient({ baseUrl: "https://api.salense.test", fetchImpl });
+
+    await expect(client.restoreInvitation("invitation_1", "access.jwt.token")).resolves.toMatchObject({
+      invitation: { id: "invitation_1", status: "PENDING" },
+      message: "Invitation request restored.",
+    });
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe(
+      "https://api.salense.test/subscription/invitations/invitation_1/restore",
+    );
+    expect(new Headers(fetchImpl.mock.calls[0]?.[1]?.headers).get("authorization")).toBe(
+      "Bearer access.jwt.token",
+    );
+  });
+
+  it("permanently deletes invitation requests only with explicit confirmation", async () => {
+    const fetchImpl = jest
+      .fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>()
+      .mockResolvedValue(
+        jsonResponse({
+          deleted: true,
+          message: "Invitation request permanently deleted.",
+        }),
+      );
+    const client = createSubscriptionApiClient({ baseUrl: "https://api.salense.test", fetchImpl });
+
+    await expect(
+      client.permanentlyDeleteInvitation("invitation_1", "DELETE", "access.jwt.token"),
+    ).resolves.toMatchObject({
+      deleted: true,
+      message: "Invitation request permanently deleted.",
+    });
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe(
+      "https://api.salense.test/subscription/invitations/invitation_1/delete",
+    );
+    expect(fetchImpl.mock.calls[0]?.[1]).toMatchObject({
+      body: JSON.stringify({ confirmation: "DELETE" }),
+      method: "POST",
+    });
     expect(new Headers(fetchImpl.mock.calls[0]?.[1]?.headers).get("authorization")).toBe(
       "Bearer access.jwt.token",
     );

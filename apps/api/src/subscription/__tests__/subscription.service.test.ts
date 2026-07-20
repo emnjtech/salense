@@ -1,4 +1,6 @@
 import { BadRequestException } from "@nestjs/common";
+import type { AuditLogService } from "../../audit/audit-log.service.js";
+import { AuditAction } from "../../audit/types/audit-log.type.js";
 import type { PrismaService } from "../../database/prisma.service.js";
 import type { EmailService } from "../../email/email.service.js";
 import type { BcryptPasswordHasherService } from "../../auth/security/index.js";
@@ -11,8 +13,11 @@ import { SubscriptionService } from "../subscription.service.js";
 const baseInvitation = {
   approvedAt: null,
   archivedAt: null,
+  archivedByUserId: null,
   businessName: "Northstar Home Goods",
   createdAt: new Date("2026-07-06T10:00:00.000Z"),
+  deletedAt: null,
+  deletedByUserId: null,
   fullName: "Mia Lewis",
   id: "invitation_1",
   invitationTokenExpiresAt: null,
@@ -23,6 +28,7 @@ const baseInvitation = {
   preferredPlan: SubscriptionPlan.Professional,
   rejectedAt: null,
   status: "PENDING",
+  statusBeforeArchive: null,
   updatedAt: new Date("2026-07-06T10:00:00.000Z"),
   websiteUrl: "https://northstar.example",
   workEmail: "mia@northstar.example",
@@ -44,6 +50,7 @@ function createService() {
   const hashPassword = jest.fn();
   const sendInvitationAcknowledgementEmail = jest.fn();
   const sendInvitationEmail = jest.fn();
+  const recordAudit = jest.fn();
   const service = new SubscriptionService(
     {
       client: {
@@ -62,6 +69,7 @@ function createService() {
     } as unknown as PrismaService,
     { hashPassword } as unknown as BcryptPasswordHasherService,
     { sendInvitationAcknowledgementEmail, sendInvitationEmail } as unknown as EmailService,
+    { record: recordAudit } as unknown as AuditLogService,
   );
 
   return {
@@ -71,6 +79,7 @@ function createService() {
     findMany,
     findUserUnique,
     hashPassword,
+    recordAudit,
     sendInvitationAcknowledgementEmail,
     sendInvitationEmail,
     service,
@@ -128,7 +137,7 @@ describe("SubscriptionService", () => {
     });
   });
 
-  it("lists invitations without token hashes", async () => {
+  it("lists active invitations without token hashes", async () => {
     const mocks = createService();
     mocks.findMany.mockResolvedValue([baseInvitation]);
 
@@ -143,6 +152,44 @@ describe("SubscriptionService", () => {
       ],
     });
     expect(JSON.stringify(await mocks.service.listInvitations())).not.toContain("tokenHash");
+    expect(mocks.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          AND: expect.arrayContaining([
+            { deletedAt: null },
+            expect.objectContaining({ status: expect.objectContaining({ in: expect.any(Array) }) }),
+          ]),
+        }),
+      }),
+    );
+  });
+
+  it("lists archived invitations separately", async () => {
+    const mocks = createService();
+    mocks.findMany.mockResolvedValue([
+      {
+        ...baseInvitation,
+        archivedAt: new Date("2026-07-06T12:00:00.000Z"),
+        status: "ARCHIVED",
+        statusBeforeArchive: "REJECTED",
+      },
+    ]);
+
+    await expect(mocks.service.listInvitations({ view: "archived" })).resolves.toEqual({
+      invitations: [
+        expect.objectContaining({
+          status: "ARCHIVED",
+          statusBeforeArchive: "REJECTED",
+        }),
+      ],
+    });
+    expect(mocks.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          AND: expect.arrayContaining([{ deletedAt: null }, { status: "ARCHIVED" }]),
+        }),
+      }),
+    );
   });
 
   it("returns a single invitation request for admin review without token hashes", async () => {
@@ -231,29 +278,131 @@ describe("SubscriptionService", () => {
     );
   });
 
-  it("archives a completed invitation", async () => {
+  it("archives an invitation with archive metadata and audit", async () => {
+    const mocks = createService();
+    mocks.findInvitationUnique.mockResolvedValue(baseInvitation);
+    mocks.updateInvitation.mockResolvedValue({
+      ...baseInvitation,
+      archivedAt: new Date("2026-07-06T12:00:00.000Z"),
+      archivedByUserId: "admin_1",
+      status: "ARCHIVED",
+      statusBeforeArchive: "PENDING",
+    });
+
+    await expect(mocks.service.archiveInvitation("invitation_1", "admin_1")).resolves.toEqual({
+      invitation: expect.objectContaining({ id: "invitation_1", status: "ARCHIVED" }),
+      message: "Invitation request archived.",
+    });
+    expect(mocks.updateInvitation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          archivedByUserId: "admin_1",
+          status: "ARCHIVED",
+          statusBeforeArchive: "PENDING",
+        }),
+      }),
+    );
+    expect(mocks.recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: AuditAction.InvitationArchived,
+        userId: "admin_1",
+      }),
+    );
+  });
+
+  it("restores an archived invitation to pending", async () => {
+    const mocks = createService();
+    mocks.findInvitationUnique.mockResolvedValue({
+      ...baseInvitation,
+      archivedAt: new Date("2026-07-06T12:00:00.000Z"),
+      archivedByUserId: "admin_1",
+      status: "ARCHIVED",
+      statusBeforeArchive: "REJECTED",
+    });
+    mocks.updateInvitation.mockResolvedValue({
+      ...baseInvitation,
+      status: "PENDING",
+    });
+
+    await expect(mocks.service.restoreInvitation("invitation_1", "admin_2")).resolves.toEqual({
+      invitation: expect.objectContaining({ id: "invitation_1", status: "PENDING" }),
+      message: "Invitation request restored.",
+    });
+    expect(mocks.updateInvitation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          archivedAt: null,
+          archivedByUserId: null,
+          status: "PENDING",
+          statusBeforeArchive: null,
+        }),
+      }),
+    );
+    expect(mocks.recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: AuditAction.InvitationRestored,
+        userId: "admin_2",
+      }),
+    );
+  });
+
+  it("requires explicit confirmation before permanent delete", async () => {
+    const mocks = createService();
+
+    await expect(
+      mocks.service.permanentlyDeleteInvitation("invitation_1", "delete", "admin_1"),
+    ).rejects.toThrow(BadRequestException);
+    expect(mocks.findInvitationUnique).not.toHaveBeenCalled();
+  });
+
+  it("soft deletes eligible invitations and records audit", async () => {
     const mocks = createService();
     mocks.findInvitationUnique.mockResolvedValue({
       ...baseInvitation,
       status: "REJECTED",
     });
+    mocks.findUserUnique.mockResolvedValue(null);
     mocks.updateInvitation.mockResolvedValue({
       ...baseInvitation,
-      archivedAt: new Date("2026-07-06T12:00:00.000Z"),
-      status: "ARCHIVED",
+      deletedAt: new Date("2026-07-06T12:00:00.000Z"),
+      deletedByUserId: "admin_1",
+      status: "DELETED",
     });
 
-    await expect(mocks.service.archiveInvitation("invitation_1")).resolves.toEqual({
-      invitation: expect.objectContaining({ id: "invitation_1", status: "ARCHIVED" }),
+    await expect(
+      mocks.service.permanentlyDeleteInvitation("invitation_1", "DELETE", "admin_1"),
+    ).resolves.toEqual({
+      deleted: true,
+      message: "Invitation request permanently deleted.",
     });
+    expect(mocks.recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: AuditAction.InvitationPermanentlyDeleted,
+        userId: "admin_1",
+      }),
+    );
+    expect(mocks.updateInvitation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          deletedByUserId: "admin_1",
+          status: "DELETED",
+        }),
+      }),
+    );
   });
 
-  it("prevents archiving pending invitation requests", async () => {
+  it("blocks permanent deletion for active-account-linked invitations", async () => {
     const mocks = createService();
-    mocks.findInvitationUnique.mockResolvedValue(baseInvitation);
+    mocks.findInvitationUnique.mockResolvedValue({
+      ...baseInvitation,
+      invitationTokenUsedAt: new Date("2026-07-06T12:00:00.000Z"),
+      status: "ACTIVE",
+    });
 
-    await expect(mocks.service.archiveInvitation("invitation_1")).rejects.toThrow(
-      BadRequestException,
+    await expect(
+      mocks.service.permanentlyDeleteInvitation("invitation_1", "DELETE", "admin_1"),
+    ).rejects.toThrow(
+      "This invitation request is linked to an active account and cannot be permanently deleted.",
     );
     expect(mocks.updateInvitation).not.toHaveBeenCalled();
   });

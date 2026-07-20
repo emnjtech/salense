@@ -503,6 +503,10 @@ model SubscriptionInvitation {
   approvedAt               DateTime?
   rejectedAt               DateTime?
   archivedAt               DateTime?
+  archivedByUserId         String?
+  statusBeforeArchive      String?
+  deletedAt                DateTime?
+  deletedByUserId          String?
   createdAt                DateTime  @default(now())
   updatedAt                DateTime  @updatedAt
 
@@ -510,6 +514,8 @@ model SubscriptionInvitation {
   @@index([preferredPlan])
   @@index([status])
   @@index([invitationTokenExpiresAt])
+  @@index([archivedAt])
+  @@index([deletedAt])
   @@index([createdAt])
   @@map("subscription_invitations")
 }

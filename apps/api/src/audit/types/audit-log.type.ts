@@ -17,9 +17,13 @@ export enum AuditAction {
   ScheduledSyncCreated = "SCHEDULED_SYNC_CREATED",
   ScheduledSyncRemoved = "SCHEDULED_SYNC_REMOVED",
   StoreDisconnected = "STORE_DISCONNECTED",
+  InvitationArchived = "INVITATION_ARCHIVED",
+  InvitationPermanentlyDeleted = "INVITATION_PERMANENTLY_DELETED",
+  InvitationRestored = "INVITATION_RESTORED",
 }
 
 export enum AuditLogModule {
+  PlatformAdministration = "PLATFORM_ADMINISTRATION",
   StoreIntegrations = "STORE_INTEGRATIONS",
 }
 
